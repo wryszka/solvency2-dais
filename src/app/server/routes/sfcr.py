@@ -73,6 +73,20 @@ SFCR_SECTION_IDS = {s["id"] for s in SFCR_SECTIONS}
 CITE_RE = re.compile(r"\{\{cite:([A-Za-z0-9_]+),([A-Za-z0-9._-]+)\}\}")
 
 
+def _safe_float(v: Any) -> float | None:
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fmt_eur(v: Any) -> str:
+    f = _safe_float(v)
+    return f"EUR {f:,.0f}" if f is not None else "—"
+
+
 def _parse_paragraphs(raw: str) -> list[dict[str, Any]]:
     """Convert markdown-ish text with {{cite:...}} tokens into structured paragraphs."""
     paragraphs: list[dict[str, Any]] = []
@@ -161,7 +175,7 @@ def _format_sfcr_data_block(period: str, data: dict[str, Any]) -> str:
     if data.get("s2501_breakdown"):
         parts.append("\n## 3_qrt_s2501_scr_breakdown  (SCR template)")
         for r in data["s2501_breakdown"][:30]:
-            parts.append(f"  {r['template_row_id']}  {r['template_row_label']}  EUR {r['amount_eur']:,.0f}")
+            parts.append(f"  {r['template_row_id']}  {r['template_row_label']}  {_fmt_eur(r.get('amount_eur'))}")
     if data.get("s0501"):
         parts.append(f"\n## 3_qrt_s0501_summary  (Non-life P&L)\n{json.dumps(data['s0501'][0], default=str, indent=2)}")
     if data.get("s2606"):
@@ -169,7 +183,7 @@ def _format_sfcr_data_block(period: str, data: dict[str, Any]) -> str:
     if data.get("s2606_breakdown"):
         parts.append("\n## 3_qrt_s2606_nl_uw_risk  (NL UW template)")
         for r in data["s2606_breakdown"][:20]:
-            parts.append(f"  {r['template_row_id']}  {r['template_row_label']}  EUR {r['amount_eur']:,.0f}")
+            parts.append(f"  {r['template_row_id']}  {r['template_row_label']}  {_fmt_eur(r.get('amount_eur'))}")
     if data.get("s1201"):
         parts.append(f"\n## 3_qrt_s1201_summary  (Life TPs)\n{json.dumps(data['s1201'][0], default=str, indent=2)}")
     if data.get("lifeuw"):
@@ -177,7 +191,7 @@ def _format_sfcr_data_block(period: str, data: dict[str, Any]) -> str:
     if data.get("lifeuw_breakdown"):
         parts.append("\n## 3_qrt_life_uw_risk  (Life UW template)")
         for r in data["lifeuw_breakdown"][:20]:
-            parts.append(f"  {r['template_row_id']}  {r['template_row_label']}  EUR {r['amount_eur']:,.0f}")
+            parts.append(f"  {r['template_row_id']}  {r['template_row_label']}  {_fmt_eur(r.get('amount_eur'))}")
     return "\n".join(parts)
 
 

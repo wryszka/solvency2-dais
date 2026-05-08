@@ -51,6 +51,20 @@ DEFAULT_OP_RISK_FACTOR = 0.03
 DEFAULT_LAC_DT = 0.10
 
 
+def _safe_float(v: Any) -> float | None:
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fmt_eur(v: Any) -> str:
+    f = _safe_float(v)
+    return f"EUR {f:,.0f}" if f is not None else "—"
+
+
 # ── Scenario seed catalog ───────────────────────────────────────────────────
 DEFAULT_SCENARIOS: list[dict[str, Any]] = [
     {
@@ -542,7 +556,7 @@ async def generate_narrative(req: OrsaNarrativeRequest, request: Request):
         flag = "base" if r["is_base"] else "scenario"
         cap_lines.append(
             f"- year {r['year_offset']} ({r['projection_year']}) {flag}: "
-            f"SCR EUR {r['scr_eur']:,.0f}, OF EUR {r['eligible_own_funds_eur']:,.0f}, "
+            f"SCR {_fmt_eur(r.get('scr_eur'))}, OF {_fmt_eur(r.get('eligible_own_funds_eur'))}, "
             f"ratio {r['solvency_ratio_pct']}%"
         )
 
@@ -555,9 +569,10 @@ async def generate_narrative(req: OrsaNarrativeRequest, request: Request):
             base_mods = json.loads(y0_base["module_breakdown_json"])
             stress_mods = json.loads(y0_stress["module_breakdown_json"])
             for k in BSCR_LABELS:
-                b = base_mods.get(k, 0.0); s = stress_mods.get(k, 0.0)
+                b = _safe_float(base_mods.get(k)) or 0.0
+                s = _safe_float(stress_mods.get(k)) or 0.0
                 delta_pct = round((s - b) / b * 100, 1) if b else 0.0
-                mod_lines.append(f"- {k}: base EUR {b:,.0f} → scenario EUR {s:,.0f} ({delta_pct:+}%)")
+                mod_lines.append(f"- {k}: base {_fmt_eur(b)} → scenario {_fmt_eur(s)} ({delta_pct:+}%)")
         except Exception:
             pass
 

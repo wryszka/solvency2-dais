@@ -133,6 +133,14 @@ export default function Afr() {
           Article 48 of Solvency II Directive — four sections, each grounded in current SCR /
           model / DQ / ORSA evidence. AI drafts; appointed actuary reviews + approves.
         </p>
+        <div className="mt-3 bg-green-50 border border-green-200 rounded-md px-3 py-2 text-xs text-green-900">
+          <span className="font-semibold">Drafting workspace.</span> Four cards below — one per
+          Article 48 section. Click <span className="font-semibold">Generate draft</span> on any
+          card to have the AI write it from the latest gold-table data, then review, edit in
+          place, and <span className="font-semibold">Approve</span>. The PDF export at the top
+          stitches the latest version of every approved section into one document with a
+          SHA-256 content hash in the footer.
+        </div>
       </div>
 
       {topError && (
@@ -164,6 +172,7 @@ export default function Afr() {
               <SectionEditor
                 key={sec.id}
                 sectionTitle={sec.title}
+                sectionSummary={sec.summary}
                 status={s.status}
                 version={s.version}
                 text={s.text}

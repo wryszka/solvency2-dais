@@ -182,6 +182,12 @@ export function SfcrLikePage(props: SfcrLikePageProps) {
           <PillarChip pillar={props.pillar} size="md" />
         </h2>
         <p className="text-sm text-gray-500 mt-1">{props.docSubtitle}</p>
+        <div className="mt-3 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-xs text-amber-900">
+          <span className="font-semibold">Drafting workspace.</span> Each card below is one section
+          of the {props.docName}. Click <span className="font-semibold">Generate draft</span> on any
+          section to ask the AI to write it, grounded in the gold-table data for the chosen period.
+          Review, edit in place, then <span className="font-semibold">Approve</span> when satisfied.
+        </div>
       </div>
 
       {topError && (
@@ -214,6 +220,8 @@ export function SfcrLikePage(props: SfcrLikePageProps) {
               <SectionEditor
                 key={sec.id}
                 sectionTitle={sec.title}
+                sectionSummary={sec.summary}
+                citations={[]}
                 status={s.status}
                 version={s.version}
                 text={s.text}

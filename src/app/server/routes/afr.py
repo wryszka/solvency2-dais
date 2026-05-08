@@ -51,6 +51,20 @@ SECTION_TITLES: dict[str, str] = {
     "ri_adequacy":        "Opinion on the Adequacy of Reinsurance Arrangements",
     "internal_model":     "Contribution to Risk-Management Implementation",
 }
+SECTION_SUMMARIES: dict[str, str] = {
+    "tps_adequacy":       "Whether the technical-provisions methodology, assumptions and "
+                          "outcomes are sufficient and reasonable in light of recent claims "
+                          "experience, IBNR, and any line-of-business concerns.",
+    "uw_policy_adequacy": "Whether the underwriting policy is adequate to the company's risk "
+                          "profile — premium adequacy, observed combined ratios, alignment "
+                          "with the SCR sub-modules.",
+    "ri_adequacy":        "Whether the reinsurance programme is adequate for the risks "
+                          "underwritten — cession behaviour, broker performance, and any "
+                          "data-quality concerns from the reinsurance feed.",
+    "internal_model":     "How the actuarial function contributes to risk management — "
+                          "model versions in scope, ORSA outcomes, controls operated over "
+                          "model runs and approvals.",
+}
 
 # Section-specific prompts. Each gets the SAME data block (so all four are
 # grounded in the same evidence) but a different framing instruction.
@@ -202,21 +216,38 @@ async def _gather_data(period: str | None) -> tuple[str, dict[str, Any]]:
     }
 
 
+def _safe_float(v: Any) -> float | None:
+    """SQL execute_query returns numeric columns as strings — coerce defensively."""
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fmt_eur(v: Any) -> str:
+    f = _safe_float(v)
+    return f"EUR {f:,.0f}" if f is not None else "—"
+
+
 def _format_data_block(period: str, data: dict[str, Any]) -> str:
     """Render the structured data block as readable prose for the prompt."""
     parts = [f"# Reporting period: {period}\n"]
 
     if data["s2501_summary"]:
         s = data["s2501_summary"]
-        parts.append(f"## Solvency position\n"
-                     f"- SCR: EUR {s.get('scr_eur', '—'):,}\n"
-                     f"- Eligible own funds: EUR {s.get('eligible_own_funds_eur', '—'):,}\n"
-                     f"- Solvency ratio: {s.get('solvency_ratio_pct', '—')}%")
+        parts.append(
+            "## Solvency position\n"
+            f"- SCR: {_fmt_eur(s.get('scr_eur'))}\n"
+            f"- Eligible own funds: {_fmt_eur(s.get('eligible_own_funds_eur'))}\n"
+            f"- Solvency ratio: {s.get('solvency_ratio_pct', '—')}%"
+        )
 
     if data["scr_breakdown"]:
         parts.append("## SCR breakdown")
         for row in data["scr_breakdown"]:
-            parts.append(f"- {row['component']}: EUR {row['amount_eur']:,.0f}")
+            parts.append(f"- {row['component']}: {_fmt_eur(row.get('amount_eur'))}")
 
     if data["s0501_summary"]:
         s = data["s0501_summary"]
@@ -250,7 +281,7 @@ def _format_data_block(period: str, data: dict[str, Any]) -> str:
             flag = "base" if r.get("is_base") else "scenario"
             parts.append(
                 f"- {r.get('scenario_name')} year+{r.get('year_offset')} {flag}: "
-                f"SCR EUR {r.get('scr_eur'):,.0f}, ratio {r.get('solvency_ratio_pct')}%"
+                f"SCR {_fmt_eur(r.get('scr_eur'))}, ratio {r.get('solvency_ratio_pct')}%"
             )
 
     return "\n\n".join(parts)
@@ -274,7 +305,10 @@ class ApproveRequest(BaseModel):
 
 @router.get("/sections")
 async def list_sections():
-    return {"sections": [{"id": k, "title": SECTION_TITLES[k]} for k in SECTION_IDS]}
+    return {"sections": [
+        {"id": k, "title": SECTION_TITLES[k], "summary": SECTION_SUMMARIES.get(k, "")}
+        for k in SECTION_IDS
+    ]}
 
 
 @router.get("/drafts")

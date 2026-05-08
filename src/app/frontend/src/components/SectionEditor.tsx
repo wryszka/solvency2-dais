@@ -13,6 +13,8 @@ import type { Citation } from '../lib/api';
 
 export interface SectionEditorProps {
   sectionTitle: string;
+  /** Short prose telling the reader what this section is meant to contain. */
+  sectionSummary?: string;
   status?: string;
   version?: number;
   /** When true, the editor is read-only (e.g. approved drafts). */
@@ -56,16 +58,33 @@ export default function SectionEditor(props: SectionEditorProps) {
       </header>
 
       <div className="p-4 space-y-3">
+        {props.sectionSummary && (
+          <p className="text-xs text-gray-600 leading-relaxed bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+            <span className="font-semibold text-gray-800">What this section covers — </span>
+            {props.sectionSummary}
+          </p>
+        )}
+
         {showPreview ? (
           <ContentPreview text={props.text} citations={props.citations} />
-        ) : (
+        ) : props.text ? (
           <textarea
             value={props.text}
             onChange={(e) => props.onChange(e.target.value)}
             readOnly={props.readOnly}
-            placeholder="Generate or paste section content here. Use {{cite:TABLE,CELL}} tokens to anchor citations (SFCR/RSR only)."
+            placeholder="Generate or paste section content here."
             className="w-full min-h-[280px] text-sm font-mono leading-relaxed border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200 resize-y"
           />
+        ) : (
+          <div className="border-2 border-dashed border-gray-200 rounded-md px-4 py-10 text-center">
+            <Sparkles className="w-5 h-5 text-violet-500 mx-auto mb-2" />
+            <p className="text-sm text-gray-700">No draft yet for this section.</p>
+            <p className="text-xs text-gray-500 mt-1">
+              Click <span className="font-semibold text-violet-700">Generate draft</span> below to ask
+              the AI to draft this section, grounded in the latest gold-table data.
+              {props.citations !== undefined && ' Inline citation chips will anchor every quantitative claim to its source.'}
+            </p>
+          </div>
         )}
 
         <div className="flex items-center gap-2 flex-wrap">

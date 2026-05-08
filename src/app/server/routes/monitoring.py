@@ -14,6 +14,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
 
 
+def _safe_float(v) -> float | None:
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fmt_eur(v) -> str:
+    f = _safe_float(v)
+    return f"EUR {f:,.0f}" if f is not None else "EUR 0"
+
+
 @router.get("/sla-status")
 async def get_sla_status(period: str = Query(None)):
     """Feed arrival status vs SLA deadlines."""
@@ -227,7 +241,7 @@ async def q4_pain_summary():
                 "fired": int(e_row.get("dup_rows", 0) or 0) > 0,
                 "severity": "high" if int(e_row.get("dup_rows", 0) or 0) > 0 else "ok",
                 "headline": (
-                    f"duplicate ISIN custodian row of EUR {e_row.get('dup_eur', 0):,.0f} not in own funds"
+                    f"duplicate ISIN custodian row of {_fmt_eur(e_row.get('dup_eur'))} not in own funds"
                     if int(e_row.get("dup_rows", 0) or 0) > 0 else "no duplicates"
                 ),
                 "drill_path": "/assets",
