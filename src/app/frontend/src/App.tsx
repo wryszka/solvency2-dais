@@ -1,5 +1,9 @@
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Building2, FileText, BarChart3, Activity, ShieldCheck, Bot, Code2, Home, Archive as ArchiveIcon } from 'lucide-react';
+import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
+import {
+  Building2, FileText, BarChart3, Activity, ShieldCheck, Bot, Code2, Home,
+  Archive as ArchiveIcon, Shield, Landmark, Flame, FlaskConical,
+  Scale, Workflow, BookOpen, Lock, Newspaper, ScrollText,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Landing from './pages/Landing';
 import Monitor from './pages/Monitor';
@@ -10,51 +14,127 @@ import Dashboard from './pages/Dashboard';
 import Genie from './pages/Genie';
 import RegulatorQA from './pages/RegulatorQA';
 import Archive from './pages/Archive';
+import PillarPagePlaceholder from './components/PillarPagePlaceholder';
+import PillarChip, { type Pillar } from './components/PillarChip';
 
-function NavLink({ to, icon: Icon, label }: { to: string; icon: React.ComponentType<{ className?: string }>; label: string }) {
+interface NavEntry {
+  to: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  pillar: Pillar;
+}
+
+interface NavSection {
+  heading: string;
+  pillar: Pillar;
+  entries: NavEntry[];
+}
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    heading: 'Control',
+    pillar: 'cross',
+    entries: [
+      { to: '/',              icon: Home,         label: 'Home',          pillar: 'cross' },
+      { to: '/monitor',       icon: Activity,     label: 'Control Tower', pillar: 'cross' },
+      { to: '/data-quality',  icon: ShieldCheck,  label: 'Data Quality',  pillar: 'cross' },
+    ],
+  },
+  {
+    heading: 'Pillar 1 — Capital',
+    pillar: 1,
+    entries: [
+      { to: '/scr',                icon: Shield,        label: 'SCR & Standard Formula',     pillar: 1 },
+      { to: '/reserving-pnc',      icon: BarChart3,     label: 'Reserving & TPs (P&C)',      pillar: 1 },
+      { to: '/reserving-life',     icon: BookOpen,      label: 'Reserving & TPs (Life)',     pillar: 1 },
+      { to: '/nl-uw-risk',         icon: Flame,         label: 'Non-Life UW Risk',           pillar: 1 },
+      { to: '/life-uw-risk',       icon: FlaskConical,  label: 'Life UW Risk',               pillar: 1 },
+      { to: '/assets',             icon: Landmark,      label: 'Asset Register',             pillar: 1 },
+    ],
+  },
+  {
+    heading: 'Pillar 2 — Governance',
+    pillar: 2,
+    entries: [
+      { to: '/orsa',               icon: Workflow,      label: 'ORSA',                       pillar: 2 },
+      { to: '/model-governance',   icon: Scale,         label: 'Model Governance',           pillar: 2 },
+      { to: '/afr',                icon: ScrollText,    label: 'Actuarial Function',         pillar: 2 },
+      { to: '/internal-controls',  icon: Lock,          label: 'Internal Controls',          pillar: 2 },
+    ],
+  },
+  {
+    heading: 'Pillar 3 — Disclosure',
+    pillar: 3,
+    entries: [
+      { to: '/archive',            icon: ArchiveIcon,   label: 'QRT Submission Pack',        pillar: 3 },
+      { to: '/sfcr',               icon: Newspaper,     label: 'SFCR (Public)',              pillar: 3 },
+      { to: '/rsr',                icon: FileText,      label: 'RSR (Supervisor)',           pillar: 3 },
+      { to: '/regulator-qa',       icon: Bot,           label: 'Regulator Q&A',              pillar: 3 },
+    ],
+  },
+];
+
+function NavLink({ entry }: { entry: NavEntry }) {
   const { pathname } = useLocation();
-  const active = pathname === to || (to !== '/' && pathname.startsWith(to));
+  const active = pathname === entry.to || (entry.to !== '/' && pathname.startsWith(entry.to));
+  const Icon = entry.icon;
   return (
     <Link
-      to={to}
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
+      to={entry.to}
+      className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-colors ${
         active ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'
       }`}
     >
       <Icon className="w-4 h-4 shrink-0" />
-      <span className="truncate">{label}</span>
+      <span className="truncate flex-1">{entry.label}</span>
+      <PillarChip pillar={entry.pillar} size="sm" />
     </Link>
+  );
+}
+
+function NavSectionHeader({ section }: { section: NavSection }) {
+  // Section heading text uses the pillar colour at full saturation; the
+  // following bar uses the same colour at lower opacity so the relationship
+  // is unmistakeable. Cross-pillar uses slate.
+  const colorVar = section.pillar === 'cross'
+    ? 'var(--color-cross-border)'
+    : `var(--color-pillar-${section.pillar}-border)`;
+  return (
+    <div className="px-3 pt-4 pb-1.5 text-[10px] uppercase tracking-wider font-semibold flex items-center gap-2"
+         style={{ color: colorVar }}>
+      <span>{section.heading}</span>
+      <span className="flex-1 h-px" style={{ background: colorVar, opacity: 0.5 }} />
+    </div>
   );
 }
 
 function Sidebar() {
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-56 bg-[#1e293b] text-white flex flex-col">
+    <aside className="fixed left-0 top-0 bottom-0 w-60 bg-[#1e293b] text-white flex flex-col">
       {/* Brand */}
       <Link to="/" className="flex items-center gap-3 px-4 py-4 border-b border-white/10 hover:opacity-90 transition-opacity">
         <FileText className="w-6 h-6 text-blue-400 shrink-0" />
         <div className="min-w-0">
           <h1 className="text-base font-bold tracking-tight truncate">Solvency II</h1>
-          <p className="text-[10px] text-gray-400 truncate">Reporting & Approval</p>
+          <p className="text-[10px] text-gray-400 truncate">Composite — Reporting & Governance</p>
         </div>
       </Link>
 
-      {/* Nav links */}
-      <nav className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto">
-        <NavLink to="/" icon={Home} label="Home" />
-        <NavLink to="/monitor" icon={Activity} label="Monitor" />
-        <NavLink to="/data-quality" icon={ShieldCheck} label="Data Quality" />
-        <NavLink to="/reports" icon={FileText} label="Reports" />
-        <NavLink to="/archive" icon={ArchiveIcon} label="Archive" />
-        <NavLink to="/dashboard" icon={BarChart3} label="Dashboards" />
-        <NavLink to="/regulator-qa" icon={Bot} label="Regulatory AI" />
+      {/* Sections */}
+      <nav className="flex-1 flex flex-col gap-0.5 p-2 overflow-y-auto">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.heading}>
+            <NavSectionHeader section={section} />
+            {section.entries.map((entry) => <NavLink key={entry.to} entry={entry} />)}
+          </div>
+        ))}
       </nav>
 
-      {/* Footer — entity + signed-in user + backstage */}
+      {/* Footer */}
       <div className="border-t border-white/10 p-3 space-y-2 text-xs text-gray-400">
         <div className="flex items-center gap-2 min-w-0">
           <Building2 className="w-3.5 h-3.5 shrink-0" />
-          <span className="font-medium text-gray-300 truncate">Bricksurance SE</span>
+          <span className="font-medium text-gray-300 truncate">Bricksurance SE — Composite</span>
         </div>
         <div className="flex items-center justify-between gap-2">
           <SignedInUser />
@@ -104,17 +184,38 @@ export default function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-gray-100 font-[system-ui]">
         <Sidebar />
-        <main className="ml-56">
+        <main className="ml-60">
           <Routes>
+            {/* Control */}
             <Route path="/" element={<Landing />} />
-            <Route path="/reports" element={<ReportsList />} />
             <Route path="/monitor" element={<Monitor />} />
-            <Route path="/report/:qrtId" element={<ReportDetail />} />
             <Route path="/data-quality" element={<DataQuality />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/regulator-qa" element={<RegulatorQA />} />
-            <Route path="/archive" element={<Archive />} />
-            <Route path="/genie" element={<Genie />} />
+
+            {/* Pillar 1 — Capital. Pretty URLs redirect to the legacy QRT routes. */}
+            <Route path="/scr"             element={<Navigate to="/report/s2501" replace />} />
+            <Route path="/reserving-pnc"   element={<Navigate to="/report/s0501" replace />} />
+            <Route path="/reserving-life"  element={<PillarPagePlaceholder pillar={1} title="Reserving & TPs (Life)" subtitle="S.12.01 — Life and Health (SLT) Technical Provisions" comingIn="Phase 2.3" fallbackHint="View latest QRT pack" fallbackPath="/archive" />} />
+            <Route path="/nl-uw-risk"      element={<Navigate to="/report/s2606" replace />} />
+            <Route path="/life-uw-risk"    element={<PillarPagePlaceholder pillar={1} title="Life UW Risk" subtitle="Prophet stochastic engine — mortality, longevity, lapse, expense, life cat" comingIn="Phase 2.3" fallbackHint="View Prophet run log" fallbackPath="/monitor" />} />
+            <Route path="/assets"          element={<Navigate to="/report/s0602" replace />} />
+
+            {/* Pillar 2 — Governance */}
+            <Route path="/orsa"               element={<PillarPagePlaceholder pillar={2} title="ORSA — Own Risk and Solvency Assessment" subtitle="Scenario-based capital adequacy projection over 3 years" comingIn="Phase 2.5" fallbackHint="View base SCR" fallbackPath="/scr" />} />
+            <Route path="/model-governance"   element={<PillarPagePlaceholder pillar={2} title="Model Governance" subtitle="Champion vs Challenger comparison + audit trail" comingIn="Phase 2.9" fallbackHint="View SCR breakdown" fallbackPath="/scr" />} />
+            <Route path="/afr"                element={<PillarPagePlaceholder pillar={2} title="Actuarial Function Report (Article 48)" subtitle="TPs adequacy · UW adequacy · RI adequacy · Internal model opinion" comingIn="Phase 2.6" fallbackHint="View QRT pack" fallbackPath="/archive" />} />
+            <Route path="/internal-controls"  element={<PillarPagePlaceholder pillar={2} title="Internal Controls" subtitle="12 AI guardrail controls × 7 layers; live audit trail" comingIn="Phase 2.10" fallbackHint="View Regulator Q&A" fallbackPath="/regulator-qa" />} />
+
+            {/* Pillar 3 — Disclosure */}
+            <Route path="/archive"            element={<Archive />} />
+            <Route path="/sfcr"               element={<PillarPagePlaceholder pillar={3} title="SFCR — Solvency and Financial Condition Report" subtitle="Public disclosure narrative, section by section, with cell-level citations" comingIn="Phase 2.7" fallbackHint="View QRT pack" fallbackPath="/archive" />} />
+            <Route path="/rsr"                element={<PillarPagePlaceholder pillar={3} title="RSR — Regular Supervisory Report" subtitle="Supervisor-only disclosure (lighter than SFCR)" comingIn="Phase 2.8" fallbackHint="View QRT pack" fallbackPath="/archive" />} />
+            <Route path="/regulator-qa"       element={<RegulatorQA />} />
+
+            {/* Other / legacy */}
+            <Route path="/reports"            element={<ReportsList />} />
+            <Route path="/dashboard"          element={<Dashboard />} />
+            <Route path="/report/:qrtId"      element={<ReportDetail />} />
+            <Route path="/genie"              element={<Genie />} />
           </Routes>
         </main>
       </div>

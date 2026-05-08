@@ -1,1 +1,25 @@
 @import "tailwindcss";
+
+/* ── Solvency II pillar design system ─────────────────────────────────
+   Use semantically: pillar-1 (Capital), pillar-2 (Governance),
+   pillar-3 (Disclosure), cross (cross-pillar). Available as Tailwind
+   utility classes (text-pillar-1, bg-pillar-1, border-pillar-1, ...)
+   and as CSS variables (var(--color-pillar-1)) for inline styles.
+*/
+@theme {
+  --color-pillar-1: #1e40af;    /* Capital — blue-800 */
+  --color-pillar-1-soft: #dbeafe;
+  --color-pillar-1-border: #93c5fd;
+
+  --color-pillar-2: #15803d;    /* Governance — green-700 */
+  --color-pillar-2-soft: #dcfce7;
+  --color-pillar-2-border: #86efac;
+
+  --color-pillar-3: #b45309;    /* Disclosure — amber-700 */
+  --color-pillar-3-soft: #fef3c7;
+  --color-pillar-3-border: #fcd34d;
+
+  --color-cross: #475569;       /* Cross-pillar — slate-600 */
+  --color-cross-soft: #f1f5f9;
+  --color-cross-border: #cbd5e1;
+}
