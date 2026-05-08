@@ -28,6 +28,7 @@ import ActuarialLab from './pages/ActuarialLab';
 import LabModelDetail from './pages/LabModelDetail';
 import PillarChip, { type Pillar } from './components/PillarChip';
 import DemoModeToggle from './components/DemoModeToggle';
+import WorkbenchAssistant from './components/WorkbenchAssistant';
 
 interface NavEntry {
   to: string;
@@ -249,6 +250,7 @@ export default function App() {
             <Route path="/genie"              element={<Genie />} />
           </Routes>
         </main>
+        <WorkbenchAssistant />
       </div>
     </BrowserRouter>
   );

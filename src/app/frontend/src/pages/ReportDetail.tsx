@@ -7,6 +7,7 @@ import {
   AlertTriangle, Eye,
 } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
+import AuditPanel from '../components/AuditPanel';
 import {
   fetchContent, fetchQuality, fetchComparison, fetchLineage, fetchApproval,
   submitForReview, reviewApproval, generateCertificate, downloadFile,
@@ -25,7 +26,7 @@ const QRT_TITLES: Record<string, { name: string; title: string }> = {
   s2606: { name: 'S.26.06', title: 'NL Underwriting Risk' },
 };
 
-type Tab = 'content' | 'quality' | 'comparison' | 'reconciliation' | 'template' | 'lineage' | 'model' | 'stochastic' | 'approval';
+type Tab = 'content' | 'comparison' | 'reconciliation' | 'template' | 'audit';
 
 export default function ReportDetail() {
   const { qrtId } = useParams<{ qrtId: string }>();
@@ -43,14 +44,10 @@ export default function ReportDetail() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'content', label: 'Content' },
-    { id: 'quality', label: 'Data Quality' },
     { id: 'comparison', label: 'Period Comparison' },
     { id: 'reconciliation', label: 'Reconciliation' },
     { id: 'template', label: 'EIOPA Template' },
-    { id: 'lineage', label: 'Lineage' },
-    ...(qrtId === 's2501' ? [{ id: 'model' as Tab, label: 'Model Governance' }] : []),
-    ...(qrtId === 's2606' ? [{ id: 'stochastic' as Tab, label: 'Stochastic Engine' }] : []),
-    { id: 'approval', label: 'Approve / Export' },
+    { id: 'audit', label: 'Audit' },
   ];
 
   return (
@@ -81,17 +78,19 @@ export default function ReportDetail() {
       </div>
 
       {tab === 'content' && <ContentTab qrtId={qrtId} />}
-      {tab === 'quality' && <QualityTab qrtId={qrtId} />}
       {tab === 'comparison' && <ComparisonTab qrtId={qrtId} />}
       {tab === 'reconciliation' && <ReconciliationTab />}
       {tab === 'template' && <TemplateTab qrtId={qrtId} />}
-      {tab === 'lineage' && <LineageTab qrtId={qrtId} />}
-      {tab === 'model' && qrtId === 's2501' && <ModelGovernanceTab />}
-      {tab === 'stochastic' && qrtId === 's2606' && <StochasticEngineTab />}
-      {tab === 'approval' && <ApprovalTab qrtId={qrtId} />}
+      {tab === 'audit' && <AuditPanel qrtId={qrtId} />}
     </div>
   );
 }
+
+/* eslint-disable @typescript-eslint/no-unused-vars */
+// Tabs below — QualityTab / LineageTab / ApprovalTab / ModelGovernanceTab /
+// StochasticEngineTab — were absorbed into AuditPanel. Kept for now to
+// preserve their helper utilities and the AI-review wiring; will be cleaned up
+// after the audit panel UX is validated.
 
 /* ═══════ Content Tab ═══════ */
 function ContentTab({ qrtId }: { qrtId: string }) {
@@ -1949,3 +1948,9 @@ function Empty({ msg }: { msg: string }) {
     <div className="flex justify-center py-12 text-gray-400">{msg}</div>
   );
 }
+
+// Components absorbed into AuditPanel — kept temporarily to preserve helper utilities
+// and AI-review wiring. void references suppress noUnusedLocals while we validate
+// the new audit panel UX before deletion.
+void QualityTab; void LineageTab; void ApprovalTab; void ModelGovernanceTab; void StochasticEngineTab;
+

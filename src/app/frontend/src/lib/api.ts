@@ -857,3 +857,52 @@ export async function fetchGovernanceSummary(period?: string): Promise<{
 }> {
   return fetchJson(`/api/governance/summary${period ? `?period=${encodeURIComponent(period)}` : ''}`);
 }
+
+// ─── Audit panel ─────────────────────────────────────────────────────
+
+export interface AuditPanelData {
+  qrt_id: string;
+  period: string | null;
+  data: {
+    qrt_table: string;
+    qrt_history: Row[];
+    source_tables: {
+      name: string;
+      layer: string;
+      columns_used: string[];
+      described: string;
+      row_count: number | null;
+      history: Row[];
+    }[];
+  };
+  code: {
+    notebooks: { path: string; described: string }[];
+    recent_runs: Row[];
+  };
+  models: {
+    model_name: string;
+    model_type?: string;
+    to_version: string | null;
+    quarter: string | null;
+    approver: string | null;
+    approved_at: string | null;
+  }[];
+  approvals_overlays: {
+    approvals: Row[];
+    overlays: Overlay[];
+  };
+  lineage: {
+    produced_by: string[];
+    source_tables: { name: string; layer: string; described: string }[];
+    qrt_table: string;
+    summary_table: string;
+  };
+}
+
+export async function fetchAuditPanel(qrt_id: string, period?: string): Promise<AuditPanelData> {
+  return fetchJson(`/api/qrt/${qrt_id}/audit${period ? `?period=${encodeURIComponent(period)}` : ''}`);
+}
+
+export async function fetchQrtVersions(qrt_id: string): Promise<{ qrt_table: string; history: Row[] }> {
+  return fetchJson(`/api/qrt/${qrt_id}/versions`);
+}

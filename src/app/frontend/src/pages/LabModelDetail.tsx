@@ -22,6 +22,7 @@ import {
   fetchOverlays,
   type ModelDetail, type ModelDiagnostic, type PromotionRow, type Overlay,
 } from '../lib/api';
+import SeniorReservingPanel from '../components/SeniorReservingPanel';
 
 type Tab = 'versions' | 'diagnostics' | 'approvals' | 'lineage' | 'promote';
 
@@ -126,6 +127,10 @@ export default function LabModelDetail() {
           </button>
         ))}
       </div>
+
+      {(detail.model_id === 'reserving_pnc' || detail.model_id === 'reserving_life') && (
+        <SeniorReservingPanel />
+      )}
 
       {tab === 'versions' && <VersionsTab detail={detail} />}
       {tab === 'diagnostics' && <DiagnosticsTab diagnostics={diagnostics} />}
