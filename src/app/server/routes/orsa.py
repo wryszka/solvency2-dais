@@ -29,6 +29,9 @@ from pydantic import BaseModel
 from server.config import fqn, get_request_user
 from server.sql import execute_query, execute_query_cached
 from server.ai import generate_review
+from server.cache import (
+    cache_lookup, cache_persist, cache_miss_503, make_cache_key, should_use_cache,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/orsa", tags=["orsa"])
@@ -470,7 +473,13 @@ async def get_run(run_id: str):
 
 # ── Narrative generation ─────────────────────────────────────────────────────
 
-ORSA_NARRATIVE_SYSTEM = """You are the Chief Risk Officer of Bricksurance SE, a mid-size European
+ORSA_NARRATIVE_SYSTEM = """[Pillar context — Pillar 2 Governance]
+ORSA is a Pillar 2 governance deliverable. The narrative you draft becomes evidence for
+AFR Section 4 (implementation of risk management) and is summarised in the SFCR Risk
+Profile / Capital Management sections (Pillar 3). Make the cross-pillar consequences
+explicit when material.
+
+You are the Chief Risk Officer of Bricksurance SE, a mid-size European
 composite insurer (P&C + Life on one balance sheet). You write the ORSA scenario commentary
 for the Board's risk committee. Tone: precise, factual, conservative. Length: 200–300 words
 of plain prose. Refer only to the numbers in the data block. Do NOT recommend regulatory
@@ -511,6 +520,17 @@ async def generate_narrative(req: OrsaNarrativeRequest, request: Request):
     )
     if not rows:
         raise HTTPException(404, "Run not found")
+
+    # Demo cache: keyed by (scenario, period). Same scenario across runs hits same cache.
+    scenario_id_for_cache = rows[0]["scenario_id"]
+    base_period_for_cache = rows[0]["base_period"]
+    cache_key = make_cache_key("orsa_narrative", scenario_id_for_cache, base_period_for_cache)
+    if should_use_cache(request):
+        cached = await cache_lookup(cache_key)
+        if cached:
+            return cached
+        if request.query_params.get("cached") in ("1", "true", "yes", "on"):
+            raise cache_miss_503()
 
     scenario_name = rows[0]["scenario_name"]
     scenario_id = rows[0]["scenario_id"]
@@ -592,7 +612,7 @@ async def generate_narrative(req: OrsaNarrativeRequest, request: Request):
         ],
     )
 
-    return {
+    response = {
         "narrative_id": narrative_id,
         "run_id": req.run_id,
         "version": version,
@@ -601,6 +621,10 @@ async def generate_narrative(req: OrsaNarrativeRequest, request: Request):
         "input_tokens": result.input_tokens,
         "output_tokens": result.output_tokens,
     }
+    # Persist to demo cache for fallback playback
+    await cache_persist(cache_key, "orsa_narrative", scenario_id_for_cache,
+                        base_period_for_cache, response, user=user)
+    return response
 
 
 @router.get("/narratives/{run_id}")

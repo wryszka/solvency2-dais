@@ -20,8 +20,10 @@ import Sfcr from './pages/Sfcr';
 import Rsr from './pages/Rsr';
 import ModelGovernance from './pages/ModelGovernance';
 import InternalControls from './pages/InternalControls';
+import Architecture from './pages/Architecture';
 import PillarPagePlaceholder from './components/PillarPagePlaceholder';
 import PillarChip, { type Pillar } from './components/PillarChip';
+import DemoModeToggle from './components/DemoModeToggle';
 
 interface NavEntry {
   to: string;
@@ -144,7 +146,10 @@ function Sidebar() {
         </div>
         <div className="flex items-center justify-between gap-2">
           <SignedInUser />
-          <BackstageLink />
+          <div className="flex items-center gap-1.5">
+            <DemoModeToggle />
+            <BackstageLink />
+          </div>
         </div>
       </div>
     </aside>
@@ -216,6 +221,9 @@ export default function App() {
             <Route path="/sfcr"               element={<Sfcr />} />
             <Route path="/rsr"                element={<Rsr />} />
             <Route path="/regulator-qa"       element={<RegulatorQA />} />
+
+            {/* Architecture asset */}
+            <Route path="/architecture"       element={<Architecture />} />
 
             {/* Other / legacy */}
             <Route path="/reports"            element={<ReportsList />} />

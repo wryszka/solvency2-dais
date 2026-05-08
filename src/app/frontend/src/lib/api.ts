@@ -1,13 +1,36 @@
 const BASE = '';
 
+// Routes that participate in the demo cache. When the user's DemoModeToggle
+// is set to 'cached', we add ?cached=1 to these URLs so the backend serves
+// pre-baked AI output instead of calling the FM API live.
+const CACHED_ROUTE_PREFIXES = [
+  '/api/orsa/narrative',
+  '/api/afr/draft',
+  '/api/sfcr/draft',
+  '/api/rsr/draft',
+];
+
+function shouldUseCache(url: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const mode = window.localStorage.getItem('demo_mode');
+  if (mode !== 'cached') return false;
+  return CACHED_ROUTE_PREFIXES.some((p) => url.startsWith(p));
+}
+
+function withCacheFlag(url: string): string {
+  if (!shouldUseCache(url)) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}cached=1`;
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(`${BASE}${url}`);
+  const res = await fetch(`${BASE}${withCacheFlag(url)}`);
   if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
   return res.json();
 }
 
 async function postJson<T>(url: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${url}`, {
+  const res = await fetch(`${BASE}${withCacheFlag(url)}`, {
     method: 'POST',
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,

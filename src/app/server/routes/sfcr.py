@@ -29,6 +29,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from server.ai import generate_review
+from server.cache import (
+    cache_lookup, cache_persist, cache_miss_503, make_cache_key, should_use_cache,
+)
 from server.config import fqn, get_request_user
 from server.sql import execute_query
 
@@ -180,7 +183,13 @@ def _format_sfcr_data_block(period: str, data: dict[str, Any]) -> str:
 
 # ── Prompts ─────────────────────────────────────────────────────────────────
 
-SFCR_SYSTEM = """You are drafting a Solvency and Financial Condition Report (SFCR) under
+SFCR_SYSTEM = """[Pillar context — Pillar 3 Disclosure]
+The SFCR is the public Pillar 3 deliverable. You draw evidence from Pillar 1 (Capital —
+SCR breakdown, asset register, life TPs) and Pillar 2 (Governance — ORSA, AFR, model
+governance). Each section header should remind the reader which pillar's evidence sits
+behind it.
+
+You are drafting a Solvency and Financial Condition Report (SFCR) under
 Article 51 of the Solvency II Directive for Bricksurance SE, a mid-size European composite
 insurer (P&C + Life on one balance sheet). Tone: clear, neutral, public-facing. Length:
 3–6 short paragraphs per section.
@@ -292,6 +301,14 @@ async def create_draft(req: DraftRequest, request: Request):
     if not period:
         raise HTTPException(400, "Cannot determine reporting period")
 
+    cache_key = make_cache_key("sfcr_draft", req.section_id, period)
+    if should_use_cache(request):
+        cached = await cache_lookup(cache_key)
+        if cached:
+            return cached
+        if request.query_params.get("cached") in ("1", "true", "yes", "on"):
+            raise cache_miss_503()
+
     data = await _gather_sfcr_data(period)
     data_block = _format_sfcr_data_block(period, data)
     user_prompt = (
@@ -342,7 +359,7 @@ async def create_draft(req: DraftRequest, request: Request):
         ],
     )
 
-    return {
+    response = {
         "draft_id": draft_id,
         "section_id": req.section_id,
         "section_title": section["title"],
@@ -355,6 +372,8 @@ async def create_draft(req: DraftRequest, request: Request):
         "ai_output_tokens": result.output_tokens,
         "status": "draft",
     }
+    await cache_persist(cache_key, "sfcr_draft", req.section_id, period, response, user=user)
+    return response
 
 
 @router.post("/save")

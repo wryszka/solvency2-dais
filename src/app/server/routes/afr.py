@@ -34,6 +34,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from server.ai import generate_review
+from server.cache import (
+    cache_lookup, cache_persist, cache_miss_503, make_cache_key, should_use_cache,
+)
 from server.config import fqn, get_request_user
 from server.sql import execute_query, execute_query_cached
 
@@ -51,7 +54,13 @@ SECTION_TITLES: dict[str, str] = {
 
 # Section-specific prompts. Each gets the SAME data block (so all four are
 # grounded in the same evidence) but a different framing instruction.
-AFR_SYSTEM = """You are the Appointed Actuary of Bricksurance SE, drafting the Actuarial
+AFR_SYSTEM = """[Pillar context — Pillar 2 Governance]
+The AFR is a Pillar 2 deliverable under Article 48. Your sections draw evidence from
+Pillar 1 (SCR breakdown, model versions, life and non-life UW risk) and feed Pillar 3
+(SFCR Section B governance, Section D valuation). Where a finding affects another
+pillar's deliverable, say so.
+
+You are the Appointed Actuary of Bricksurance SE, drafting the Actuarial
 Function Report under Article 48 of the Solvency II Directive. Tone: precise, conservative,
 technical, factual. Reference the actual numbers in the data block. Use plain prose
 (no bullet headers within a section). Length: 250–400 words for this section. Do NOT
@@ -310,6 +319,16 @@ async def create_draft(req: DraftRequest, request: Request):
     user = get_request_user(request)
 
     period, data = await _gather_data(req.reporting_period)
+
+    # Demo cache: keyed by (section_id, period). Same section across runs = same cache.
+    cache_key = make_cache_key("afr_draft", req.section_id, period)
+    if should_use_cache(request):
+        cached = await cache_lookup(cache_key)
+        if cached:
+            return cached
+        if request.query_params.get("cached") in ("1", "true", "yes", "on"):
+            raise cache_miss_503()
+
     data_block = _format_data_block(period, data)
     user_prompt = f"## Data block\n\n{data_block}\n\n## Section to draft\n\n{SECTION_PROMPTS[req.section_id]}"
 
@@ -353,7 +372,7 @@ async def create_draft(req: DraftRequest, request: Request):
         ],
     )
 
-    return {
+    response = {
         "draft_id": draft_id,
         "section_id": req.section_id,
         "section_title": SECTION_TITLES[req.section_id],
@@ -366,6 +385,8 @@ async def create_draft(req: DraftRequest, request: Request):
         "ai_output_tokens": result.output_tokens,
         "status": "draft",
     }
+    await cache_persist(cache_key, "afr_draft", req.section_id, period, response, user=user)
+    return response
 
 
 @router.post("/save")

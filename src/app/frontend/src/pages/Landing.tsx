@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
   ArrowRight, Shield, BarChart3, BookOpen, Flame, FlaskConical, Landmark,
@@ -56,6 +56,8 @@ const STATUS_VARIANT: Record<TileStatus, { Icon: React.ComponentType<{ className
 export default function Landing() {
   const [status, setStatus] = useState<LandingStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  const isForum = new URLSearchParams(location.search).get('mode') === 'forum';
 
   useEffect(() => {
     fetchLandingStatus()
@@ -63,6 +65,8 @@ export default function Landing() {
       .catch(() => setStatus(null))
       .finally(() => setLoading(false));
   }, []);
+
+  if (isForum) return <ForumHero status={status} loading={loading} />;
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
@@ -231,5 +235,85 @@ function Kpi({ icon: Icon, label, value, tone }: {
       <div className="text-xl font-bold mt-1 truncate">{value}</div>
       <div className="text-[11px] opacity-80">{label}</div>
     </div>
+  );
+}
+
+/* ── Forum-mode hero ─────────────────────────────────────────────────
+ * Activated by ?mode=forum. Projector-friendly: large fonts, full-bleed
+ * three-pillar layout, single "Begin demo" CTA → /monitor. The
+ * default landing remains untouched for non-forum use.
+ */
+function ForumHero({ status, loading }: { status: LandingStatus | null; loading: boolean }) {
+  const navigate = useNavigate();
+  const period = status?.control_tower?.latest_period ?? '2025-Q4';
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      {/* Top — title strip */}
+      <div className="px-12 pt-12 pb-6 text-center">
+        <div className="text-sm uppercase tracking-[0.4em] text-slate-500">Forum talk</div>
+        <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mt-3">
+          Solvency II at the Speed of Lakehouse
+        </h1>
+        <p className="text-xl text-gray-500 mt-3">
+          Bricksurance SE — a mid-size European composite — closing the {period} reporting cycle on a single platform.
+        </p>
+      </div>
+
+      {/* 3 pillars taking the centre of the screen */}
+      <div className="flex-1 px-12 grid grid-cols-3 gap-6 items-stretch">
+        <ForumPillar pillar={1} status={status} loading={loading} />
+        <ForumPillar pillar={2} status={status} loading={loading} />
+        <ForumPillar pillar={3} status={status} loading={loading} />
+      </div>
+
+      {/* Begin CTA */}
+      <div className="px-12 py-10 text-center">
+        <button
+          onClick={() => navigate('/monitor')}
+          className="text-2xl font-bold px-10 py-4 rounded-xl bg-gray-900 text-white hover:bg-gray-800 shadow-lg"
+        >
+          Begin demo →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ForumPillar({ pillar, status, loading }: {
+  pillar: 1 | 2 | 3;
+  status: LandingStatus | null;
+  loading: boolean;
+}) {
+  const meta = PILLAR_META[pillar];
+  const def = PILLAR_DELIVERABLES[pillar];
+  return (
+    <section className="rounded-2xl border-4 bg-white flex flex-col" style={{ borderColor: meta.border }}>
+      <header className="px-8 py-6" style={{ backgroundColor: meta.soft }}>
+        <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: meta.color }}>
+          Pillar {pillar}
+        </div>
+        <h2 className="text-3xl font-bold mt-1" style={{ color: meta.color }}>
+          {pillar === 1 ? 'Capital' : pillar === 2 ? 'Governance' : 'Disclosure'}
+        </h2>
+        <p className="text-base mt-1" style={{ color: meta.color, opacity: 0.85 }}>{def.headline}</p>
+      </header>
+      <ul className="flex-1 divide-y divide-gray-100 text-base">
+        {def.tiles.slice(0, 5).map((t) => {
+          const tile = status?.tiles[t.key];
+          const tileStatus: TileStatus = tile?.status ?? 'pending';
+          const v = STATUS_VARIANT[tileStatus];
+          return (
+            <li key={t.key} className="px-8 py-4 flex items-start gap-3">
+              <v.Icon className={`w-5 h-5 mt-0.5 ${v.cls}`} />
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-gray-900">{t.label}</div>
+                <div className={`text-sm ${v.cls} mt-0.5`}>{loading ? 'loading…' : (tile?.metric ?? '—')}</div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
