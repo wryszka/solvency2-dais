@@ -6,6 +6,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import StatusBadge from '../components/StatusBadge';
 import { Skeleton, SkeletonTable } from '../components/Skeleton';
+import Q4PainCallouts from '../components/Q4PainCallouts';
 import { fetchSlaStatus, fetchDqSummary, fetchReconciliation, generateCrossQrtReview, fetchFeedDetail, investigateRecon, formatEur, type Row, type CrossQrtReviewResponse, type FeedDetail, type ReconInvestigation } from '../lib/api';
 import { renderMarkdownSafe } from '../lib/markdown';
 import { ProcessOverview, DataInventory } from './Governance';
@@ -108,6 +109,9 @@ export default function Monitor() {
 
       {tab === 'overview' && (
         <div className="space-y-5">
+          {/* Q4 attention items — surfaces the 6 engineered Q4 2025 pains */}
+          <Q4PainCallouts />
+
           <div className="grid grid-cols-4 gap-4">
             <KpiCard icon={Activity} label="Feeds Received" value={`${feedsReceived}/${totalFeeds}`} color={allGreen ? 'green' : 'amber'} onClick={() => setTab('ingestion')} />
             <KpiCard icon={ShieldCheck} label="DQ Pass Rate" value={`${passRate}%`} color={parseFloat(String(passRate)) >= 99 ? 'green' : 'amber'} onClick={() => navigate('/data-quality')} />

@@ -56,6 +56,7 @@ export interface ReportSummary {
   metric_value?: string;
   scr?: string;
   approval_status: string;
+  pillar?: 1 | 2 | 3;
   error?: string;
 }
 
@@ -461,4 +462,47 @@ export interface ProcessMetrics {
 
 export async function fetchProcessMetrics(): Promise<ProcessMetrics> {
   return fetchJson('/api/archive/process-metrics');
+}
+
+// ─── Landing page live status ───────────────────────────────────────
+
+export type TileStatus = 'ready' | 'pending' | 'attention';
+
+export interface LandingTile {
+  status: TileStatus;
+  metric: string;
+  period?: string | null;
+}
+
+export interface LandingStatus {
+  tiles: Record<string, LandingTile>;
+  control_tower: {
+    feeds_late_or_missing: number;
+    feeds_total: number;
+    recon_mismatches: number;
+    recon_total: number;
+    latest_period: string | null;
+  };
+}
+
+export async function fetchLandingStatus(): Promise<LandingStatus> {
+  return fetchJson('/api/landing/status');
+}
+
+// ─── Q4 pain callouts ────────────────────────────────────────────────
+
+export type PainSeverity = 'ok' | 'warn' | 'high';
+
+export interface Q4Pain {
+  id: string;
+  title: string;
+  fired: boolean;
+  severity: PainSeverity;
+  headline: string;
+  drill_path: string;
+  context: Record<string, unknown>;
+}
+
+export async function fetchQ4Pains(): Promise<{ pains: Q4Pain[] }> {
+  return fetchJson('/api/monitoring/q4-pains');
 }

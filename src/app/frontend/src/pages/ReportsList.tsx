@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Shield, BarChart3, Landmark, Flame } from 'lucide-react';
+import { ChevronRight, Shield, BarChart3, Landmark, Flame, BookOpen, FlaskConical } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
 import { Skeleton } from '../components/Skeleton';
+import PillarChip from '../components/PillarChip';
 import { fetchReports, type ReportSummary } from '../lib/api';
 
 const QRT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -10,6 +11,8 @@ const QRT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   s0501: BarChart3,
   s2501: Shield,
   s2606: Flame,
+  s1201: BookOpen,
+  lifeuw: FlaskConical,
 };
 
 const QRT_COLORS: Record<string, string> = {
@@ -17,6 +20,8 @@ const QRT_COLORS: Record<string, string> = {
   s0501: 'border-l-emerald-500',
   s2501: 'border-l-violet-500',
   s2606: 'border-l-orange-500',
+  s1201: 'border-l-cyan-500',
+  lifeuw: 'border-l-pink-500',
 };
 
 const STATUS_VARIANT: Record<string, 'success' | 'error' | 'warning' | 'neutral' | 'info'> = {
@@ -110,10 +115,11 @@ export default function ReportsList() {
                     <Icon className="w-6 h-6" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <h3 className="text-lg font-semibold text-gray-900">
                         {rpt.name} — {rpt.title}
                       </h3>
+                      {rpt.pillar && <PillarChip pillar={rpt.pillar} size="sm" />}
                       <StatusBadge
                         label={STATUS_LABEL[status] || status}
                         variant={STATUS_VARIANT[status] || 'neutral'}

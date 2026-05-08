@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from server.routes import reports, approvals, monitoring, regulator, genie, supervisor, archive
+from server.routes import reports, approvals, monitoring, regulator, genie, supervisor, archive, landing
 from server.config import get_dashboard_id, get_genie_space_id, get_workspace_host, get_request_user
 
 logging.basicConfig(
@@ -57,6 +57,7 @@ app.include_router(regulator.router)
 app.include_router(genie.router)
 app.include_router(supervisor.router)
 app.include_router(archive.router)
+app.include_router(landing.router)
 
 
 @app.middleware("http")

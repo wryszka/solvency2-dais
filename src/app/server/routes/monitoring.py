@@ -94,6 +94,161 @@ async def get_reconciliation(period: str = Query(None)):
         raise HTTPException(500, str(exc)) from exc
 
 
+@router.get("/q4-pains")
+async def q4_pain_summary():
+    """Return one row per Q4 2025 pain with its current signal.
+
+    Drives the Control Tower 'attention items' callout cards. The check
+    logic mirrors the SQL paths documented in README "Q4 2025 engineered
+    pains" — single source of truth for what counts as 'fired'.
+    """
+    try:
+        # Pain A — late RI feed
+        pain_a_q = f"""
+            SELECT reporting_period, status, notes, feed_received_timestamp, sla_deadline
+            FROM {fqn('5_mon_pipeline_sla_status')}
+            WHERE feed_name = '1_raw_reinsurance'
+              AND reporting_period = (SELECT MAX(reporting_period) FROM {fqn('5_mon_pipeline_sla_status')})
+        """
+        # Pain B — quarantined claims (negative paid_amount)
+        pain_b_q = f"""
+            SELECT COUNT(*) AS n, MIN(system_source) AS source_tag
+            FROM {fqn('1_raw_claims')}
+            WHERE gross_paid < 0
+              AND reporting_period = (SELECT MAX(reporting_period) FROM {fqn('1_raw_claims')})
+        """
+        # Pain C — December storm tagged claims
+        pain_c_q = f"""
+            SELECT COUNT(*) AS storm_claims,
+                   ROUND(SUM(CAST(gross_incurred AS DOUBLE))/1e6, 1) AS storm_incurred_meur
+            FROM {fqn('1_raw_claims')}
+            WHERE event_id = 'storm_dec_2025'
+              AND reporting_period = (SELECT MAX(reporting_period) FROM {fqn('1_raw_claims')})
+        """
+        # Pain D — life lapse delta (Q4 vs Q3)
+        pain_d_q = f"""
+            SELECT reporting_period,
+                   ROUND(SUM(lapsed_in_quarter) * 100.0 / NULLIF(SUM(in_force_at_quarter_start), 0), 3) AS lapse_pct
+            FROM {fqn('1_raw_life_lapses')}
+            WHERE lob_name = 'unit_linked'
+            GROUP BY reporting_period
+            ORDER BY reporting_period DESC LIMIT 2
+        """
+        # Pain E — duplicate -DUP asset rows
+        pain_e_q = f"""
+            SELECT COUNT(*) AS dup_rows,
+                   ROUND(SUM(CAST(sii_value AS DOUBLE)), 2) AS dup_eur
+            FROM {fqn('1_raw_assets')}
+            WHERE asset_id LIKE '%-DUP'
+              AND reporting_period = (SELECT MAX(reporting_period) FROM {fqn('1_raw_assets')})
+        """
+        # Pain F — Champion vs Challenger model registry
+        pain_f_q = f"""
+            SELECT model_version, calibration_year FROM {fqn('5_mon_model_registry_log')}
+            ORDER BY model_version DESC LIMIT 5
+        """
+
+        a, b, c, d, e, f = await asyncio.gather(
+            execute_query_cached(pain_a_q, ttl_seconds=30),
+            execute_query_cached(pain_b_q, ttl_seconds=30),
+            execute_query_cached(pain_c_q, ttl_seconds=30),
+            execute_query_cached(pain_d_q, ttl_seconds=30),
+            execute_query_cached(pain_e_q, ttl_seconds=30),
+            execute_query_cached(pain_f_q, ttl_seconds=120),
+            return_exceptions=True,
+        )
+
+        def _row(r, default=None):
+            if isinstance(r, Exception):
+                return default or {}
+            arr = r or []
+            return arr[0] if arr else (default or {})
+
+        a_row = _row(a, {})
+        b_row = _row(b, {})
+        c_row = _row(c, {})
+        d_rows = b if False else (d if not isinstance(d, Exception) else [])
+        e_row = _row(e, {})
+
+        # Pain D delta: Q4 lapse vs Q3 lapse
+        lapse_q4 = float(d_rows[0].get("lapse_pct", 0) or 0) if len(d_rows) >= 1 else 0
+        lapse_q3 = float(d_rows[1].get("lapse_pct", 0) or 0) if len(d_rows) >= 2 else 0
+        lapse_uplift_pct = round((lapse_q4 - lapse_q3) / lapse_q3 * 100, 1) if lapse_q3 > 0 else None
+
+        pains = [
+            {
+                "id": "A",
+                "title": "Reinsurance feed late",
+                "fired": a_row.get("status") == "late",
+                "severity": "high" if a_row.get("status") == "late" else "ok",
+                "headline": (a_row.get("notes") or "—") if a_row.get("status") == "late" else "RI feed on time",
+                "drill_path": "/monitor",
+                "context": {"period": a_row.get("reporting_period"), "received": a_row.get("feed_received_timestamp")},
+            },
+            {
+                "id": "B",
+                "title": "Quarantined claims (DQ break)",
+                "fired": int(b_row.get("n", 0) or 0) > 0,
+                "severity": "high" if int(b_row.get("n", 0) or 0) > 0 else "ok",
+                "headline": (
+                    f"{b_row.get('n', 0)} negative paid_amount rows tagged {b_row.get('source_tag','?')}"
+                    if int(b_row.get("n", 0) or 0) > 0 else "no quarantined rows"
+                ),
+                "drill_path": "/data-quality",
+                "context": {},
+            },
+            {
+                "id": "C",
+                "title": "December storm — property reserve spike",
+                "fired": int(c_row.get("storm_claims", 0) or 0) > 0,
+                "severity": "warn" if int(c_row.get("storm_claims", 0) or 0) > 0 else "ok",
+                "headline": (
+                    f"{c_row.get('storm_claims', 0)} storm-tagged claims · EUR {c_row.get('storm_incurred_meur', 0)}M incurred"
+                    if int(c_row.get("storm_claims", 0) or 0) > 0 else "no storm event"
+                ),
+                "drill_path": "/nl-uw-risk",
+                "context": {},
+            },
+            {
+                "id": "D",
+                "title": "Life lapse deterioration (unit-linked)",
+                "fired": (lapse_uplift_pct or 0) > 20,
+                "severity": "warn" if (lapse_uplift_pct or 0) > 20 else "ok",
+                "headline": (
+                    f"unit-linked lapse {lapse_q4}% vs {lapse_q3}% prior quarter (+{lapse_uplift_pct}%)"
+                    if lapse_uplift_pct is not None else "no lapse data"
+                ),
+                "drill_path": "/life-uw-risk",
+                "context": {"q4_pct": lapse_q4, "q3_pct": lapse_q3, "uplift_pct": lapse_uplift_pct},
+            },
+            {
+                "id": "E",
+                "title": "Asset / own-funds reconciliation gap",
+                "fired": int(e_row.get("dup_rows", 0) or 0) > 0,
+                "severity": "high" if int(e_row.get("dup_rows", 0) or 0) > 0 else "ok",
+                "headline": (
+                    f"duplicate ISIN custodian row of EUR {e_row.get('dup_eur', 0):,.0f} not in own funds"
+                    if int(e_row.get("dup_rows", 0) or 0) > 0 else "no duplicates"
+                ),
+                "drill_path": "/assets",
+                "context": {"dup_eur": e_row.get("dup_eur")},
+            },
+            {
+                "id": "F",
+                "title": "Challenger model pending decision",
+                "fired": True,  # always relevant: surfacing the +4% delta to be reviewed
+                "severity": "warn",
+                "headline": "2026 calibration: NL UW correlation +1.5%, op risk to 4.0%, life lapse stress ×1.15 → ≈+4% SCR",
+                "drill_path": "/model-governance",
+                "context": {"model": "standard_formula"},
+            },
+        ]
+        return {"pains": pains}
+    except Exception as exc:
+        logger.exception("Q4 pain summary failed")
+        raise HTTPException(500, str(exc)) from exc
+
+
 @router.get("/model-versions")
 async def get_model_versions(period: str = Query(None)):
     """Model version comparison — Champion vs Challenger."""

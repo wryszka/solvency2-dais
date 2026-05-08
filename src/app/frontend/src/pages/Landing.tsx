@@ -6,12 +6,11 @@ import {
   CheckCircle2, AlertTriangle, Clock, Activity, ShieldCheck,
 } from 'lucide-react';
 import PillarChip, { type Pillar, PILLAR_META } from '../components/PillarChip';
-import { fetchSlaStatus, fetchDqSummary, fetchReconciliation, type Row } from '../lib/api';
+import { fetchLandingStatus, type LandingStatus, type TileStatus } from '../lib/api';
 
 interface DeliverableTile {
+  key: string;
   label: string;
-  status: 'ready' | 'pending' | 'attention';
-  hint?: string;
   icon: React.ComponentType<{ className?: string }>;
   path: string;
 }
@@ -20,42 +19,50 @@ const PILLAR_DELIVERABLES: Record<Exclude<Pillar, 'cross'>, { headline: string; 
   1: {
     headline: 'Capital — what we hold and why',
     tiles: [
-      { label: 'SCR & Standard Formula',  status: 'ready',     icon: Shield,        path: '/scr' },
-      { label: 'Reserving & TPs (P&C)',   status: 'ready',     icon: BarChart3,     path: '/reserving-pnc' },
-      { label: 'Reserving & TPs (Life)',  status: 'ready',     icon: BookOpen,      path: '/reserving-life' },
-      { label: 'Non-Life UW Risk',        status: 'ready',     icon: Flame,         path: '/nl-uw-risk' },
-      { label: 'Life UW Risk',            status: 'ready',     icon: FlaskConical,  path: '/life-uw-risk' },
-      { label: 'Asset Register',          status: 'attention', hint: 'duplicate ISIN flagged', icon: Landmark, path: '/assets' },
+      { key: 'scr',            label: 'SCR & Standard Formula', icon: Shield,        path: '/scr' },
+      { key: 'reserving_pnc',  label: 'Reserving & TPs (P&C)',  icon: BarChart3,     path: '/reserving-pnc' },
+      { key: 'reserving_life', label: 'Reserving & TPs (Life)', icon: BookOpen,      path: '/reserving-life' },
+      { key: 'nl_uw_risk',     label: 'Non-Life UW Risk',       icon: Flame,         path: '/nl-uw-risk' },
+      { key: 'life_uw_risk',   label: 'Life UW Risk',           icon: FlaskConical,  path: '/life-uw-risk' },
+      { key: 'assets',         label: 'Asset Register',         icon: Landmark,      path: '/assets' },
     ],
   },
   2: {
     headline: 'Governance — how we run, decide, control',
     tiles: [
-      { label: 'ORSA',                    status: 'pending',   hint: 'in progress', icon: Workflow,      path: '/orsa' },
-      { label: 'Model Governance',        status: 'attention', hint: 'Challenger pending decision', icon: Scale, path: '/model-governance' },
-      { label: 'Actuarial Function',      status: 'pending',   icon: ScrollText,    path: '/afr' },
-      { label: 'Internal Controls',       status: 'ready',     icon: Lock,          path: '/internal-controls' },
+      { key: 'orsa',              label: 'ORSA',               icon: Workflow,    path: '/orsa' },
+      { key: 'model_governance',  label: 'Model Governance',   icon: Scale,       path: '/model-governance' },
+      { key: 'afr',               label: 'Actuarial Function', icon: ScrollText,  path: '/afr' },
+      { key: 'internal_controls', label: 'Internal Controls',  icon: Lock,        path: '/internal-controls' },
     ],
   },
   3: {
     headline: 'Disclosure — what we report, to whom',
     tiles: [
-      { label: 'QRT Submission Pack',     status: 'attention', hint: '5 of 5 ready, 1 quarantined', icon: ArchiveIcon, path: '/archive' },
-      { label: 'SFCR (Public)',           status: 'pending',   icon: Newspaper,     path: '/sfcr' },
-      { label: 'RSR (Supervisor)',        status: 'pending',   icon: FileText,      path: '/rsr' },
-      { label: 'Regulator Q&A',           status: 'ready',     icon: Bot,           path: '/regulator-qa' },
+      { key: 'qrt_pack',     label: 'QRT Submission Pack', icon: ArchiveIcon, path: '/archive' },
+      { key: 'sfcr',         label: 'SFCR (Public)',       icon: Newspaper,   path: '/sfcr' },
+      { key: 'rsr',          label: 'RSR (Supervisor)',    icon: FileText,    path: '/rsr' },
+      { key: 'regulator_qa', label: 'Regulator Q&A',       icon: Bot,         path: '/regulator-qa' },
     ],
   },
 };
 
-const STATUS_VARIANT: Record<DeliverableTile['status'], { Icon: React.ComponentType<{ className?: string }>; label: string }> = {
-  ready:     { Icon: CheckCircle2,   label: 'ready' },
-  pending:   { Icon: Clock,          label: 'pending' },
-  attention: { Icon: AlertTriangle,  label: 'needs attention' },
+const STATUS_VARIANT: Record<TileStatus, { Icon: React.ComponentType<{ className?: string }>; cls: string }> = {
+  ready:     { Icon: CheckCircle2,  cls: 'text-green-600' },
+  pending:   { Icon: Clock,         cls: 'text-gray-400' },
+  attention: { Icon: AlertTriangle, cls: 'text-amber-600' },
 };
 
 export default function Landing() {
-  const navigate = useNavigate();
+  const [status, setStatus] = useState<LandingStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchLandingStatus()
+      .then(setStatus)
+      .catch(() => setStatus(null))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">
@@ -70,13 +77,13 @@ export default function Landing() {
 
       {/* 3-column pillar hero */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <PillarColumn pillar={1} navigate={navigate} />
-        <PillarColumn pillar={2} navigate={navigate} />
-        <PillarColumn pillar={3} navigate={navigate} />
+        <PillarColumn pillar={1} status={status} loading={loading} />
+        <PillarColumn pillar={2} status={status} loading={loading} />
+        <PillarColumn pillar={3} status={status} loading={loading} />
       </div>
 
       {/* Control Tower strip — Monday-morning view */}
-      <ControlTowerStrip />
+      <ControlTowerStrip status={status} loading={loading} />
 
       {/* About this demo */}
       <details className="bg-white rounded-lg border border-gray-200 p-4 text-sm text-gray-700">
@@ -97,14 +104,16 @@ export default function Landing() {
   );
 }
 
-function PillarColumn({ pillar, navigate }: { pillar: Exclude<Pillar, 'cross'>; navigate: ReturnType<typeof useNavigate> }) {
+function PillarColumn({ pillar, status, loading }: {
+  pillar: Exclude<Pillar, 'cross'>;
+  status: LandingStatus | null;
+  loading: boolean;
+}) {
+  const navigate = useNavigate();
   const meta = PILLAR_META[pillar];
   const def = PILLAR_DELIVERABLES[pillar];
   return (
-    <section
-      className="rounded-xl border-2 bg-white overflow-hidden"
-      style={{ borderColor: meta.border }}
-    >
+    <section className="rounded-xl border-2 bg-white overflow-hidden" style={{ borderColor: meta.border }}>
       <header className="px-5 py-4" style={{ backgroundColor: meta.soft }}>
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold" style={{ color: meta.color }}>{meta.full}</h3>
@@ -116,12 +125,12 @@ function PillarColumn({ pillar, navigate }: { pillar: Exclude<Pillar, 'cross'>; 
       </header>
       <ul className="divide-y divide-gray-100">
         {def.tiles.map((t) => {
-          const StatusIcon = STATUS_VARIANT[t.status].Icon;
-          const statusColor = t.status === 'ready'
-            ? 'text-green-600'
-            : t.status === 'attention' ? 'text-amber-600' : 'text-gray-400';
+          const tile = status?.tiles[t.key];
+          const tileStatus: TileStatus = tile?.status ?? 'pending';
+          const variant = STATUS_VARIANT[tileStatus];
+          const StatusIcon = variant.Icon;
           return (
-            <li key={t.label}>
+            <li key={t.key}>
               <button
                 onClick={() => navigate(t.path)}
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left group"
@@ -129,9 +138,11 @@ function PillarColumn({ pillar, navigate }: { pillar: Exclude<Pillar, 'cross'>; 
                 <t.icon className="w-4 h-4 text-gray-500 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-900 truncate">{t.label}</div>
-                  {t.hint && <div className={`text-[11px] ${statusColor} mt-0.5`}>{t.hint}</div>}
+                  <div className={`text-[11px] ${variant.cls} mt-0.5 truncate`}>
+                    {loading ? 'loading…' : (tile?.metric ?? '—')}
+                  </div>
                 </div>
-                <StatusIcon className={`w-4 h-4 shrink-0 ${statusColor}`} />
+                <StatusIcon className={`w-4 h-4 shrink-0 ${variant.cls}`} />
                 <ArrowRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 transition-colors" />
               </button>
             </li>
@@ -142,27 +153,13 @@ function PillarColumn({ pillar, navigate }: { pillar: Exclude<Pillar, 'cross'>; 
   );
 }
 
-function ControlTowerStrip() {
+function ControlTowerStrip({ status, loading }: { status: LandingStatus | null; loading: boolean }) {
   const navigate = useNavigate();
-  const [sla, setSla] = useState<Row[]>([]);
-  const [dq, setDq] = useState<{ aggregate: Row | null }>({ aggregate: null });
-  const [recon, setRecon] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    Promise.all([
-      fetchSlaStatus().then((r) => setSla(r.data)),
-      fetchDqSummary().then(setDq),
-      fetchReconciliation().then((r) => setRecon(r.data)),
-    ])
-      .catch(() => undefined)
-      .finally(() => setLoading(false));
-  }, []);
-
-  const lateMissing = sla.filter((f) => f.status === 'late' || f.status === 'missing').length;
-  const passRate = dq.aggregate?.overall_pass_rate ?? '—';
-  const reconMatch = recon.filter((r) => r.status === 'MATCH').length;
-  const reconTotal = recon.length;
+  const ct = status?.control_tower;
+  const lateMissing = ct?.feeds_late_or_missing ?? 0;
+  const reconMm = ct?.recon_mismatches ?? 0;
+  const reconTotal = ct?.recon_total ?? 0;
+  const reconMatch = Math.max(0, reconTotal - reconMm);
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-4">
@@ -171,6 +168,9 @@ function ControlTowerStrip() {
           <Activity className="w-4 h-4 text-gray-700" />
           <h3 className="text-sm font-bold text-gray-800">Control Tower — Monday morning view</h3>
           <PillarChip pillar="cross" size="sm" />
+          {ct?.latest_period && (
+            <span className="text-[11px] text-gray-500">period {ct.latest_period}</span>
+          )}
         </div>
         <button
           onClick={() => navigate('/monitor')}
@@ -191,15 +191,15 @@ function ControlTowerStrip() {
           />
           <Kpi
             icon={ShieldCheck}
-            label="DQ pass rate"
-            value={`${passRate}%`}
-            tone={parseFloat(String(passRate)) >= 99 ? 'good' : 'warn'}
+            label="Reconciliation"
+            value={`${reconMatch}/${reconTotal} match`}
+            tone={reconMm === 0 ? 'good' : 'warn'}
           />
           <Kpi
             icon={CheckCircle2}
-            label="Reconciliation"
-            value={`${reconMatch}/${reconTotal} match`}
-            tone={reconMatch === reconTotal ? 'good' : 'warn'}
+            label="QRT pack"
+            value={status?.tiles['qrt_pack']?.metric ?? '—'}
+            tone={status?.tiles['qrt_pack']?.status === 'attention' ? 'warn' : 'good'}
           />
           <Kpi
             icon={Clock}
@@ -228,7 +228,7 @@ function Kpi({ icon: Icon, label, value, tone }: {
   return (
     <div className={`rounded-lg border p-3 ${cls}`}>
       <Icon className={`w-4 h-4 ${iconCls}`} />
-      <div className="text-xl font-bold mt-1">{value}</div>
+      <div className="text-xl font-bold mt-1 truncate">{value}</div>
       <div className="text-[11px] opacity-80">{label}</div>
     </div>
   );

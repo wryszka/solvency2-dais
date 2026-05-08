@@ -277,14 +277,59 @@ def _rows_to_csv(rows: list[dict]) -> str:
 
 # ── List all QRTs ────────────────────────────────────────────────────────────
 
+# Lightweight definitions for composite-only deliverables (S.12.01 + Life
+# UW Risk). Full QRT_DEFS entries (lineage / quality / etc.) come later;
+# for the Reports list these minimal stubs are enough.
+_COMPOSITE_DEFS: dict[str, dict] = {
+    "s1201": {
+        "id": "s1201",
+        "name": "S.12.01",
+        "title": "Life and Health (SLT) Technical Provisions",
+        "summary_table": "3_qrt_s1201_summary",
+    },
+    "lifeuw": {
+        "id": "lifeuw",
+        "name": "Life UW Risk",
+        "title": "Life Underwriting Risk (Prophet)",
+        "summary_table": "3_qrt_life_uw_risk_summary",
+    },
+}
+
+# Pillar metadata per deliverable — surfaced through the Reports list and
+# the landing page so the same source of truth drives both.
+QRT_PILLAR: dict[str, int] = {
+    "s0602": 1,
+    "s0501": 1,
+    "s2501": 1,
+    "s2606": 1,
+    "s1201": 1,
+    "lifeuw": 1,
+}
+
+
 @router.get("")
 async def list_reports():
-    """List all QRT reports with status and key metrics."""
+    """List all QRT-equivalent deliverables with status and key metrics.
+
+    Includes the four P&C QRTs plus S.12.01 (Life Technical Provisions) and
+    the Prophet-driven Life UW Risk deliverable. Returns a `pillar` field
+    on every entry so the frontend can render PillarChips consistently.
+    """
     results = []
 
-    for qrt_id, defn in QRT_DEFS.items():
+    # Composite-extended ID list — drives ordering as well as listing.
+    composite_ids = ["s0602", "s0501", "s1201", "s2501", "s2606", "lifeuw"]
+    for qrt_id in composite_ids:
+        defn = QRT_DEFS.get(qrt_id) or _COMPOSITE_DEFS.get(qrt_id)
+        if not defn:
+            continue
         try:
-            info = {"id": qrt_id, "name": defn["name"], "title": defn["title"]}
+            info = {
+                "id": qrt_id,
+                "name": defn["name"],
+                "title": defn["title"],
+                "pillar": QRT_PILLAR.get(qrt_id, 1),
+            }
 
             if qrt_id == "s0602":
                 rows = await execute_query(f"""
@@ -341,6 +386,34 @@ async def list_reports():
                     info["row_count"] = "7 components"
                     info["metric_label"] = "NL UW SCR"
                     info["metric_value"] = f"EUR {rows[0]['nl_uw_meur']}M"
+
+            elif qrt_id == "s1201":
+                rows = await execute_query(f"""
+                    SELECT reporting_period,
+                           lobs_with_tp,
+                           ROUND(total_technical_provisions_eur/1e6, 1) AS tp_meur
+                    FROM {fqn('3_qrt_s1201_summary')}
+                    ORDER BY reporting_period DESC LIMIT 1
+                """)
+                if rows:
+                    info["period"] = rows[0]["reporting_period"]
+                    info["row_count"] = f"{rows[0]['lobs_with_tp']} LoBs"
+                    info["metric_label"] = "Life TP"
+                    info["metric_value"] = f"EUR {rows[0]['tp_meur']}M"
+
+            elif qrt_id == "lifeuw":
+                rows = await execute_query(f"""
+                    SELECT reporting_period,
+                           ROUND(total_life_uw_scr/1e6, 1) AS life_uw_meur,
+                           ROUND(diversification_benefit_eur/1e6, 1) AS div_meur
+                    FROM {fqn('3_qrt_life_uw_risk_summary')}
+                    ORDER BY reporting_period DESC LIMIT 1
+                """)
+                if rows:
+                    info["period"] = rows[0]["reporting_period"]
+                    info["row_count"] = "5 sub-modules"
+                    info["metric_label"] = "Life UW SCR"
+                    info["metric_value"] = f"EUR {rows[0]['life_uw_meur']}M"
 
             # Get approval status for this QRT
             try:
