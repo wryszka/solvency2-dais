@@ -14,6 +14,7 @@ import Dashboard from './pages/Dashboard';
 import Genie from './pages/Genie';
 import RegulatorQA from './pages/RegulatorQA';
 import Archive from './pages/Archive';
+import Orsa from './pages/Orsa';
 import PillarPagePlaceholder from './components/PillarPagePlaceholder';
 import PillarChip, { type Pillar } from './components/PillarChip';
 
@@ -200,7 +201,7 @@ export default function App() {
             <Route path="/assets"          element={<Navigate to="/report/s0602" replace />} />
 
             {/* Pillar 2 — Governance */}
-            <Route path="/orsa"               element={<PillarPagePlaceholder pillar={2} title="ORSA — Own Risk and Solvency Assessment" subtitle="Scenario-based capital adequacy projection over 3 years" comingIn="Phase 2.5" fallbackHint="View base SCR" fallbackPath="/scr" />} />
+            <Route path="/orsa"               element={<Orsa />} />
             <Route path="/model-governance"   element={<PillarPagePlaceholder pillar={2} title="Model Governance" subtitle="Champion vs Challenger comparison + audit trail" comingIn="Phase 2.9" fallbackHint="View SCR breakdown" fallbackPath="/scr" />} />
             <Route path="/afr"                element={<PillarPagePlaceholder pillar={2} title="Actuarial Function Report (Article 48)" subtitle="TPs adequacy · UW adequacy · RI adequacy · Internal model opinion" comingIn="Phase 2.6" fallbackHint="View QRT pack" fallbackPath="/archive" />} />
             <Route path="/internal-controls"  element={<PillarPagePlaceholder pillar={2} title="Internal Controls" subtitle="12 AI guardrail controls × 7 layers; live audit trail" comingIn="Phase 2.10" fallbackHint="View Regulator Q&A" fallbackPath="/regulator-qa" />} />

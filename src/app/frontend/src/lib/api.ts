@@ -506,3 +506,76 @@ export interface Q4Pain {
 export async function fetchQ4Pains(): Promise<{ pains: Q4Pain[] }> {
   return fetchJson('/api/monitoring/q4-pains');
 }
+
+// ─── ORSA ────────────────────────────────────────────────────────────
+
+export interface OrsaShock {
+  module: string;
+  sub_module: string;
+  multiplier: number;
+}
+
+export interface OrsaScenario {
+  scenario_id: string;
+  name: string;
+  description: string;
+  shocks: OrsaShock[];
+}
+
+export interface OrsaResultRow {
+  run_id: string;
+  scenario_id: string;
+  scenario_name: string;
+  base_period: string;
+  year_offset: number;
+  projection_year: number;
+  scr_eur: number;
+  eligible_own_funds_eur: number;
+  solvency_ratio_pct: number;
+  module_breakdown_json: string;
+  is_base: boolean;
+}
+
+export interface OrsaRun {
+  run_id: string;
+  scenario_id: string;
+  scenario_name: string;
+  base_period: string;
+  rows: OrsaResultRow[];
+}
+
+export interface OrsaNarrative {
+  narrative_id: string;
+  run_id: string;
+  version: number;
+  narrative_text: string;
+  model_used: string;
+  input_tokens: number;
+  output_tokens: number;
+  generated_at?: string;
+  generated_by?: string;
+}
+
+export async function fetchOrsaScenarios(): Promise<{ scenarios: OrsaScenario[] }> {
+  return fetchJson('/api/orsa/scenarios');
+}
+
+export async function fetchOrsaPlan(): Promise<{ plan: Row[] }> {
+  return fetchJson('/api/orsa/business-plan');
+}
+
+export async function runOrsaScenario(scenario_id: string, base_period?: string): Promise<OrsaRun> {
+  return postJson('/api/orsa/run', { scenario_id, base_period: base_period ?? null });
+}
+
+export async function fetchOrsaRun(run_id: string): Promise<{ run_id: string; rows: OrsaResultRow[] }> {
+  return fetchJson(`/api/orsa/run/${run_id}`);
+}
+
+export async function generateOrsaNarrative(run_id: string): Promise<OrsaNarrative> {
+  return postJson('/api/orsa/narrative', { run_id });
+}
+
+export async function fetchOrsaNarratives(run_id: string): Promise<{ narratives: OrsaNarrative[] }> {
+  return fetchJson(`/api/orsa/narratives/${run_id}`);
+}
