@@ -84,7 +84,7 @@ Q4 2025 cycle in front of you. Twenty minutes. Three pillars.
 
 This is Maria's view on Monday morning. She's the Head of Finance & Reporting at Bricksurance.
 The reporting deadline is Friday. The cycle she's running covers about
-EUR 6.5 billion of assets, EUR 2 billion of GWP on the P&C side, and EUR 1.2 billion of life
+EUR 6.4 billion of assets, EUR 2 billion of GWP on the P&C side, and EUR 2 billion of life
 technical provisions. Composite, in one place.
 
 Three pillars. Capital. Governance. Disclosure.

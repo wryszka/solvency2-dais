@@ -100,8 +100,8 @@ FROM lr_dev_aws_us_catalog.solvency2demo_v2.`2_stg_scr_results`
 WHERE reporting_period = '2025-Q4'
 ORDER BY component;</pre>
     <div class="result">
-      SCR_market · 280.4 M · BSCR · 824.6 M · SCR · 556.4 M (Champion v2025)<br>
-      Challenger v2026: SCR ≈ 578.7 M (+22.3 M / +4.0%)<br>
+      Q4 2025: SCR 556 M · BSCR ~825 M · own funds 1.85 B · solvency 333% (Champion v2025)<br>
+      Challenger v2026: SCR ≈ 578 M (+22 M / +4.0%)<br>
       Drivers: NL UW correlation +1.5%, op risk → 4.0%, life lapse stress ×1.15
     </div>
   </div>
@@ -110,9 +110,9 @@ ORDER BY component;</pre>
     <h3><span class="chip p2">P2</span> Scene 4 — ORSA · 1-in-200 nat cat scenario</h3>
     <pre>POST /api/orsa/run { "scenario_id": "natcat_1_in_200" }</pre>
     <div class="result">
-      Year 0 base: SCR 556 M · solvency 178%<br>
-      Year 0 stress: SCR 712 M · solvency 139%<br>
-      Year 1: 184% / 132%   Year 2: 190% / 135%   Year 3: 196% / 138%
+      Year 0 base:    SCR 556 M · own funds 1.85 B · solvency 333%<br>
+      Year 0 stress:  SCR ~720 M · own funds 1.85 B · solvency ~257% (still well above target)<br>
+      Years +1 to +3: SCR grows ~3% / year on premium; ratio recovers as own funds rebuild
     </div>
     <div class="narrative">
       <strong>ORSA narrative (excerpt — Pillar 2 → SFCR Risk Profile):</strong>
@@ -130,17 +130,18 @@ ORDER BY component;</pre>
     <h3><span class="chip p3">P3</span> Scene 5 — SFCR Section C (Risk Profile) with citations</h3>
     <div class="narrative">
       <strong>Risk Profile — first paragraph (auditor-traceable):</strong>
-      The Group's overall risk profile is dominated by non-life underwriting risk and
-      market risk. As at the reporting date the Solvency Capital Requirement is
+      The Group's overall risk profile is dominated by non-life underwriting risk
+      (catastrophe driven) and market risk. As at the reporting date the Solvency
+      Capital Requirement is
       <em>EUR 556 M</em>
       <span style="display:inline-flex;padding:0 6px;border-radius:3px;background:#fef3c7;color:#b45309;font-size:11px;font-family:Menlo,monospace;">3_qrt_s2501_summary · scr_eur</span>,
       with a coverage ratio of
-      <em>178%</em>
+      <em>333%</em>
       <span style="display:inline-flex;padding:0 6px;border-radius:3px;background:#fef3c7;color:#b45309;font-size:11px;font-family:Menlo,monospace;">3_qrt_s2501_summary · solvency_ratio_pct</span>.
       Non-life underwriting risk contributes
-      <em>EUR 217 M</em>
+      <em>EUR 524 M</em>
       <span style="display:inline-flex;padding:0 6px;border-radius:3px;background:#fef3c7;color:#b45309;font-size:11px;font-family:Menlo,monospace;">3_qrt_s2606_summary · total_nl_uw_scr</span>,
-      of which catastrophe risk represents 41%.
+      of which catastrophe risk represents 61%.
     </div>
   </div>
 

@@ -1745,9 +1745,14 @@ for lob in LOB_CONFIG:
         aal_gross = lob_gwp * aal_pct
 
         for rp in RETURN_PERIODS:
-            # VaR scales roughly with log of return period
+            # VaR scales with log of the return period — calibrated so the 1-in-200
+            # quantile is roughly 1.3 × AAL, which keeps non-life UW SCR in
+            # sensible proportion to the total SCR for a €556M-SCR composite.
+            # Earlier versions used `rp * scale` which produced values ~200×
+            # too large at 1-in-200.
             scale = np.log(rp) / np.log(200)
-            var_gross = to_eur(aal_gross * rp * scale * rng.uniform(0.8, 1.2))
+            quantile_multiplier = scale * 1.3
+            var_gross = to_eur(aal_gross * quantile_multiplier * rng.uniform(0.85, 1.15))
             tvar_gross = to_eur(var_gross * rng.uniform(1.10, 1.35))
 
             cession = LOB_CESSION[lob["code"]]

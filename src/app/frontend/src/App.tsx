@@ -21,7 +21,8 @@ import Rsr from './pages/Rsr';
 import ModelGovernance from './pages/ModelGovernance';
 import InternalControls from './pages/InternalControls';
 import Architecture from './pages/Architecture';
-import PillarPagePlaceholder from './components/PillarPagePlaceholder';
+import LifeReserving from './pages/LifeReserving';
+import LifeUWRisk from './pages/LifeUWRisk';
 import PillarChip, { type Pillar } from './components/PillarChip';
 import DemoModeToggle from './components/DemoModeToggle';
 
@@ -205,9 +206,9 @@ export default function App() {
             {/* Pillar 1 — Capital. Pretty URLs redirect to the legacy QRT routes. */}
             <Route path="/scr"             element={<Navigate to="/report/s2501" replace />} />
             <Route path="/reserving-pnc"   element={<Navigate to="/report/s0501" replace />} />
-            <Route path="/reserving-life"  element={<PillarPagePlaceholder pillar={1} title="Reserving & TPs (Life)" subtitle="S.12.01 — Life and Health (SLT) Technical Provisions" comingIn="Phase 2.3" fallbackHint="View latest QRT pack" fallbackPath="/archive" />} />
+            <Route path="/reserving-life"  element={<LifeReserving />} />
             <Route path="/nl-uw-risk"      element={<Navigate to="/report/s2606" replace />} />
-            <Route path="/life-uw-risk"    element={<PillarPagePlaceholder pillar={1} title="Life UW Risk" subtitle="Prophet stochastic engine — mortality, longevity, lapse, expense, life cat" comingIn="Phase 2.3" fallbackHint="View Prophet run log" fallbackPath="/monitor" />} />
+            <Route path="/life-uw-risk"    element={<LifeUWRisk />} />
             <Route path="/assets"          element={<Navigate to="/report/s0602" replace />} />
 
             {/* Pillar 2 — Governance */}
