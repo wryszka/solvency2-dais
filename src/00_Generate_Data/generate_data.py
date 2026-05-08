@@ -228,10 +228,20 @@ def fqn(table_name):
     return f"`{catalog}`.`{schema}`.`{table_name}`"
 
 def write_table(df_pandas, table_name, description, mode="overwrite"):
-    """Write a pandas DataFrame to Delta. mode='overwrite' or 'append'."""
+    """Write a pandas DataFrame to Delta. mode='overwrite' or 'append'.
+
+    Always allows schema evolution: overwrite uses overwriteSchema, append
+    uses mergeSchema. This keeps quarter-on-quarter backfills happy when a
+    new column is added to the data generator.
+    """
     full_name = fqn(table_name)
     sdf = spark.createDataFrame(df_pandas)
-    sdf.write.format("delta").mode(mode).option("overwriteSchema", "true").saveAsTable(full_name)
+    writer = sdf.write.format("delta").mode(mode)
+    if mode == "overwrite":
+        writer = writer.option("overwriteSchema", "true")
+    else:
+        writer = writer.option("mergeSchema", "true")
+    writer.saveAsTable(full_name)
     cnt = spark.table(full_name).count()
     spark.sql(f"COMMENT ON TABLE {full_name} IS '{description}'")
     print(f"  {table_name}: {cnt} rows")
@@ -601,28 +611,20 @@ for i in range(n_oth):
 df_assets = pd.DataFrame(assets_rows)
 
 # ── Pain E — duplicate custodian bond entry in 2025-Q4 ──
-# One Q4 row has an extra entry for the same ISIN with a slightly different
-# valuation_date — total assets in S.06.02 will be exactly EUR 2_300_000
-# higher than what own-funds reconciliation reflects. Discoverable by
-# grouping assets by ISIN and looking for duplicates.
+# One Q4 row has an extra entry for the same asset with a duplicated row.
+# Total assets in S.06.02 will be exactly EUR 2_300_000 higher than what
+# own-funds reconciliation reflects. Discoverable by grouping assets by
+# (asset_name, issuer_name) and looking for the duplicate.
 PAIN_DUPE_ASSET = (reporting_period == "2025-Q4")
 if PAIN_DUPE_ASSET:
-    # Pick a representative bond with a known ISIN and valuation
-    bond_rows = df_assets[df_assets["asset_class"].isin(["corporate_bond", "sovereign_bond"])]
+    bond_rows = df_assets[df_assets["asset_class"].isin(["corporate_bonds", "government_bonds"])]
     if len(bond_rows) > 0:
-        # Choose a row to duplicate, scaling its sii_value to exactly 2.3M
         target = bond_rows.iloc[0].to_dict()
         duplicate = dict(target)
         duplicate["sii_value"] = 2_300_000.00
-        duplicate["market_value"] = 2_300_000.00
-        # Same ISIN, slightly different valuation date — the discoverable clue
-        if "valuation_date" in duplicate and duplicate["valuation_date"] is not None:
-            try:
-                d = pd.to_datetime(duplicate["valuation_date"]).date() - timedelta(days=1)
-                duplicate["valuation_date"] = d
-            except Exception:
-                pass
-        # Distinct asset_id so DLT row constraints don't drop it, but ISIN matches
+        duplicate["market_value_eur"] = 2_300_000.00
+        # Distinct asset_id so DLT row constraints don't drop it, but the
+        # asset_name + issuer + cic_code match the original — the discoverable clue.
         duplicate["asset_id"] = f"{target.get('asset_id', 'A')}-DUP"
         df_assets = pd.concat([df_assets, pd.DataFrame([duplicate])], ignore_index=True)
 
@@ -1420,6 +1422,63 @@ write_quarterly_table(pd.DataFrame(reserve_rows), "1_raw_life_reserves",
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## 8L.7 Prophet Results (simulated life stochastic output)
+# MAGIC
+# MAGIC Mirrors the Igloo pattern but for the life book. Per (LoB × sub_module),
+# MAGIC produces VaR / TVaR for the SF life UW SCR sub-modules:
+# MAGIC mortality, longevity, lapse, expense, life_cat. Runs here (before section 9)
+# MAGIC because the SCR risk_factors composite charges depend on Prophet output.
+
+# COMMAND ----------
+
+# Simplified life UW SCR sub-module sizing (relative to BEL).
+# Real numbers would come from a stochastic projection; we use deterministic
+# multipliers calibrated to be plausible for a mid-size composite book.
+LIFE_SUBMODULE_FACTORS = {
+    # (lob_name): {sub_module: factor_of_BEL}
+    "with_profit":   {"mortality": 0.005, "longevity": 0.012, "lapse": 0.018, "expense": 0.005, "life_cat": 0.003},
+    "unit_linked":   {"mortality": 0.003, "longevity": 0.002, "lapse": 0.030, "expense": 0.006, "life_cat": 0.002},
+    "term":          {"mortality": 0.080, "longevity": 0.000, "lapse": 0.025, "expense": 0.010, "life_cat": 0.020},
+    "whole_of_life": {"mortality": 0.010, "longevity": 0.008, "lapse": 0.012, "expense": 0.005, "life_cat": 0.005},
+    "annuity":       {"mortality": 0.000, "longevity": 0.060, "lapse": 0.000, "expense": 0.005, "life_cat": 0.000},
+    "health_slt":    {"mortality": 0.020, "longevity": 0.005, "lapse": 0.025, "expense": 0.015, "life_cat": 0.010},
+}
+
+# Read this period's life reserves to get BEL by LoB
+life_bel = {r["lob_name"]: float(r["best_estimate_liability_eur"])
+            for r in reserve_rows}
+
+prophet_rows = []
+for lob in LIFE_LOBS:
+    bel = life_bel.get(lob["lob"], 0.0)
+    if bel <= 0:
+        continue
+    for sub_module, factor in LIFE_SUBMODULE_FACTORS[lob["lob"]].items():
+        var = bel * factor
+        # TVaR is ~1.15-1.30x VaR for life; use deterministic 1.20
+        tvar = var * 1.20
+        # Pain D flow: unit-linked lapse stress is markedly higher in 2025-Q4
+        if reporting_period == "2025-Q4" and lob["lob"] == "unit_linked" and sub_module == "lapse":
+            var *= 1.40
+            tvar *= 1.40
+        prophet_rows.append({
+            "reporting_period": reporting_period,
+            "lob_code": lob["code"],
+            "lob_name": lob["lob"],
+            "sub_module": sub_module,
+            "var_eur": to_eur(var),
+            "tvar_eur": to_eur(tvar),
+            "scenario_count": 5000,
+            "model_version": "Prophet 7.4.2",
+            "run_timestamp": datetime.now().isoformat(),
+        })
+
+write_quarterly_table(pd.DataFrame(prophet_rows), "4_eng_prophet_results",
+            "Simulated Prophet life stochastic output — VaR/TVaR by life LoB and SCR sub-module")
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ## 9. SCR Parameters & Risk Factors
 # MAGIC
 # MAGIC EIOPA Standard Formula parameters — correlation matrix and sub-module charges.
@@ -1718,62 +1777,6 @@ write_quarterly_table(pd.DataFrame(igloo_rows), "4_eng_stochastic_results",
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 12L. Prophet Results (simulated life stochastic output)
-# MAGIC
-# MAGIC Mirrors the Igloo pattern but for the life book. Per (LoB × sub_module),
-# MAGIC produces VaR / TVaR for the SF life UW SCR sub-modules:
-# MAGIC mortality, longevity, lapse, expense, life_cat.
-
-# COMMAND ----------
-
-# Simplified life UW SCR sub-module sizing (relative to BEL).
-# Real numbers would come from a stochastic projection; we use deterministic
-# multipliers calibrated to be plausible for a mid-size composite book.
-LIFE_SUBMODULE_FACTORS = {
-    # (lob_name): {sub_module: factor_of_BEL}
-    "with_profit":   {"mortality": 0.005, "longevity": 0.012, "lapse": 0.018, "expense": 0.005, "life_cat": 0.003},
-    "unit_linked":   {"mortality": 0.003, "longevity": 0.002, "lapse": 0.030, "expense": 0.006, "life_cat": 0.002},
-    "term":          {"mortality": 0.080, "longevity": 0.000, "lapse": 0.025, "expense": 0.010, "life_cat": 0.020},
-    "whole_of_life": {"mortality": 0.010, "longevity": 0.008, "lapse": 0.012, "expense": 0.005, "life_cat": 0.005},
-    "annuity":       {"mortality": 0.000, "longevity": 0.060, "lapse": 0.000, "expense": 0.005, "life_cat": 0.000},
-    "health_slt":    {"mortality": 0.020, "longevity": 0.005, "lapse": 0.025, "expense": 0.015, "life_cat": 0.010},
-}
-
-# Read this period's life reserves to get BEL by LoB
-life_bel = {r["lob_name"]: float(r["best_estimate_liability_eur"])
-            for r in reserve_rows}
-
-prophet_rows = []
-for lob in LIFE_LOBS:
-    bel = life_bel.get(lob["lob"], 0.0)
-    if bel <= 0:
-        continue
-    for sub_module, factor in LIFE_SUBMODULE_FACTORS[lob["lob"]].items():
-        var = bel * factor
-        # TVaR is ~1.15-1.30x VaR for life; use deterministic 1.20
-        tvar = var * 1.20
-        # Pain D flow: unit-linked lapse stress is markedly higher in 2025-Q4
-        if reporting_period == "2025-Q4" and lob["lob"] == "unit_linked" and sub_module == "lapse":
-            var *= 1.40
-            tvar *= 1.40
-        prophet_rows.append({
-            "reporting_period": reporting_period,
-            "lob_code": lob["code"],
-            "lob_name": lob["lob"],
-            "sub_module": sub_module,
-            "var_eur": to_eur(var),
-            "tvar_eur": to_eur(tvar),
-            "scenario_count": 5000,
-            "model_version": "Prophet 7.4.2",
-            "run_timestamp": datetime.now().isoformat(),
-        })
-
-write_quarterly_table(pd.DataFrame(prophet_rows), "4_eng_prophet_results",
-            "Simulated Prophet life stochastic output — VaR/TVaR by life LoB and SCR sub-module")
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC ## 13. Own Funds & Balance Sheet
 
 # COMMAND ----------
@@ -1855,12 +1858,20 @@ def _arrival_days_after_close(feed_name: str) -> int:
         return 6 if reporting_period == "2025-Q4" else int(rng.choice([3, 4, 4, 5]))
     return int(rng.choice([1, 2, 2, 3, 3]))
 
+# Per-feed SLA in business days (must match 0_cfg_feed_sla.sla_business_days)
+SLA_BUSINESS_DAYS = {row["feed_name"]: int(row["sla_business_days"]) for row in feed_sla_rows}
+
 sla_rows = []
 for feed_name, source in FEED_SOURCES.items():
     days_after_close = _arrival_days_after_close(feed_name)
     arrival = quarter_close + timedelta(days=days_after_close, hours=int(rng.uniform(0, 8)))
     feed_received_timestamp = arrival.isoformat()
-    on_time = arrival <= sla_deadline
+    # On-time = arrived within the per-feed SLA business days of quarter close.
+    # We approximate business days as calendar days for simplicity (5/7 weekend
+    # adjustment is small and the demo intent is clarity, not calendar mechanics).
+    sla_bd = SLA_BUSINESS_DAYS.get(feed_name, 5)
+    feed_deadline = quarter_close + timedelta(days=sla_bd)
+    on_time = arrival <= feed_deadline
     status = "on_time" if on_time else "late"
 
     try:
