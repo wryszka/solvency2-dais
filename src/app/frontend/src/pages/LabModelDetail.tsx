@@ -23,6 +23,8 @@ import {
   type ModelDetail, type ModelDiagnostic, type PromotionRow, type Overlay,
 } from '../lib/api';
 import SeniorReservingPanel from '../components/SeniorReservingPanel';
+import SfChallengerPanel from '../components/SfChallengerPanel';
+import CatAgentPanel from '../components/CatAgentPanel';
 
 type Tab = 'versions' | 'diagnostics' | 'approvals' | 'lineage' | 'promote';
 
@@ -131,6 +133,8 @@ export default function LabModelDetail() {
       {(detail.model_id === 'reserving_pnc' || detail.model_id === 'reserving_life') && (
         <SeniorReservingPanel modelId={detail.model_id} />
       )}
+      {detail.model_id === 'standard_formula' && <SfChallengerPanel />}
+      {detail.model_id === 'igloo_cat' && <CatAgentPanel />}
 
       {tab === 'versions' && <VersionsTab detail={detail} />}
       {tab === 'diagnostics' && <DiagnosticsTab diagnostics={diagnostics} />}

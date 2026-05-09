@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import {
   Building2, FileText, Activity, ShieldCheck, Code2, Home,
-  Layers, Beaker, Compass, Sun, GraduationCap, BookOpen,
+  Layers, Beaker, Compass, Sun, GraduationCap, BookOpen, CircleHelp,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Landing from './pages/Landing';
@@ -30,7 +30,9 @@ import Horizon from './pages/Horizon';
 import Today from './pages/Today';
 import ReportingCycle from './pages/ReportingCycle';
 import Learn from './pages/Learn';
+import Whatif from './pages/Whatif';
 import Breadcrumb from './components/Breadcrumb';
+import ResetDemoButton from './components/ResetDemoButton';
 import DemoModeToggle from './components/DemoModeToggle';
 import WorkbenchAssistant from './components/WorkbenchAssistant';
 
@@ -83,6 +85,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     heading: 'Workbench',
     entries: [
+      { to: '/whatif',             icon: CircleHelp,    label: 'What-if scenarios' },
       { to: '/adjacencies',        icon: Compass,       label: 'Adjacencies' },
       { to: '/horizon',            icon: FileText,      label: 'Workbench horizon' },
     ],
@@ -178,6 +181,7 @@ function Sidebar() {
         <SignedInUser />
         <div className="ml-auto flex items-center gap-1">
           <DemoModeToggle />
+          <ResetDemoButton />
           <BackstageLink />
         </div>
       </div>
@@ -271,6 +275,7 @@ export default function App() {
             <Route path="/monitor" element={<Monitor />} />
             <Route path="/data-quality" element={<DataQuality />} />
             <Route path="/examples" element={<Navigate to="/lab" replace />} />
+            <Route path="/whatif"   element={<Whatif />} />
 
             {/* Pillar 1 — Capital. Pretty URLs redirect to the legacy QRT routes. */}
             <Route path="/scr"             element={<Navigate to="/report/s2501" replace />} />

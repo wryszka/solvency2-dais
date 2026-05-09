@@ -13,6 +13,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Layers, Clock, ChevronRight, Zap, Sparkles, Sun } from 'lucide-react';
 import Monitor from './Monitor';
+import TodaySolvencyTile from '../components/TodaySolvencyTile';
+import LateFeedCallout from '../components/LateFeedCallout';
 import {
   fetchOverlays, fetchLabModels, formatEur,
   type Overlay, type LabModelRow,
@@ -32,6 +34,12 @@ export default function Today() {
           </div>
         </div>
       </header>
+
+      {/* Headline tiles — solvency ratio + late feed */}
+      <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-4 pb-2">
+        <TodaySolvencyTile />
+        <LateFeedCallout />
+      </div>
 
       {/* Monitor (existing Control Tower) is the heart of the page */}
       <Monitor />

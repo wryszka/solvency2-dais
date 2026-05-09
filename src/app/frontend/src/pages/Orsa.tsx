@@ -19,6 +19,7 @@ import {
 import PillarChip from '../components/PillarChip';
 import { Skeleton } from '../components/Skeleton';
 import CapitalPathChart from '../components/CapitalPathChart';
+import OrsaContinuousHeader from '../components/OrsaContinuousHeader';
 import { useStreamedText } from '../lib/hooks/useStreamedText';
 import {
   fetchOrsaScenarios, runOrsaScenario, generateOrsaNarrative, fetchOrsaNarratives,
@@ -158,6 +159,9 @@ export default function Orsa() {
           {error}
         </div>
       )}
+
+      {/* Continuous ORSA — refreshed nightly + 30-day drift sparklines + on-the-fly stress */}
+      <OrsaContinuousHeader />
 
       {/* Scenario picker */}
       <section className="bg-white rounded-lg border border-gray-200 overflow-hidden">

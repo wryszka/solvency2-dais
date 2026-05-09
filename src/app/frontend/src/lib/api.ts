@@ -906,3 +906,101 @@ export async function fetchAuditPanel(qrt_id: string, period?: string): Promise<
 export async function fetchQrtVersions(qrt_id: string): Promise<{ qrt_table: string; history: Row[] }> {
   return fetchJson(`/api/qrt/${qrt_id}/versions`);
 }
+
+// ─── Phase 5 demo narrative ──────────────────────────────────────────
+
+export interface DemoFeed {
+  feed_name: string;
+  source_system: string;
+  source_party: string;
+  owner_contact_name: string;
+  owner_contact_role: string;
+  owner_contact_email: string;
+  expected_at: string;
+  received_at: string;
+  status: 'received_late' | 'received_on_time' | 'pending';
+  last_contact_at: string | null;
+  last_contact_method: string | null;
+  last_contact_notes: string | null;
+  eta_at: string | null;
+  blocks_qrts: string[];
+  stale_models: string[];
+  recon_phantom_eur: number | string;
+  notes: string;
+  reporting_period: string;
+}
+
+export interface DemoSfChallenger {
+  challenger_version: string;
+  calibration_label: string;
+  submitted_by: string;
+  submitted_role: string;
+  submitted_at: string;
+  approver_name: string;
+  approver_role: string;
+  approver_status: string;
+  approver_oo_until: string | null;
+  deputy_name: string;
+  deputy_role: string;
+  deputy_status: string;
+  reminders_sent: number;
+  last_reminder_at: string;
+  scr_delta_pct: number | string;
+  ratio_before_pct: number | string;
+  ratio_after_pct: number | string;
+  methodology_changes: string[];
+  current_state: string;
+  promoted_at: string | null;
+  promoted_by: string | null;
+}
+
+export interface DailySolvency {
+  observed_date: string;
+  ratio_pct: number | string;
+  delta_vs_prior_pp: number | string;
+  driver: string;
+  driver_class: string;
+}
+
+export interface OrsaHistoryScenario {
+  scenario_id: string;
+  scenario_name: string;
+  points: { observed_date: string; year_offset: number; ratio_pct: number }[];
+}
+
+export async function fetchDemoFeeds(period = '2025-Q4'): Promise<{ feeds: DemoFeed[] }> {
+  return fetchJson(`/api/demo/feeds?period=${encodeURIComponent(period)}`);
+}
+export async function fetchDemoFeed(feedName: string): Promise<{ feed: DemoFeed }> {
+  return fetchJson(`/api/demo/feeds/${encodeURIComponent(feedName)}`);
+}
+export async function fetchSfChallenger(): Promise<{ challenger: DemoSfChallenger | null }> {
+  return fetchJson('/api/demo/sf-challenger');
+}
+export async function escalateSfChallenger(note?: string): Promise<Row> {
+  return postJson('/api/demo/sf-challenger/escalate', { note });
+}
+export async function promoteSfChallenger(approver_signoff: string): Promise<Row> {
+  return postJson('/api/demo/sf-challenger/promote', { approver_signoff });
+}
+export async function fetchCatAgentReview(): Promise<{ review: string; events: Row[]; storm_claims: Row[] }> {
+  return fetchJson('/api/demo/cat-agent/review');
+}
+export async function fetchSolvencyDaily(days = 90): Promise<{ series: DailySolvency[] }> {
+  return fetchJson(`/api/demo/solvency-daily?days=${days}`);
+}
+export async function fetchCyberBook(): Promise<{ cyber: Row | null }> {
+  return fetchJson('/api/demo/cyber-book');
+}
+export async function runWhatif(scenario_label: string, payload: Record<string, unknown> = {}): Promise<Row> {
+  return postJson('/api/demo/whatif/run', { scenario_label, payload });
+}
+export async function fetchOrsaHistory(days = 30): Promise<{ scenarios: OrsaHistoryScenario[] }> {
+  return fetchJson(`/api/demo/orsa/history?days=${days}`);
+}
+export async function runOrsaStress(scenario_label: string, duration_years = 5): Promise<Row> {
+  return postJson('/api/demo/orsa/run-stress', { scenario_label, duration_years });
+}
+export async function resetDemo(): Promise<{ status: string; elapsed_seconds: number; actions: string[] }> {
+  return postJson('/api/demo/reset');
+}
