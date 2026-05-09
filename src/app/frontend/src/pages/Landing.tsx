@@ -1,4 +1,4 @@
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import {
   ArrowRight, Shield, BarChart3, BookOpen, Flame, FlaskConical, Landmark,
@@ -89,6 +89,29 @@ export default function Landing() {
       {/* Control Tower strip — Monday-morning view */}
       <ControlTowerStrip status={status} loading={loading} />
 
+      {/* Workbench horizon — the closing frame */}
+      <Link to="/horizon"
+        className="block bg-gradient-to-br from-slate-900 via-slate-800 to-violet-900 rounded-xl p-5 text-white hover:from-slate-950 transition-colors group">
+        <div className="flex items-center gap-4">
+          <div className="w-11 h-11 rounded-xl bg-violet-500/20 border border-violet-400/30 flex items-center justify-center shrink-0">
+            <svg className="w-5 h-5 text-violet-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" fill="currentColor" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[11px] uppercase tracking-widest text-violet-300 font-bold">Workbench horizon</div>
+            <h3 className="text-lg font-bold tracking-tight mt-0.5">
+              Solvency II is what we showed today. The workbench is what runs the next decade.
+            </h3>
+            <p className="text-sm text-slate-300 mt-1">
+              Pricing, IFRS 17, claims analytics, reinsurance optimisation, capital steering — same data, same governance, same AI.
+            </p>
+          </div>
+          <span className="text-violet-200 font-semibold text-sm group-hover:translate-x-1 transition-transform whitespace-nowrap">View →</span>
+        </div>
+      </Link>
+
       {/* About this demo */}
       <details className="bg-white rounded-lg border border-gray-200 p-4 text-sm text-gray-700">
         <summary className="font-semibold text-gray-800 cursor-pointer">About this demo</summary>
@@ -99,7 +122,7 @@ export default function Landing() {
             Foundation Model API, and Databricks Apps.
           </p>
           <p className="italic text-gray-600">
-            Data is synthetic; templates and AI prompts are illustrative. Source code on GitHub —
+            Data is synthetic; templates and AI prompts are illustrative — vehicle, not cargo. Source code on GitHub —
             deployable to any Databricks workspace.
           </p>
         </div>

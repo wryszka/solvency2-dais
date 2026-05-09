@@ -176,17 +176,32 @@ Both must pass. If preflight fails on a scene used in your selected matrix row, 
 
 ## 6. Workbench horizon · 20:00–22:30
 
-**Click:** sidebar → Adjacencies (`/adjacencies` — built in Phase 4).
+**Click:** sidebar → Adjacencies (`/adjacencies`) → click "Workbench horizon" (`/horizon`) for the closing visual.
 
-**Operator notes:**
+**Don't enumerate all six adjacencies.** Pick two or three based on the audience. The horizon visual carries the rest.
 
-1. Show the Adjacencies page. *"Solvency II is what we showed today. Now look at this."*
-2. Walk the four cards: Pricing, IFRS 17, Claims Analytics, Reinsurance Optimisation. *"Same data. Same governance. Same AI. Different regimes, different workflows, same workbench."*
-3. *"This is what 'the actuarial workbench' actually means. It's not a Solvency II tool you'll outgrow when the regulation changes. It's the place where your actuarial work moves to."*
+### Audience-specific picks
 
-**Closing line:** *"You didn't buy a Solvency II solution. You bought a workbench that happens to do Solvency II beautifully today, and IFRS 17 next year, and pricing the year after."*
+| Audience | Open these cards |
+|---|---|
+| **CFO / CRO** | Pricing · Capital allocation · IFRS 17 |
+| **Chief Actuary** | Pricing · IFRS 17 · Reinsurance optimisation |
+| **Big4 / consultancy** | All six — they're the implementation channel |
+| **CTO / data lead** | Pattern reusability + governance consistency across all six |
+| **Mixed forum** | Pricing + IFRS 17 + Reinsurance — the three with broadest audience pull |
 
-**[15-min cut]** — skip this section entirely.
+### Operator notes
+
+1. Land on `/adjacencies`. *"Solvency II is what we showed today. Now look at this."*
+2. Read the lead paragraph aloud: *"Same data, same governance, same AI, same audit. Solvency II proves the model. Each of these extends from the platform you've already paid for."*
+3. Pick the audience-specific cards above. For each, hit just two beats:
+   - *"This is adjacent because [the why-line on the card]."*
+   - *"Same Lab interface, same overlays register, same audit panel. The work moves to where the data already lives."*
+4. **Click "Workbench horizon"** to land on `/horizon`. Workbench at the centre, Solvency II highlighted, the other domains orbit outward.
+5. Pause for two beats. Don't talk over the visual.
+6. **Closing line:** *"You didn't buy a Solvency II solution. You bought a workbench that does Solvency II beautifully today, IFRS 17 next year, pricing the year after. Same data. Same governance. Same AI. Same audit. The next workflow you're under pressure on extends from here."*
+
+**[15-min cut]** — skip the per-card walk; go straight to `/horizon`, deliver the closing line over the visual, then move to Close.
 
 ---
 

@@ -3,6 +3,7 @@ import {
   Building2, FileText, BarChart3, Activity, ShieldCheck, Bot, Code2, Home,
   Archive as ArchiveIcon, Shield, Landmark, Flame, FlaskConical,
   Scale, Workflow, BookOpen, Lock, Newspaper, ScrollText, Layers, Beaker,
+  Compass,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Landing from './pages/Landing';
@@ -26,6 +27,8 @@ import LifeUWRisk from './pages/LifeUWRisk';
 import OverlaysRegister from './pages/OverlaysRegister';
 import ActuarialLab from './pages/ActuarialLab';
 import LabModelDetail from './pages/LabModelDetail';
+import Adjacencies from './pages/Adjacencies';
+import Horizon from './pages/Horizon';
 import PillarChip, { type Pillar } from './components/PillarChip';
 import DemoModeToggle from './components/DemoModeToggle';
 import WorkbenchAssistant from './components/WorkbenchAssistant';
@@ -71,6 +74,7 @@ const NAV_SECTIONS: NavSection[] = [
     entries: [
       { to: '/lab',                icon: Beaker,        label: 'Models',                     pillar: 'cross' },
       { to: '/overlays',           icon: Layers,        label: 'Overlays Register',          pillar: 'cross' },
+      { to: '/adjacencies',        icon: Compass,       label: 'Adjacencies',                pillar: 'cross' },
     ],
   },
   {
@@ -227,6 +231,8 @@ export default function App() {
             <Route path="/lab"                element={<ActuarialLab />} />
             <Route path="/lab/:modelId"       element={<LabModelDetail />} />
             <Route path="/overlays"           element={<OverlaysRegister />} />
+            <Route path="/adjacencies"        element={<Adjacencies />} />
+            <Route path="/horizon"            element={<Horizon />} />
 
             {/* Pillar 2 — Governance */}
             <Route path="/orsa"               element={<Orsa />} />
