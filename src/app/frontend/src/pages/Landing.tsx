@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import {
   ArrowRight, Shield, BarChart3, BookOpen, Flame, FlaskConical, Landmark,
   Workflow, Scale, ScrollText, Lock, Archive as ArchiveIcon, Newspaper, FileText, Bot,
-  CheckCircle2, AlertTriangle, Clock, Activity, ShieldCheck, Sun, GraduationCap, Layers,
+  CheckCircle2, AlertTriangle, Clock, Activity, ShieldCheck, Sun, Layers,
 } from 'lucide-react';
 import PillarChip, { type Pillar, PILLAR_META } from '../components/PillarChip';
 import { fetchLandingStatus, type LandingStatus, type TileStatus } from '../lib/api';
@@ -80,12 +80,11 @@ export default function Landing() {
         </p>
       </div>
 
-      {/* Three doors — primary entry points */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Two doors — primary entry points */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DoorCard
           to="/today"
           icon={Sun}
-          eyebrow="Door 1"
           title="Today"
           tagline="Where are we now?"
           body="Operational state. Control Tower, late feeds, pending approvals, what needs doing."
@@ -94,20 +93,10 @@ export default function Landing() {
         <DoorCard
           to="/reporting-cycle"
           icon={Layers}
-          eyebrow="Door 2"
           title="Reporting Cycle"
           tagline="Three pillars, every artefact."
           body="Reference view. Pillar 1 calculation, Pillar 2 governance, Pillar 3 disclosure. Click any deliverable to open it."
           accent="blue"
-        />
-        <DoorCard
-          to="/learn"
-          icon={GraduationCap}
-          eyebrow="Door 3"
-          title="Learn"
-          tagline="How Solvency II works."
-          body="A guided walkthrough — the regime, the data, the cycle, the reports, the governance. About 12 minutes."
-          accent="emerald"
         />
       </div>
 
@@ -172,19 +161,17 @@ export default function Landing() {
   );
 }
 
-function DoorCard({ to, icon: Icon, eyebrow, title, tagline, body, accent }: {
+function DoorCard({ to, icon: Icon, title, tagline, body, accent }: {
   to: string;
   icon: React.ComponentType<{ className?: string }>;
-  eyebrow: string;
   title: string;
   tagline: string;
   body: string;
-  accent: 'amber' | 'blue' | 'emerald';
+  accent: 'amber' | 'blue';
 }) {
   const cls = {
-    amber:   { hover: 'hover:border-amber-400 hover:shadow-amber-100',     iconBg: 'bg-amber-100 group-hover:bg-amber-200',     iconColor: 'text-amber-700',   eyebrow: 'text-amber-700',   title: 'text-amber-900',   arrow: 'text-amber-700' },
-    blue:    { hover: 'hover:border-blue-400 hover:shadow-blue-100',       iconBg: 'bg-blue-100 group-hover:bg-blue-200',       iconColor: 'text-blue-700',    eyebrow: 'text-blue-700',    title: 'text-blue-900',    arrow: 'text-blue-700' },
-    emerald: { hover: 'hover:border-emerald-400 hover:shadow-emerald-100', iconBg: 'bg-emerald-100 group-hover:bg-emerald-200', iconColor: 'text-emerald-700', eyebrow: 'text-emerald-700', title: 'text-emerald-900', arrow: 'text-emerald-700' },
+    amber: { hover: 'hover:border-amber-400 hover:shadow-amber-100', iconBg: 'bg-amber-100 group-hover:bg-amber-200', iconColor: 'text-amber-700', title: 'text-amber-900', arrow: 'text-amber-700' },
+    blue:  { hover: 'hover:border-blue-400 hover:shadow-blue-100',   iconBg: 'bg-blue-100 group-hover:bg-blue-200',   iconColor: 'text-blue-700',  title: 'text-blue-900',  arrow: 'text-blue-700' },
   }[accent];
   return (
     <Link to={to}
@@ -194,7 +181,6 @@ function DoorCard({ to, icon: Icon, eyebrow, title, tagline, body, accent }: {
           <Icon className={`w-6 h-6 ${cls.iconColor}`} />
         </div>
         <div className="flex-1">
-          <div className={`text-[10px] uppercase tracking-widest font-bold ${cls.eyebrow}`}>{eyebrow}</div>
           <h3 className={`text-2xl font-bold ${cls.title} tracking-tight`}>{title}</h3>
         </div>
       </div>

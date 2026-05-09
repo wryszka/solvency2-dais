@@ -50,13 +50,12 @@ interface DoorLink {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   tagline: string;
-  accent: 'amber' | 'blue' | 'emerald';
+  accent: 'amber' | 'blue';
 }
 
 const DOORS: DoorLink[] = [
-  { to: '/today',           icon: Sun,           label: 'Today',           tagline: 'Where are we now?',   accent: 'amber' },
-  { to: '/reporting-cycle', icon: Layers,        label: 'Reporting Cycle', tagline: 'Three pillars.',      accent: 'blue' },
-  { to: '/learn',           icon: GraduationCap, label: 'Learn',           tagline: 'How it all works.',   accent: 'emerald' },
+  { to: '/today',           icon: Sun,    label: 'Today',           tagline: 'Where are we now?', accent: 'amber' },
+  { to: '/reporting-cycle', icon: Layers, label: 'Reporting Cycle', tagline: 'Three pillars.',    accent: 'blue' },
 ];
 
 const NAV_SECTIONS: NavSection[] = [
@@ -121,9 +120,8 @@ function DoorRow({ door }: { door: DoorLink }) {
   const { pathname } = useLocation();
   const active = pathname.startsWith(door.to);
   const cls = {
-    amber:   { dot: 'bg-amber-400',   text: active ? 'text-amber-300'   : 'text-amber-300/70' },
-    blue:    { dot: 'bg-blue-400',    text: active ? 'text-blue-300'    : 'text-blue-300/70' },
-    emerald: { dot: 'bg-emerald-400', text: active ? 'text-emerald-300' : 'text-emerald-300/70' },
+    amber: { dot: 'bg-amber-400', text: active ? 'text-amber-300' : 'text-amber-300/70' },
+    blue:  { dot: 'bg-blue-400',  text: active ? 'text-blue-300'  : 'text-blue-300/70' },
   }[door.accent];
   const Icon = door.icon;
   return (
@@ -171,6 +169,9 @@ function Sidebar() {
         ))}
       </nav>
 
+      {/* Learn tile — secondary, tucked at the bottom */}
+      <LearnTile />
+
       {/* Footer */}
       <div className="border-t border-white/10 p-3 flex items-center gap-2 text-[10px] text-gray-400">
         <Building2 className="w-3 h-3 shrink-0" />
@@ -181,6 +182,29 @@ function Sidebar() {
         </div>
       </div>
     </aside>
+  );
+}
+
+function LearnTile() {
+  const { pathname } = useLocation();
+  const active = pathname.startsWith('/learn');
+  return (
+    <div className="px-3 pt-2 pb-1">
+      <Link
+        to="/learn"
+        className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md border transition-colors ${
+          active
+            ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200'
+            : 'bg-white/[0.03] border-white/10 text-gray-400 hover:text-emerald-200 hover:border-emerald-400/30'
+        }`}
+      >
+        <GraduationCap className="w-4 h-4 text-emerald-300/80 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-[12px] font-semibold leading-tight">Learn</div>
+          <div className="text-[10px] text-gray-500 truncate">How Solvency II works</div>
+        </div>
+      </Link>
+    </div>
   );
 }
 
