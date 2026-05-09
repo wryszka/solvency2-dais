@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Loader2, CheckCircle2, AlertTriangle, XCircle, Clock, Activity, ShieldCheck, ArrowRight, Bot,
+  Loader2, CheckCircle2, AlertTriangle, XCircle, Clock, Activity, ShieldCheck, Bot,
   Sparkles, Shield, ChevronDown, ChevronUp, BarChart3, Database, GitCompare, Workflow, Scale,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -14,14 +14,14 @@ import { ProcessOverview, DataInventory } from './Governance';
 
 type MonitorTab = 'overview' | 'ingestion' | 'reconciliation' | 'process' | 'catalog';
 
-export default function Monitor() {
+export default function Monitor({ initialTab = 'overview' }: { initialTab?: MonitorTab } = {}) {
   const [sla, setSla] = useState<Row[]>([]);
   const [dq, setDq] = useState<{ data: Row[]; aggregate: Row | null }>({ data: [], aggregate: null });
   const [recon, setRecon] = useState<Row[]>([]);
   const [pendingOverlays, setPendingOverlays] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<MonitorTab>('overview');
+  const [tab, setTab] = useState<MonitorTab>(initialTab);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -129,17 +129,6 @@ export default function Monitor() {
             <KpiCard icon={ShieldCheck} label="DQ Pass Rate" value={`${passRate}%`} color={parseFloat(String(passRate)) >= 99 ? 'green' : 'amber'} onClick={() => navigate('/data-quality')} />
             <KpiCard icon={CheckCircle2} label="Reconciliation" value={`${reconMatches}/${reconTotal} Match`} color={reconMatches === reconTotal ? 'green' : 'amber'} onClick={() => setTab('reconciliation')} />
             <KpiCard icon={Clock} label="Quarantined Rows" value={String(totalFailing)} color={totalFailing === 0 ? 'green' : totalFailing < 50 ? 'amber' : 'red'} onClick={() => navigate('/data-quality')} />
-          </div>
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/')} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-              View QRT Reports <ArrowRight className="w-4 h-4" />
-            </button>
-            <button onClick={() => navigate('/data-quality')} className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium">
-              DQ Dashboard <ArrowRight className="w-4 h-4" />
-            </button>
-            <button onClick={() => navigate('/archive')} className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium">
-              Submissions Archive <ArrowRight className="w-4 h-4" />
-            </button>
           </div>
         </div>
       )}

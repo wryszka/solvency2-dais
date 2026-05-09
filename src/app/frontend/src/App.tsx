@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import {
   Building2, FileText, Activity, ShieldCheck, Code2, Home,
-  Layers, Beaker, Compass, Sun, GraduationCap, BookOpen, CircleHelp,
+  Layers, Beaker, Compass, Sun, GraduationCap, BookOpen, CircleHelp, Workflow,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Landing from './pages/Landing';
@@ -79,6 +79,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     heading: 'Data',
     entries: [
+      { to: '/ingestion',          icon: Workflow,      label: 'Ingestion' },
       { to: '/data-quality',       icon: ShieldCheck,   label: 'Data quality' },
     ],
   },
@@ -273,6 +274,7 @@ export default function App() {
 
             {/* Operational tools — direct access */}
             <Route path="/monitor" element={<Monitor />} />
+            <Route path="/ingestion" element={<Monitor initialTab="ingestion" />} />
             <Route path="/data-quality" element={<DataQuality />} />
             <Route path="/examples" element={<Navigate to="/lab" replace />} />
             <Route path="/whatif"   element={<Whatif />} />
