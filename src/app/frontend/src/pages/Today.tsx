@@ -14,6 +14,7 @@ import { Link } from 'react-router-dom';
 import { Layers, Clock, ChevronRight, Zap, Sparkles, Sun } from 'lucide-react';
 import Monitor from './Monitor';
 import TodaySolvencyTile from '../components/TodaySolvencyTile';
+import TodayOrsaTile from '../components/TodayOrsaTile';
 import LateFeedCallout from '../components/LateFeedCallout';
 import {
   fetchOverlays, fetchLabModels, formatEur,
@@ -35,9 +36,14 @@ export default function Today() {
         </div>
       </header>
 
-      {/* Headline tiles — solvency ratio + late feed */}
+      {/* Headline tiles — two always-on readings: capital today (P1) + capital under stress today (P2) */}
       <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-4 pb-2">
         <TodaySolvencyTile />
+        <TodayOrsaTile />
+      </div>
+
+      {/* Late feed moves into the attention stream — first item above Q4 pains */}
+      <div className="max-w-6xl mx-auto px-6 pb-2">
         <LateFeedCallout />
       </div>
 
