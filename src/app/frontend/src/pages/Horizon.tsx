@@ -18,13 +18,13 @@ interface DomainNode {
 }
 
 const DOMAINS: DomainNode[] = [
-  { id: 'sii',          label: 'Solvency II',                sublabel: 'today',         highlighted: true, angle:   0 },
-  { id: 'pricing',      label: 'Pricing',                                                                  angle:  51 },
-  { id: 'reinsurance',  label: 'Reinsurance optimisation',                                                 angle: 103 },
-  { id: 'capital',      label: 'Capital allocation',                                                       angle: 154 },
-  { id: 'ifrs17',       label: 'IFRS 17',                                                                   angle: 206 },
-  { id: 'claims',       label: 'Claims analytics & fraud',                                                  angle: 257 },
-  { id: 'customer',     label: 'Customer & distribution',                                                   angle: 309 },
+  { id: 'sii',          label: 'Solvency II',                sublabel: 'today',     highlighted: true, angle:   0 },
+  { id: 'pricing',      label: 'Pricing',                    sublabel: 'live',      highlighted: true, angle:  51 },
+  { id: 'reinsurance',  label: 'Reinsurance optimisation',                                              angle: 103 },
+  { id: 'capital',      label: 'Capital allocation',                                                    angle: 154 },
+  { id: 'ifrs17',       label: 'IFRS 17',                                                                angle: 206 },
+  { id: 'claims',       label: 'Claims analytics & fraud',                                               angle: 257 },
+  { id: 'customer',     label: 'Customer & distribution',                                                angle: 309 },
 ];
 
 const CX = 500;
