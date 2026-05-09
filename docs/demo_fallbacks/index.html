@@ -48,14 +48,15 @@
 <body>
 <div class="wrap">
 
-  <h1>Solvency II at the Speed of Lakehouse — fallback summary</h1>
-  <p class="subtitle">Bricksurance SE · Q4 2025 · static evidence pack for the forum talk
-  if the live app is unavailable.</p>
+  <h1>Solvency II at the Speed of Lakehouse — forum fallback</h1>
+  <p class="subtitle">Bricksurance SE · Q4 2025 · static evidence pack for the four polished scenes.
+  Use if the live app is unavailable.</p>
 
   <div class="alert">
-    <strong>Use this page when the live app fails.</strong> Each scene below shows the SQL we'd
-    have run, the result we'd have shown, and the sentence we'd have said. Read it line by line —
-    it tells the same story as the live demo.
+    <strong>Workbench thesis — read this first if the app is down:</strong>
+    Databricks is the actuarial workbench. Comprehensive build, surgical demo. The actuarial
+    science (reserving, SF, Igloo, Prophet) stays where it is — vehicle, not cargo. The four
+    scenes below tell the coherent-not-faster story even without the live UI.
   </div>
 
   <div class="pillars">
@@ -160,9 +161,54 @@ ORDER BY component;</pre>
   </div>
 
   <div class="scene">
-    <h3>Close</h3>
-    <p style="font-size:14px;">Same Prophet. Same Igloo. New surface area. The integration tax is what gets removed.
-    <br><strong style="font-size:16px;">Solvency II at the speed of lakehouse — same regulation, less tax.</strong></p>
+    <h3><span class="chip cross">Cross</span> Scene 7 — Senior Reserving Actuary (Phase 2 polish)</h3>
+    <div class="what">What we'd have shown: the agent reading Q4 reserving output vs Q3, surfacing
+    the property storm anomaly, proposing an overlay that the actuary creates, edits, signs off.</div>
+    <div class="narrative">
+      <strong>Reserving Analysis: 2025-Q4 vs 2025-Q3</strong><br><br>
+      <strong>Property — storm impact.</strong> Incurred claims +€84.7M (+92.0%) Q3 → Q4 with
+      minimal claim count uplift (3,711 → 3,784). Storm event tagged 2,266 claims totalling
+      €137.8M; existing overlay of €18.5M is consistent with a one-off-event treatment.
+      <br><br>
+      <strong>Proposed overlay:</strong>
+      <code style="display:block;background:#0f172a;color:#d1d5db;padding:8px 10px;border-radius:4px;margin-top:6px;">
+        { "model_name":"reserving_pnc", "quarter":"2025-Q4",<br>
+        &nbsp;&nbsp;"line_of_business":"property", "magnitude_eur":18500000,<br>
+        &nbsp;&nbsp;"direction":"increase", "category":"one_off_event",<br>
+        &nbsp;&nbsp;"rationale":"Late-Dec 2025 European wind storm — concentrated 60% of property claim count in last 14 days." }
+      </code>
+      <br>
+      <strong style="color:#7c3aed;">This decision is yours.</strong>
+    </div>
+  </div>
+
+  <div class="scene">
+    <h3><span class="chip p2">P2</span> Scene 8 — Audit panel · the artefact-with-audit moment</h3>
+    <div class="what">What we'd have shown: opening S.05.01 → Audit tab → walking the five
+    sub-tabs. Every QRT carries this. Every quarter. Automatically.</div>
+    <div class="result">
+      <strong>Data:</strong> 6 source tables (raw_premiums, raw_claims, raw_claims_triangles, raw_expenses, stg_premiums_by_lob, stg_claims_by_lob) · row counts · Delta versions<br>
+      <strong>Code:</strong> 3 notebooks (reserving model registration, gold S.05.01 builder, summary aggregation) · git-tracked<br>
+      <strong>Models:</strong> reserving_pnc v9 (production) · approved by chief.actuary@bricksurance.eu · 2026-01-13<br>
+      <strong>Approvals + Overlays:</strong> 3 approved overlays linked to S.05.01 cells (storm +€18.5M · motor 2023 −€2.0M · liability tail +€4.5M)<br>
+      <strong>Lineage:</strong> Bronze → Silver → reserving_pnc → Gold (curated map, hover to highlight paths)
+    </div>
+  </div>
+
+  <div class="scene">
+    <h3>Close — verbatim</h3>
+    <p style="font-size:14px;">
+      Solvency II didn't become simpler. The work didn't go away. But the platform underneath
+      stopped being the thing that slowed you down. The data lives in one place. The
+      governance is one motion. The AI is grounded in your numbers. The audit travels with the
+      artefact. The whole picture is somebody's job.
+      <br><br>
+      What you saw today wasn't a faster Solvency II. It was a coherent one. Same Igloo. Same
+      Prophet. Same reserving methodology. New surface area. The integration tax is what got
+      removed.
+      <br><br>
+      <strong style="font-size:16px;">Solvency II at the speed of lakehouse — same regulation, less tax.</strong>
+    </p>
   </div>
 
   <footer>

@@ -1,289 +1,306 @@
 # Solvency II at the Speed of Lakehouse — Forum Talk Runbook
 
-> Forum talk script. 25-minute canonical version, with a 15-minute cut clearly marked.
-> Bricksurance SE — a mid-size European composite (P&C + Life on one balance sheet) — is closing
-> Q4 2025 on a single platform.
+**Insurance Industry Forum · Bricksurance SE · Q4 2025**
+**Slot: 25 minutes (15-minute cut also marked)**
 
 ---
 
-## Quick links (DEV deployment)
+## Thesis — locked
 
-| Asset | URL |
-|---|---|
-| **App (DEV)** | https://solvency2-qrt-ai-dev-7474656169654171.aws.databricksapps.com |
-| **Forum-mode landing** | …/?mode=forum |
-| **Architecture asset** | …/architecture |
-| **Lakeview dashboard** | https://fevm-lr-dev-aws-us.cloud.databricks.com/dashboardsv3/01f14b083d0f106f98420906328d6fd5 |
-| **Genie space** | https://fevm-lr-dev-aws-us.cloud.databricks.com/genie/rooms/01f14b086fda159fa26b3344740e6db5 |
-| **Schema** | `lr_dev_aws_us_catalog.solvency2demo_v2` |
-| **Pre-flight** | `./scripts/preflight_check.sh` (run before walking on stage) |
-| **Cache bake** | `./scripts/bake_cache.sh` (run once before the talk) |
-| **Cue cards** | [`docs/cue_cards.md`](docs/cue_cards.md) |
-| **Fallback summary** | [`docs/demo_fallbacks/index.html`](docs/demo_fallbacks/index.html) |
+> Databricks is the **actuarial workbench** of the next decade — the place where actuarial work *lives*, not another tool to be plugged in alongside the others. Solvency II is the proof case. The same data, the same governance, the same AI applies to every other actuarial workflow tomorrow.
 
-> **Pre-flight required before stage:** run `./scripts/preflight_check.sh`. If it returns non-zero,
-> fix or fall back to cached mode (sidebar toggle → "Cached") before going on.
+> **Comprehensive build, surgical demo.** The platform is built broadly enough to handle ad-hoc questions on stage. Only four scenes are polished to keynote quality. Reserving, SF, Igloo, and Prophet stay mock or example-quality — *vehicle, not cargo*. The actuarial science isn't ours; it stays where it is. The layer underneath is what the workbench provides, for the first time.
 
 ---
 
-## Title slide
+## The four polished scenes
 
-**Solvency II at the Speed of Lakehouse**
-A working demo of the actuarial cycle on Databricks. Bricksurance SE, Q4 2025.
+| # | Time | Scene | Where to click |
+|---|------|-------|----------------|
+| 1 | 3:00–6:30  | **Control Tower** — operational pain visibility | `/monitor` |
+| 2 | 6:30–11:00 | **Senior Reserving Actuary + Overlays** | `/lab/reserving_pnc` |
+| 3 | 11:00–15:00| **Audit panel on a QRT** | `/report/s0501` → Audit tab |
+| 4 | 15:00–20:00| **ORSA scenario run** | `/orsa` |
 
-Talk length: 25 min canonical, 15 min cut available. Three sections:
-
-1. **Opening** (3 min) — regime + integration tax problem
-2. **Demo: Monday morning at a composite** (3:30 → 22:30 — 19 min)
-3. **Close** (2:30) — architectural takeaway
-
----
-
-## Opening (3 min, verbatim)
-
-> *(Stand at the side of the stage. Architecture page open behind you, but don't talk to it yet.)*
-
-Solvency II is the European prudential framework for insurance.
-It's been live since 2016. Three pillars:
-**Pillar 1**, the capital you must hold.
-**Pillar 2**, the governance around how you decide what to hold.
-**Pillar 3**, the disclosure of both — to your supervisor, and to the public.
-
-If you're an insurance actuary in Europe, your year is structured by these pillars.
-You spend the first six weeks of every quarter producing the Pillar 1 quantitative reporting templates.
-You spend the rest of the year producing Pillar 2 reports — your ORSA, your actuarial function report, your model governance — and the public Pillar 3 SFCR.
-
-> *(Walk centre stage. Click to architecture diagram.)*
-
-This is what most insurers' Solvency II stack looks like underneath.
-Prophet for life valuation. Igloo for cat models. ResQ or Radar for non-life reserving.
-Tagetik or one of its competitors for the actual reporting templates.
-Excel filling the gaps. SharePoint for the audit trail. FTP and email for everything that doesn't fit.
-
-I've sat in actuarial functions for ten years. I have never seen this be calm.
-The integration cost — pulling the same numbers between these systems, reconciling them,
-explaining differences to the auditor — is the **integration tax**, and it's where most of the cycle's stress lives.
-
-> *(Click to right-hand side of architecture diagram.)*
-
-What you're going to see today: the same engines, on a single layer.
-Prophet still does life. Igloo still does cat. The actuarial method doesn't change.
-What changes is the surface area on top — pipelines, governance, disclosure all sitting on
-the same data, the same governance, the same audit trail.
-
-Bricksurance SE — a synthetic mid-size European composite — is going to close their
-Q4 2025 cycle in front of you. Twenty minutes. Three pillars.
-
-> **Talk title beat:** *Solvency II at the Speed of Lakehouse.*
+Plus the **Workbench Assistant** (floating chat, every page) for tangent recovery.
 
 ---
 
-## Demo opening — set the scene (3:30, 30 seconds)
+## Audience-flex matrix
 
-> *(Click to the app. Forum-mode landing.)*
+This is a starting point, not gospel. Read the room and swap.
 
-This is Maria's view on Monday morning. She's the Head of Finance & Reporting at Bricksurance.
-The reporting deadline is Friday. The cycle she's running covers about
-EUR 6.4 billion of assets, EUR 2 billion of GWP on the P&C side, and EUR 2 billion of life
-technical provisions. Composite, in one place.
-
-Three pillars. Capital. Governance. Disclosure.
-Each column shows the deliverables and a live status pill — green, amber, red.
-
-> **[15-MIN CUT]** Skip the colour explanation; just say "three pillars" and click into Monitor.
-
----
-
-## Scene 1 — Control Tower (4:00, 1:30 → 5:30)
-
-> *(Click "Begin demo →" / Monitor.)*
-
-This is the Control Tower. Same data layer, but framed as **what does Maria need to know in 60 seconds?**
-Six attention items at the top — these are real, computed live.
-
-1. **Reinsurance feed late** — the broker bordereau arrived eight business days late. There is the timestamp.
-2. **47 quarantined claims** — flagged by the DLT expectation, all tagged `legacy_pre_migration`.
-3. **December storm** — 60% of property claims clustered on the 18th–31st, tagged `storm_dec_2025`.
-4. **Life lapse spike** — unit-linked book up 34% relative to Q3.
-5. **EUR 2.3M reconciliation gap** — a duplicate ISIN in the asset register.
-6. **Challenger model pending** — 2026 calibration sitting next to Champion at +4% SCR.
-
-Six things to triage. Every other process this team uses — email, Excel, spreadsheets — is
-designed to delay you noticing these. This screen is designed to make you notice in 60 seconds.
-
-> **Punchline:** *Same data. Different surface.*
-
-> **[15-MIN CUT]** Walk through 3 of the 6 (A, C, E). Skip D and F.
-> **Recovery:** if Q4 pains panel shows "0 firing", the data didn't load — switch to cached mode and continue.
+| Audience | Scene 1 | Scene 2 | Scene 3 | Scene 4 |
+|---|---|---|---|---|
+| **Forum / mixed** (default) | Control Tower | Reserving agent + overlay | Audit panel | ORSA stress |
+| **Chief Actuary 1:1** | Actuarial Lab + dev/prod | Reserving agent + overlay | Overlays Register lifecycle | Cross-QRT recon catch (Pain G) |
+| **CFO / CRO 1:1** | Control Tower | ORSA stress | Audit panel | Adjacencies preview |
+| **Big4 implementation lead** | Lab + dev/prod | Audit panel | SFCR drafting | Regulator Q&A |
+| **CTO / data lead** | Lab + dev/prod | Lineage tab in audit panel | Workbench Assistant | Adjacencies |
+| **Regulator** | Audit panel | Overlays Register | Cross-QRT recon | Internal Controls |
 
 ---
 
-## Scene 2 — Drill into Pain B: the DQ break (5:30 → 7:00, 1:30)
+## Pre-flight before walking on stage
 
-> *(Click on Pain B card → Data Quality.)*
+```bash
+make preflight                           # 30+-check probe; green/red per check
+./scripts/bake_cache.sh                  # cache AI outputs for the 4 scenes
+```
 
-47 claims, all from a system source called `legacy_pre_migration`. Sister systems — `core_v3` —
-processed everything else fine. Look at the gross_paid column: every one of them is negative.
-A subrogation reversal pattern that the legacy system reports as a negative, the new core
-expects as a separate event.
-
-> *(Open SQL panel.)*
-
-Same Unity Catalog table. Same DLT expectation that quarantined them — this is a row constraint:
-`gross_paid >= 0`. The 47 rows didn't make it into the gold layer. They're not in S.05.01. They're not in any QRT.
-
-> **Punchline:** *The DLT pipeline didn't ask for permission. It quarantined and continued.*
-
-> **[15-MIN CUT]** Skip — already established the principle in scene 1.
+Both must pass. If preflight fails on a scene used in your selected matrix row, set `DEMO_MODE=cached` in the app's `app.yaml` and redeploy — the cached path serves the AFR / SFCR / RSR / ORSA panels even when the FM API is down.
 
 ---
 
-## Scene 3 — Pillar 1: SCR breakdown (7:00 → 9:00, 2:00)
+# 25-minute talk script
 
-> *(Click /scr — Pillar 1 chip.)*
+## 1. Open — verbatim · 0:00–3:00
 
-S.25.01 — the SCR template. The full standard formula breakdown. Five risk modules — market,
-default, life, health, non-life. They're correlated through the Annex IV correlation matrix.
-This is real actuarial maths. **The model that runs this is registered in Unity Catalog.**
-
-> *(Open Model Governance.)*
-
-Champion v2025. Challenger v2026. The Challenger encodes: NL UW correlation +1.5%, op risk → 4%,
-life lapse stress ×1.15. Live calculation, ~+4% SCR.
-
-> *(Point at the side-by-side numbers.)*
-
-Whoever decides whether Challenger gets promoted to Champion — that's a Pillar 2 governance decision —
-records it here. Buttons. Comments. Persisted.
-
-The point: **the actuarial calculation, the model registry, and the approval decision live in the same place.**
-
-> **Punchline:** *Pillar 1 + Pillar 2, not stitched together.*
-
-> **[15-MIN CUT]** Skip the model-governance side — stay on the SCR breakdown.
-
----
-
-## Scene 4 — Pillar 2: ORSA (9:00 → 13:00, 4:00) — KEYNOTE SCENE
-
-> *(Click /orsa.)*
-
-ORSA — Own Risk and Solvency Assessment. Pillar 2. Forward-looking.
-
-Five pre-loaded scenarios. Pick the December storm — 1-in-200 nat cat. Run.
-
-> *(Click Run scenario. ~3 seconds.)*
-
-Same SCR engine that produced Pillar 1's number, now applying the scenario shock.
-Recomputed BSCR. Three years of projection using the business plan assumptions.
-
-> *(Point at the capital path chart.)*
-
-Solvency ratio under base. Solvency ratio under scenario. You can see exactly where it gets uncomfortable.
-
-> *(Click Generate narrative.)*
-
-Foundation Model API. Reads the actual numbers from this run, drafts the Board commentary.
-Pillar 2 chip top-right of the result.
-
-> *(Read first sentence of narrative aloud.)*
-
-Same numbers. Same data. Now in language a Board can read in five minutes.
-
-> **Punchline:** *ORSA isn't a separate document anymore. It's a button.*
-
-> **[15-MIN CUT]** Skip narrative generation — just show the chart and move on. Saves ~90s.
-> **Recovery:** if the narrative call fails, sidebar toggle to Cached and click Generate again.
+> **"Good morning. I want to start with a question.**
+>
+> *[pause]*
+>
+> **Who in your organisation is responsible for the entire Solvency II process? Not a pillar. Not a QRT. Not a reserving cycle. The whole thing — from data arriving to disclosure being submitted.**
+>
+> *[pause]*
+>
+> **If you're like most insurers I've worked with, the honest answer is: nobody. Or more accurately — a senior actuary holds it in their head, a finance director holds it in a spreadsheet, and a Big4 implementation from a few years ago holds it in code nobody touches anymore.**
+>
+> *[pause]*
+>
+> **This isn't a criticism of your team. It's the structure of the market. Every tool you've bought is excellent at its slice. ResQ is the best at being ResQ. Igloo is the best at being Igloo. Tagetik is the best at being Tagetik. But none of them have a commercial reason to care about what happens upstream of them or downstream of them. Their job is their slice. The whole picture isn't anybody's job.**
+>
+> *[pause]*
+>
+> **So what we're going to show you today isn't another tool for your stack. It's what your Solvency II function looks like when *somebody finally owns the whole view*. Built on data you already have. Running on infrastructure most of you already have. With AI and governance most of you have already paid for.**
+>
+> *[pause]*
+>
+> **The actuarial science stays where it is. The capital models, the reserving methodologies, the stochastic engines — those are decades of work, they're not what we're touching. We're showing you the layer underneath that ties all of it together for the first time.**
+>
+> *[pause]*
+>
+> **Let's go to the Monday after Q4 close."**
 
 ---
 
-## Scene 5 — Pillar 3: SFCR with citations (13:00 → 16:30, 3:30)
+## 2. Scene 1 — Control Tower · 3:00–6:30
 
-> *(Click /sfcr.)*
+**Click:** sidebar → Control Tower (`/monitor`).
 
-Pillar 3, public disclosure. Five sections. Click "Generate draft" on Section C — Risk Profile.
+**Operator notes:**
+- The slate-900 hero strip shows "Q4 2025", deadline 2026-02-22, business-day countdown, pulsing health dot, four KPI tiles. Let the audience read it for two beats.
+- **Key landing:** *"This is the Monday morning view nobody on your team has today."*
+- Walk down the screen, naming each engineered pain as you go (read the labels on the Q4 attention items panel, in order):
+  - **Pain A** — RI feed late
+  - **Pain B** — 47 quarantined claims (legacy_pre_migration source)
+  - **Pain C** — Property reserve spike (Dec storm tagged)
+  - **Pain D** — Life lapse uplift (unit-linked Q4 vs Q3)
+  - **Pain E** — Asset / own-funds reconciliation gap
+  - **Pain F** — Challenger model pending
+  - **Pain G** — Reserve-capital divergence (Q4 reserving overlay applied; capital model still on Q3 parameter)
+- Don't fix anything yet. The point is *visibility* — every problem on one screen, not buried six clicks down.
+- **Closing line:** *"Every one of these would normally take a senior actuary an hour of triage to even find. Here, they're the first thing you see Monday morning."*
 
-> *(Wait ~5 seconds. Output appears.)*
-
-Look at the inline chips. **Every quantitative claim is anchored to the gold table and cell it came from.**
-You can hover, you can click, an auditor can trace the path from the public report
-down to the raw data in seconds.
-
-> *(Click Preview to show citations rendered as chips.)*
-
-Same engine drafts every section. Same engine drafts the RSR — the supervisor-only twin —
-with two extra confidential sections.
-
-> **Punchline:** *Disclosure that an auditor can trust because they can verify it.*
-
-> **[15-MIN CUT]** Skip the preview/click-through; just generate one section and read the first paragraph.
-
----
-
-## Scene 6 — Internal Controls + close (16:30 → 19:30, 3:00)
-
-> *(Click /internal-controls.)*
-
-12 AI guardrails. Layered. Each one points at the source code that implements it.
-
-> *(Point at the architectural assertions.)*
-
-Three architectural invariants this platform enforces:
-1. AI cannot approve. The approval workflow requires a human X-Forwarded-User. AI agents have no path to approve.
-2. AI is read-only against regulatory tables. App service principal has SELECT on raw/staging/gold;
-   only `6_ai_*` tables (drafts, narratives, approvals) are writable.
-3. Every AI output is hashed. AFR + SFCR + ORSA narratives all carry SHA-256 content hashes.
-
-The audit trail is a Delta table. Every API call. Who, when, status, duration.
-
-> **Punchline:** *Pillar 2 governance isn't a policy document. It's the architecture.*
-
-> **[15-MIN CUT]** Skip the audit log; show only the matrix + 3 invariants.
+**[15-min cut]** — keep but cap at 2 minutes. Skip Pain F + Pain G in the read-through; just point at them.
 
 ---
 
-## Close (22:30 → 25:00, 2:30)
+## 3. Scene 2 — Senior Reserving Actuary + Overlays · 6:30–11:00
 
-> *(Click back to Architecture page.)*
+**Click:** sidebar → Actuarial Lab → Reserving — P&C (`/lab/reserving_pnc`).
 
-Same engines. Same actuarial methods. New surface area.
+**This is the actuarial wow moment. Most important scene. Don't rush.**
 
-You don't need to rebuild Prophet. You don't need to throw away Igloo. The **integration tax**
-is what gets removed when the data, the pipelines, the AI, and the disclosure all sit on
-the same governed substrate.
+**Operator notes:**
 
-For a mid-size composite — Bricksurance — this means the actuarial team spends Friday
-producing the regulatory submission instead of producing it on Wednesday and then
-spending Thursday and Friday explaining the differences between five copies of the same number.
+1. Open the model detail page. Show the 5 tabs (Versions / Diagnostics / Approvals / Lineage / Promote). Let the audience see this is a registered MLflow model with a production alias and a candidate, just like SF.
+2. Above the tabs, point at the Senior Reserving Actuary panel. *"This is where the platform stops being passive. The agent reads the production reserving output, compares to last quarter, and surfaces what's worth a senior actuary's eye."*
+3. **Click "Run reserving review."** Four-stage progress sequencer plays. Then output streams in, character by character.
+4. While it streams, narrate:
+   > *"The agent isn't running the actuarial science. It's reading the same numbers the reserving committee will look at, comparing against last quarter, and flagging the material movements. The methodology stays where it is."*
+5. When the streaming finishes, point at the "Proposed overlays" cards. *"For each anomaly, the agent proposes an overlay. Magnitude, category, rationale. But — crucially — the agent cannot create overlays."*
+6. Read the ending line aloud: **"This decision is yours."**
+   > *"That phrase isn't a UX flourish. It's the architecture. Agent does the analysis, actuary does the judgement, platform captures both with full audit."*
+7. **Click "Create overlay from this suggestion"** on the property storm proposal.
+8. Modal opens. *"Pre-filled from the agent's suggestion. The actuary edits — magnitude, rationale, whatever they need. Then submits for approval."* Edit the rationale slightly to prove it's editable.
+9. **Click "Submit for approval."** Modal closes. The recent-overlays mini-feed below the panel updates immediately — the new overlay row flashes emerald.
+10. **Click "approve"** on that row (you're playing both roles). The status flips to approved.
+11. **Closing line:** *"That overlay is now part of the system. Lineage-linked to S.05.01 and S.25.01 cells. Carried into the audit panel of every QRT it affects. We didn't fix anything in code. The actuarial team did their job; the platform recorded that they did."*
 
-This isn't a Databricks product. It's a working demonstration of what you can build on Databricks.
-The source is on GitHub. Deploy it to your own workspace, point it at your own data.
-
-> **Closing line:** *Solvency II at the speed of lakehouse — same regulation, less tax.*
+**[15-min cut]** — keep the streaming + the "decision is yours" moment + the modal. Skip the simulated approval click.
 
 ---
 
-## Recovery cheatsheet
+## 4. Scene 3 — Audit panel on a QRT · 11:00–15:00
 
-| If this fails… | Do this. |
-|---|---|
-| Q4 pains panel shows zero firing | Refresh; if still zero, fix data (re-run preflight). Don't read from the spec. |
-| ORSA "Run scenario" hangs | Sidebar toggle → Cached. Click Run again. |
-| ORSA narrative fails | Sidebar toggle → Cached. The bake is pre-populated. |
-| AFR / SFCR draft fails | Same — switch to Cached and re-click Generate. |
-| Whole app is down | Go to `docs/demo_fallbacks/index.html` (open the file or print-to-PDF beforehand). |
-| Slide doesn't render the architecture | Open `/architecture` in a second tab during opening; use it as the slide. |
+**Click:** sidebar → Reserving & TPs (P&C) → opens `/report/s0501` → click the **Audit** tab.
 
-## Cuts at a glance
+**Operator notes:**
 
-| Scene | 25-min | 15-min |
+1. *"This is S.05.01 — premiums, claims, and expenses for Q4. The QRT itself is in the Content tab. We're going straight to Audit, because every QRT carries this, automatically, every quarter."*
+2. **Data tab** — read the QRT-table version + timestamp at the top. Then the source-tables list. *"Each one has a row count for this quarter, plus the Delta version + timestamp it was at when this QRT was built. I can drill into any one to see the actual rows."*
+3. **Code tab** — *"The notebooks that produced this QRT — git-tracked, every run logged. Not commentary; the actual artefacts."*
+4. **Models tab** — point at `reserving_pnc` v9, approver, approved_at. *"The production reserving model that contributed to this QRT. Click through and we're back in the Lab — same model, same governance interface."*
+5. **Approvals & Overlays tab** — show the three Q4 overlays, including the storm overlay we just created. *"Every overlay that affects this QRT, with author, approver, rationale, lineage-linked to specific cells."*
+6. **Lineage tab** — the SVG dependency graph. Hover a node to highlight its dependencies; the unrelated nodes dim. *"Bronze, silver, models, gold. Hand-curated map of where every value in this QRT came from. Click any model node to open the Lab detail."*
+7. **Closing line:** *"Every QRT carries this. Every quarter. Automatically. The audit isn't an attestation; it's the artefact. They're the same thing now."*
+
+**[15-min cut]** — show Data + Lineage tabs only. Skip Code, Models, Approvals & Overlays in the read-through (mention they exist).
+
+---
+
+## 5. Scene 4 — ORSA scenario run · 15:00–20:00
+
+**Click:** sidebar → ORSA (`/orsa`).
+
+**The CFO/CRO wow moment. Not "AI can write" — "six weeks of work, an afternoon".**
+
+**Operator notes:**
+
+1. Read the page header. *"ORSA — Own Risk and Solvency Assessment. Pillar 2. Once a year, the board needs to know how the firm holds up under stress."*
+2. Show the three scenario cards. *"1-in-200 nat cat. Equity shock minus 30%. Mass lapse plus 35%. The actuarial team defines these as configs in Unity Catalog, not code."*
+3. Pick **1-in-200 nat cat**. **Click "Run scenario."**
+4. Live progress panel renders for ~18 seconds. Five stages, sequenced, with check-marks lighting up as each completes. While it runs:
+   > *"Behind the scenes: the engine reads the base SCR, applies the scenario shocks to specific sub-modules, re-aggregates BSCR through the EIOPA correlation matrix, projects three years forward using the business plan assumptions, and persists everything to a Delta table."*
+5. **Capital path chart** appears with left-to-right reveal animation. Two lines — base in blue, stress in red/amber/green depending on severity. Lowest-stress point gets an annotation.
+6. *"Three-year projection. Solvency ratio dips to ~257% in Year 0 and recovers as own funds rebuild. Above the regulatory threshold. The kind of chart the board needs to see, not invent."*
+7. **Click "Generate narrative."** AI-drafted text streams in over ~20 seconds. While it streams:
+   > *"This is the narrative drafted from the same data — same numbers, same scenario, same business plan. It's not 'AI generates text'. It's the platform writing the section a senior actuary would otherwise spend a week drafting from spreadsheets."*
+8. When the stream finishes, the green "saved · gold_orsa_narratives" stamp appears. *"Versioned, hashed, audit-logged. If we re-run, we don't overwrite — we add a new version."*
+9. **Closing line:** *"This used to be six weeks of Excel work and three days of writing. Now it's a thirty-second run and a paragraph that reads like an SFCR section. Not faster. Coherent."*
+
+**[15-min cut]** — pre-stage one scenario already-run (visible as you arrive on the page). Run a fresh one but skip the narrative generation; show a previously-baked one instead.
+
+---
+
+## 6. Workbench horizon · 20:00–22:30
+
+**Click:** sidebar → Adjacencies (`/adjacencies` — built in Phase 4).
+
+**Operator notes:**
+
+1. Show the Adjacencies page. *"Solvency II is what we showed today. Now look at this."*
+2. Walk the four cards: Pricing, IFRS 17, Claims Analytics, Reinsurance Optimisation. *"Same data. Same governance. Same AI. Different regimes, different workflows, same workbench."*
+3. *"This is what 'the actuarial workbench' actually means. It's not a Solvency II tool you'll outgrow when the regulation changes. It's the place where your actuarial work moves to."*
+
+**Closing line:** *"You didn't buy a Solvency II solution. You bought a workbench that happens to do Solvency II beautifully today, and IFRS 17 next year, and pricing the year after."*
+
+**[15-min cut]** — skip this section entirely.
+
+---
+
+## 7. Close — verbatim · 22:30–25:00
+
+> **"Let me land where I started.**
+>
+> *[pause]*
+>
+> **Solvency II didn't become simpler. The work didn't go away. The reserving committee still meets every quarter. The senior actuary still owns the technical-provisions calculation. The CFO still signs the SFCR. None of that changed.**
+>
+> *[pause]*
+>
+> **But the platform underneath it stopped being the thing that slowed you down. The data lives in one place. The governance is one motion. The AI is grounded in your numbers, not generic. The audit travels with the artefact. The whole picture is somebody's job — actually, it's everybody's job, because everyone is looking at the same view.**
+>
+> *[pause]*
+>
+> **What you saw today wasn't a faster Solvency II. It was a coherent one. And the same data, the same governance, the same AI applies to every other actuarial workflow tomorrow.**
+>
+> *[pause]*
+>
+> **Same Igloo. Same Prophet. Same reserving methodology. New surface area. The integration tax is what got removed.**
+>
+> *[pause]*
+>
+> **Solvency II at the speed of lakehouse — same regulation, less tax. Thank you."**
+
+---
+
+# Tangent recovery — anticipated questions
+
+If someone asks something off-script, don't fight it. Use the **Workbench Assistant** (the floating violet button) for anything operational, or navigate to one of the affordances below.
+
+### Q: "How would I model reserving in Databricks?"
+**Open:** `src/examples/reserving_chain_ladder.py` (or the workspace path).
+**Say:** *"Worked example. Illustrative methodology — your actuaries or your consultants would build the production version. The platform around it is what you saw in the demo."*
+
+### Q: "What's the status of [some specific operational thing] right now?"
+**Click:** floating Workbench Assistant button (bottom right).
+**Say:** *"Let me ask the assistant."*
+Type the question. The agent queries the governance tables, summarises with citations, no write access. Reads from `6_gov_promotions`, `6_gov_overlays`, `5_mon_*`.
+
+### Q: "Can you show me Q1 2025's data?"
+**Navigate:** any QRT detail → date selector (when shipped) → Q1 2025.
+**Say:** *"Delta time travel. The full Q1 audit, with Q1's overlays and Q1's model versions. Same affordance for any quarter, going back as far as your retention policy."*
+
+### Q: "What about IFRS 17 / matching adjustment / group reporting?"
+**Navigate:** Adjacencies (when shipped) — or just reference verbally.
+**Say:** *"On the roadmap — same architectural pattern. The workbench thesis doesn't change. Data lives in UC, models live in MLflow with aliases, agents are read-only, audit travels with the artefact."*
+
+### Q: "Are you replacing ResQ / Igloo / Prophet?"
+**Click:** Actuarial Lab (`/lab`) — show that Igloo and Prophet are peer rows alongside native UC models.
+**Say:** *"No. Look at the Lab — they're peers to native models, treated identically. If you want to keep them, keep them. If you want to migrate over time, the platform supports that. Customer choice. The point of the Lab is the *interface* — your governance team works with all five models the same way."*
+
+### Q: "Who can create overlays? What's stopping someone from gaming the numbers?"
+**Click:** Overlays Register — show an existing overlay's detail drawer.
+**Say:** *"Overlays have authors, approvers, dates, magnitude, category, rationale, lineage-link to QRT cells. Magnitude-thresholded approvals. Every overlay is in a Delta table — versioned, audit-logged, queryable. Audit committee or supervisor sees the same view we do."*
+
+### Q: "What happens if your AI hallucinates a number?"
+**Click:** any AFR or SFCR draft — point at the citation chips inline `[3_qrt_s2501_summary · scr_eur]`.
+**Say:** *"Every quantitative claim cites the underlying gold table cell. Auditor-traceable. If the model invents a number that doesn't trace, the citation chip is broken — visible. The drafting workflow is human-review, AI-assist, not AI-decide. The actuary signs the document."*
+
+### Q: "How does this scale to a multi-entity group?"
+**Say:** *"Each entity gets its own catalog — Unity Catalog handles the isolation. Group consolidation runs as a layered DLT pipeline that reads the entity-level gold tables and produces the group QRTs. Same workbench shape, multiple instances. Out of scope for today's demo."*
+
+### Q: "What about regulatory changes? EIOPA updates, new templates."
+**Click:** Lab → SF model → Versions.
+**Say:** *"Calibration changes are model-version changes. New EIOPA factor set means a new candidate version of the SF model. Run diagnostics, get sign-off, promote. Same workflow whether the change is internal or regulatory."*
+
+### Q: "What's the Workbench Assistant *not* able to do?"
+**Say:** *"It cannot write. It has read-only access to the governance tables and the gold layer. It can answer 'where are we?' and 'where did this come from?'. It can't approve, promote, create overlays, or change a QRT. The actuary owns those actions. Same architectural decision as the reserving agent."*
+
+---
+
+# Operator timing reference
+
+| Total elapsed | Should be on | Cue |
 |---|---|---|
-| Opening | 3:00 | 1:30 (skip detail of integration tax) |
-| Scene 1 — Control Tower | 1:30 | 1:00 (3 of 6 pains) |
-| Scene 2 — DQ break | 1:30 | SKIP |
-| Scene 3 — SCR + Model Gov | 2:00 | 1:00 (skip Model Gov) |
-| Scene 4 — ORSA | 4:00 | 3:00 (skip narrative) |
-| Scene 5 — SFCR | 3:30 | 2:00 (skip preview) |
-| Scene 6 — Internal Controls | 3:00 | 2:00 (skip audit) |
-| Close | 2:30 | 1:30 |
-| **Total** | **25:00** | **13:00** (room for 2 min of drift) |
+| 3:00 | Control Tower hero strip visible | "Monday morning view…" |
+| 6:30 | Reserving Lab page open | "Most important scene." |
+| 11:00 | S.05.01 Audit tab open | "Every QRT carries this." |
+| 15:00 | ORSA page open | "Six weeks → an afternoon." |
+| 20:00 | Adjacencies / horizon | "Workbench, not tool." |
+| 22:30 | Close — verbatim | Land understated. |
+
+If you're behind at 15:00, cut the Audit-tab walk to Data + Lineage only. If behind at 20:00, skip the Adjacencies walk — just verbalise the horizon line.
+
+---
+
+# What's *not* polished (don't open these on stage unless asked)
+
+- AFR / SFCR / RSR drafting pages — work, but presentation-grade Phase 2 polish was scoped to the four scenes
+- Internal Controls page — works
+- Genie integration — works but slow on cold start
+- Regulator Q&A — works
+
+If a question takes you here, it's a tangent — keep it tight, then come back.
+
+---
+
+# Reference — current Q4 2025 numbers (Bricksurance SE composite)
+
+- **SCR** EUR 556 M
+- **Eligible own funds** EUR 1.85 B
+- **Solvency ratio** 333%
+- **NL UW SCR** EUR 524 M (61% catastrophe component)
+- **Life TPs (best estimate)** EUR 2.0 B
+- **Asset register** EUR 6.4 B
+- **Gross written premium** EUR 2.0 B
+- **Storm overlay** +EUR 18.5 M (one-off-event, property)
+- **Motor 2023 AY overlay** −EUR 2.0 M (methodology, single distorting claim)
+- **Liability tail extension** +EUR 4.5 M (renewed-from-prior)
+- **Pain G — reserve-capital divergence** EUR 8.2 M understated SCR
+
+---
+
+*This runbook supersedes earlier versions. Deliverable by anyone who's read it.*

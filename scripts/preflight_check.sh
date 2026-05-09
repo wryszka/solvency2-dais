@@ -160,6 +160,21 @@ probe_sql "ORSA scenarios cfg"        "SELECT 1 FROM \`$CATALOG\`.\`$SCHEMA\`.\`
 probe_sql "Business plan cfg"         "SELECT 1 FROM \`$CATALOG\`.\`$SCHEMA\`.\`0_cfg_business_plan\` LIMIT 1" || log_warn "Plan cfg not yet seeded — first /api/orsa/business-plan call will create it"
 
 echo
+echo "── Workbench Phase 1 — governance tables + reserving models ───────────"
+probe_sql "6_gov_overlays seeded with Q4 storm + motor + liability"            "SELECT 1 FROM \`$CATALOG\`.\`$SCHEMA\`.\`6_gov_overlays\` WHERE quarter = '$PERIOD' AND status = 'approved' GROUP BY quarter HAVING COUNT(*) >= 3"
+probe_sql "6_gov_promotions has rows for all 5 models"                          "SELECT 1 FROM (SELECT COUNT(DISTINCT model_name) AS n FROM \`$CATALOG\`.\`$SCHEMA\`.\`6_gov_promotions\`) WHERE n >= 5"
+probe_sql "6_gov_model_aliases has igloo + prophet"                             "SELECT 1 FROM (SELECT COUNT(DISTINCT model_id) AS n FROM \`$CATALOG\`.\`$SCHEMA\`.\`6_gov_model_aliases\` WHERE alias = 'production') WHERE n >= 2"
+probe_sql "6_gov_model_diagnostics populated for $PERIOD"                       "SELECT 1 FROM \`$CATALOG\`.\`$SCHEMA\`.\`6_gov_model_diagnostics\` WHERE reporting_period = '$PERIOD' LIMIT 1"
+probe_sql "Pain G — reserve-capital divergence flagged in cross-QRT recon"     "SELECT 1 FROM \`$CATALOG\`.\`$SCHEMA\`.\`5_mon_cross_qrt_reconciliation\` WHERE check_name = 'reserve_capital_divergence' AND reporting_period = '$PERIOD' AND status = 'MISMATCH' LIMIT 1"
+
+echo
+echo "── Workbench Phase 1 — historical Q1/Q2/Q3 state for time travel ──────"
+probe_sql "Q1 has its own approved overlay"  "SELECT 1 FROM \`$CATALOG\`.\`$SCHEMA\`.\`6_gov_overlays\` WHERE quarter = '2025-Q1' AND status = 'approved' LIMIT 1"
+probe_sql "Q2 has its own approved overlay"  "SELECT 1 FROM \`$CATALOG\`.\`$SCHEMA\`.\`6_gov_overlays\` WHERE quarter = '2025-Q2' AND status = 'approved' LIMIT 1"
+probe_sql "Q3 has its own approved overlay"  "SELECT 1 FROM \`$CATALOG\`.\`$SCHEMA\`.\`6_gov_overlays\` WHERE quarter = '2025-Q3' AND status = 'approved' LIMIT 1"
+probe_sql "Q1 S.05.01 still queryable (time travel base)" "SELECT 1 FROM \`$CATALOG\`.\`$SCHEMA\`.\`3_qrt_s0501_summary\` WHERE reporting_period = '2025-Q1' LIMIT 1"
+
+echo
 echo "── App reachability ───────────────────────────────────────────────────"
 probe_endpoint "App health"           "/api/health"
 probe_endpoint "Landing status"       "/api/landing/status"
@@ -168,6 +183,10 @@ probe_endpoint "Reports list"         "/api/reports"
 probe_endpoint "ORSA scenarios"       "/api/orsa/scenarios"
 probe_endpoint "AFR sections"         "/api/afr/sections"
 probe_endpoint "SFCR sections"        "/api/sfcr/sections"
+probe_endpoint "Lab models (Phase 1)" "/api/governance/models"
+probe_endpoint "Overlays Register (Phase 1)" "/api/overlays?quarter=$PERIOD"
+probe_endpoint "Audit panel — S.05.01 (Phase 1)" "/api/qrt/s0501/audit?period=$PERIOD"
+probe_endpoint "Audit panel — Q1 historical (Phase 1)" "/api/qrt/s0501/audit?period=2025-Q1"
 
 echo
 echo "=========================================================================="

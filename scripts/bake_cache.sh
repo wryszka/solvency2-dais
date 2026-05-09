@@ -90,6 +90,25 @@ for s in natcat_1_in_200 equity_minus_30 mass_lapse_plus_35 reserve_plus_10 rate
     bake_orsa_narrative "$s"
 done
 
+# Senior Reserving Actuary — primes the FM endpoint and warms up the agent.
+# This call doesn't currently use the cache table (the agent endpoint is live-only),
+# but hitting it once before the talk warms the model + the SQL warehouse + any
+# transitive caches in the FM endpoint. Worth ~3-5s shaved off the first stage call.
+echo "Senior Reserving Actuary:"
+echo "  · agents / reserving/review (warmup)"
+curl -fsS "${APP_URL}/api/agents/reserving/review?period_q4=${PERIOD}&period_q3=2025-Q3" \
+    -H "Authorization: Bearer ${TOKEN}" --max-time 120 > /dev/null \
+|| echo "    ! warmup failed"
+
+echo "Workbench Assistant:"
+echo "  · agents / workbench/ask (warmup)"
+curl -fsS -X POST "${APP_URL}/api/agents/workbench/ask" \
+    -H "Authorization: Bearer ${TOKEN}" -H "Content-Type: application/json" \
+    --data "{\"question\":\"What is outstanding for Q4 close?\",\"period\":\"${PERIOD}\"}" \
+    --max-time 120 > /dev/null \
+|| echo "    ! warmup failed"
+
 echo
-echo "Bake complete. Cache lives in 6_ai_demo_cache."
-echo "Use ?cached=1 on each AI call (or set DEMO_MODE=cached) to play from cache."
+echo "Bake complete."
+echo "  · AFR/SFCR/RSR/ORSA — cached in 6_ai_demo_cache (?cached=1 or DEMO_MODE=cached)"
+echo "  · Reserving + Workbench agents — live-only, but warmed for first call"
