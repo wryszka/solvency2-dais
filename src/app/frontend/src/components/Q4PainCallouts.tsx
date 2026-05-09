@@ -1,21 +1,19 @@
 /**
- * Q4 2025 attention items — fired by /api/monitoring/q4-pains.
+ * Attention items — current period.
  *
- * Displayed prominently on Control Tower Overview so on Monday morning the
- * 6 engineered Q4 pains are immediately visible:
- *   A. Late RI feed
- *   B. Quarantined claims (DQ break)
- *   C. December storm — property reserve spike
- *   D. Life lapse deterioration
- *   E. €2.3M reconciliation gap
- *   F. Challenger model pending decision
+ * Merges two sources into a single grid:
+ *   1. /api/monitoring/q4-pains — the engineered Pain A-G items
+ *   2. /api/demo/feeds — any late feeds (Scene 3's ABN AMRO custodian)
+ *
+ * Both render as identical-shape cards; clicking navigates to the relevant
+ * detail page. No drawer — same interaction model as the other pains.
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, AlertCircle, Clock, ArrowRight, CheckCircle2,
 } from 'lucide-react';
-import { fetchQ4Pains, type Q4Pain, type PainSeverity } from '../lib/api';
+import { fetchQ4Pains, fetchDemoFeeds, type Q4Pain, type PainSeverity, type DemoFeed } from '../lib/api';
 
 const SEVERITY_VARIANT: Record<PainSeverity, { Icon: React.ComponentType<{ className?: string }>; cardCls: string; iconCls: string; label: string }> = {
   high: { Icon: AlertCircle,    cardCls: 'border-red-300 bg-red-50',     iconCls: 'text-red-600',   label: 'high' },
@@ -23,23 +21,59 @@ const SEVERITY_VARIANT: Record<PainSeverity, { Icon: React.ComponentType<{ class
   ok:   { Icon: CheckCircle2,   cardCls: 'border-green-200 bg-green-50/60', iconCls: 'text-green-600', label: 'ok' },
 };
 
+interface AttentionItem {
+  id: string;
+  title: string;
+  headline: string;
+  severity: PainSeverity;
+  drill_path: string;
+  fired: boolean;
+}
+
+function lateFeedToItem(f: DemoFeed): AttentionItem {
+  const expected = new Date(f.expected_at).getTime();
+  const received = new Date(f.received_at).getTime();
+  const ms = Math.max(received - expected, 0);
+  const days = Math.floor(ms / 86_400_000);
+  const hrs = Math.floor((ms % 86_400_000) / 3_600_000);
+  return {
+    id: `feed:${f.feed_name}`,
+    title: `${f.source_party} custodian feed late`,
+    headline: `${f.feed_name} delivered ${days}d ${hrs}h late · contact ${f.owner_contact_name}`,
+    severity: 'high',
+    drill_path: `/feeds/${encodeURIComponent(f.feed_name)}`,
+    fired: true,
+  };
+}
+
 export default function Q4PainCallouts() {
   const navigate = useNavigate();
-  const [pains, setPains] = useState<Q4Pain[]>([]);
+  const [items, setItems] = useState<AttentionItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchQ4Pains()
-      .then((r) => setPains(r.pains))
-      .catch(() => setPains([]))
-      .finally(() => setLoading(false));
+    Promise.all([
+      fetchQ4Pains().then((r) => r.pains as Q4Pain[]).catch(() => [] as Q4Pain[]),
+      fetchDemoFeeds().then((r) => r.feeds.filter((f) => f.status === 'received_late')).catch(() => [] as DemoFeed[]),
+    ]).then(([pains, lateFeeds]) => {
+      const fromPains: AttentionItem[] = pains.map((p) => ({
+        id: `pain:${p.id}`,
+        title: p.title,
+        headline: p.headline,
+        severity: p.severity,
+        drill_path: p.drill_path,
+        fired: p.fired,
+      }));
+      const fromFeeds = lateFeeds.map(lateFeedToItem);
+      setItems([...fromFeeds, ...fromPains]);
+    }).finally(() => setLoading(false));
   }, []);
 
   if (loading) return null;
-  if (pains.length === 0) return null;
+  if (items.length === 0) return null;
 
-  const fired = pains.filter((p) => p.fired);
-  const okCount = pains.length - fired.length;
+  const fired = items.filter((p) => p.fired);
+  const okCount = items.length - fired.length;
 
   return (
     <section className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -52,24 +86,24 @@ export default function Q4PainCallouts() {
         </span>
       </header>
       <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">
-        {pains.map((pain) => {
-          const v = SEVERITY_VARIANT[pain.severity];
+        {items.map((it) => {
+          const v = SEVERITY_VARIANT[it.severity];
           return (
             <button
-              key={pain.id}
-              onClick={() => navigate(pain.drill_path, { state: {
+              key={it.id}
+              onClick={() => navigate(it.drill_path, { state: {
                 crumbs: [
                   { label: 'Today', to: '/today' },
                   { label: 'Control Tower', to: '/monitor' },
-                  { label: pain.title },
+                  { label: it.title },
                 ],
               }})}
               className={`text-left flex items-start gap-3 p-3 rounded-md border transition-shadow hover:shadow-sm ${v.cardCls}`}
             >
               <v.Icon className={`w-4 h-4 mt-0.5 shrink-0 ${v.iconCls}`} />
               <div className="flex-1 min-w-0">
-                <span className="text-sm font-semibold text-gray-900 truncate block">{pain.title}</span>
-                <div className="text-xs text-gray-700 mt-0.5">{pain.headline}</div>
+                <span className="text-sm font-semibold text-gray-900 truncate block">{it.title}</span>
+                <div className="text-xs text-gray-700 mt-0.5">{it.headline}</div>
               </div>
               <ArrowRight className="w-3.5 h-3.5 text-gray-400 mt-1 shrink-0" />
             </button>

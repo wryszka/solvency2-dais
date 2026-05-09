@@ -405,6 +405,17 @@ End with a constructive recommendation."""
 
 # ── Scene 7 — Continuous ORSA history + on-the-fly stress ────────────────
 
+@router.get("/orsa/draft")
+async def orsa_draft():
+    """Latest version of the continuous ORSA draft, all sections."""
+    rows = await execute_query(
+        f"WITH max_v AS (SELECT MAX(version) AS v FROM {fqn('gold_orsa_draft')}) "
+        f"SELECT d.* FROM {fqn('gold_orsa_draft')} d, max_v "
+        f"WHERE d.version = max_v.v ORDER BY d.order_index"
+    )
+    return {"version": rows[0]["version"] if rows else None, "sections": rows}
+
+
 @router.get("/orsa/history")
 async def orsa_history(days: int = Query(30, ge=1, le=90)):
     # Window relative to the latest observed_date in the seeded series
@@ -536,6 +547,13 @@ async def reset_demo(request: Request):
         actions.append("What-if runs cleared")
     except Exception as exc:
         actions.append(f"What-if clean FAILED: {exc}")
+
+    # 7. ORSA draft — keep baseline version 1, drop any versions created during demo
+    try:
+        await execute_query(f"DELETE FROM {fqn('gold_orsa_draft')} WHERE version > 1")
+        actions.append("ORSA draft rewound to baseline (v1)")
+    except Exception as exc:
+        actions.append(f"ORSA draft rewind FAILED: {exc}")
 
     elapsed_s = (datetime.now(timezone.utc) - started).total_seconds()
     return {"status": "ok", "elapsed_seconds": elapsed_s, "actions": actions, "by": user}

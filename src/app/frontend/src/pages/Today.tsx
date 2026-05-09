@@ -15,7 +15,6 @@ import { Layers, Clock, ChevronRight, Zap, Sparkles, Sun } from 'lucide-react';
 import Monitor from './Monitor';
 import TodaySolvencyTile from '../components/TodaySolvencyTile';
 import TodayOrsaTile from '../components/TodayOrsaTile';
-import LateFeedCallout from '../components/LateFeedCallout';
 import {
   fetchOverlays, fetchLabModels, formatEur,
   type Overlay, type LabModelRow,
@@ -42,12 +41,8 @@ export default function Today() {
         <TodayOrsaTile />
       </div>
 
-      {/* Late feed moves into the attention stream — first item above Q4 pains */}
-      <div className="max-w-6xl mx-auto px-6 pb-2">
-        <LateFeedCallout />
-      </div>
-
-      {/* Monitor (existing Control Tower) is the heart of the page */}
+      {/* Monitor (existing Control Tower) is the heart of the page.
+          Late feeds are merged into Q4PainCallouts inside the overview tab. */}
       <Monitor />
 
       {/* Below: quick-link strips that surface what's moving today */}

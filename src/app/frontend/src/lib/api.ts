@@ -1021,6 +1021,21 @@ export async function runWhatif(scenario_label: string, payload: Record<string, 
 export async function fetchOrsaHistory(days = 30): Promise<{ scenarios: OrsaHistoryScenario[] }> {
   return fetchJson(`/api/demo/orsa/history?days=${days}`);
 }
+
+export interface OrsaDraftSection {
+  version: number;
+  section_id: string;
+  section_title: string;
+  body_markdown: string;
+  status: 'live' | 'stable' | 'annual_review';
+  last_quantitative_refresh: string;
+  last_narrative_review: string;
+  order_index: number;
+  generated_by: string;
+}
+export async function fetchOrsaDraft(): Promise<{ version: number | null; sections: OrsaDraftSection[] }> {
+  return fetchJson('/api/demo/orsa/draft');
+}
 export async function runOrsaStress(scenario_label: string, duration_years = 5): Promise<Row> {
   return postJson('/api/demo/orsa/run-stress', { scenario_label, duration_years });
 }

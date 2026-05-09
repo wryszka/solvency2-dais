@@ -31,6 +31,8 @@ import Today from './pages/Today';
 import ReportingCycle from './pages/ReportingCycle';
 import Learn from './pages/Learn';
 import Whatif from './pages/Whatif';
+import FeedDetail from './pages/FeedDetail';
+import OrsaDraft from './pages/OrsaDraft';
 import Breadcrumb from './components/Breadcrumb';
 import ResetDemoButton from './components/ResetDemoButton';
 import DemoModeToggle from './components/DemoModeToggle';
@@ -278,6 +280,8 @@ export default function App() {
             <Route path="/data-quality" element={<DataQuality />} />
             <Route path="/examples" element={<Navigate to="/lab" replace />} />
             <Route path="/whatif"   element={<Whatif />} />
+            <Route path="/feeds/:feedName" element={<FeedDetail />} />
+            <Route path="/orsa/draft" element={<OrsaDraft />} />
 
             {/* Pillar 1 — Capital. Pretty URLs redirect to the legacy QRT routes. */}
             <Route path="/scr"             element={<Navigate to="/report/s2501" replace />} />

@@ -127,6 +127,12 @@ DDL = [
         result_json STRING, narrative STRING, second_opinion STRING,
         ran_at TIMESTAMP, ran_by STRING
     """),
+    ("gold_orsa_draft", """
+        version INT, section_id STRING, section_title STRING,
+        body_markdown STRING, status STRING,
+        last_quantitative_refresh TIMESTAMP, last_narrative_review TIMESTAMP,
+        order_index INT, generated_by STRING
+    """),
 ]
 
 
@@ -371,6 +377,131 @@ def seed_sf_challenger() -> None:
     )
 
 
+def seed_orsa_draft() -> None:
+    """Single current version (v1) of the continuous ORSA draft, all 8 sections."""
+    last_q = datetime(2025, 12, 8, 2, 14, tzinfo=timezone.utc)        # nightly refresh
+    last_n = datetime(2025, 11, 18, 16, 30, tzinfo=timezone.utc)      # last manual edit
+    annual_review = datetime(2025, 7, 24, 10, 0, tzinfo=timezone.utc) # board statement
+
+    sections = [
+        (1, "risk_profile", "Risk profile", "live", last_q, last_n, """\
+The Group's Q4 2025 risk profile is dominated by non-life underwriting risk
+(catastrophe driven) and market risk on the asset portfolio. The Solvency
+Capital Requirement stands at **EUR 556 M** with eligible own funds of
+**EUR 1.85 B**, producing a coverage ratio of **333%** at year-end. Today's
+reading is **208.7%** reflecting intra-quarter movements (Storm Henrik
+notifications, custodian valuation drop, Igloo Q4 IBNR refresh).
+
+Material concentration in property + motor underwriting in Northern Germany
+and Denmark — the regions exposed to the December storm — remains within
+internal risk-appetite tolerances. No new top-of-the-house risks identified
+since the prior board update."""),
+
+        (2, "capital_adequacy", "Capital adequacy assessment", "live", last_q, last_n, """\
+Eligible own funds composition: **Tier 1 unrestricted EUR 1.62 B (88%)**,
+Tier 1 restricted EUR 0.10 B, Tier 2 EUR 0.13 B. The composition exceeds
+the regulatory tiering caps with a comfortable margin.
+
+Coverage of MCR is in excess of 5x. Coverage of SCR after the Q4 close
+projection sits at **205%** under business-plan growth. The Group
+considers itself well-capitalised on a base-case forward look."""),
+
+        (3, "sf_appropriateness", "Standard formula appropriateness", "stable", last_q, datetime(2025, 9, 4, 11, 0, tzinfo=timezone.utc), """\
+The Group continues to use the EIOPA Standard Formula. The 2026 calibration
+Challenger model (v2.2) is in active review by the Risk Function — see
+Lab → Standard Formula. SCR delta vs production is **+4.0%**, driven by:
+
+- Tighter non-life UW correlation (+1.5%)
+- Higher operational risk parameter (+1.0%)
+- Updated lapse stress severity (+1.5%)
+
+The Standard Formula remains appropriate for the Group's risk profile.
+The Actuarial Function has not identified any material divergence between
+SF assumptions and the Group's underwriting reality that would warrant a
+partial internal model."""),
+
+        (4, "stress_scenario_testing", "Stress and scenario testing", "live", last_q, last_n, """\
+Three standing stresses are projected nightly (continuous ORSA):
+
+- **1-in-200 nat cat:** trough ratio ~257% at year 0, recovers to ~252% by year 3
+- **Equity shock −30%:** trough ratio ~245% at year 0, recovers to ~252% by year 3
+- **Mass lapse +35%:** trough ratio ~138% at year 3 (drifting down from ~142%
+  three weeks ago, driven by recent unit-linked lapse experience)
+
+The mass-lapse trough is the binding stress and has been deteriorating over
+the last 30 days. The drift is consistent with the +34% Q4 unit-linked lapse
+uplift observed in the bronze layer. The Risk Function recommends the lapse
+assumption refresh proposed for the 2026 calibration captures this trend
+appropriately; no immediate action beyond the standing approval queue."""),
+
+        (5, "reverse_stress_testing", "Reverse stress testing", "live", last_q, last_n, """\
+Reverse stress to test the Group's ability to remain solvent at the MCR
+floor identified the following extreme combinations:
+
+- A simultaneous 1-in-500 European windstorm + −40% equity shock would
+  reduce coverage to ~140% — within tolerances but flagged
+- A pandemic-style mass lapse of +60% across life portfolios over 12 months
+  would reduce coverage to ~105% — non-binding given lapse stress already
+  modelled at +35%
+- A counterparty default cascade combining the largest reinsurance recoverable
+  with the top-3 bond exposures simultaneously would reduce coverage to ~165%
+
+None of the above scenarios are considered realistic in isolation; their
+purpose is to identify the binding constraint, which remains mass-lapse
+behaviour in the unit-linked book."""),
+
+        (6, "capital_projection", "Capital projection over business plan (3-year)", "live", last_q, last_n, """\
+Under the business plan (premium growth + planned capital management
+actions), the projected solvency-ratio path is:
+
+| Year | Base | Mass lapse +35% |
+|------|------|-----------------|
+| 0    | 333% | 195%            |
+| +1y  | 320% | 165%            |
+| +2y  | 312% | 142%            |
+| +3y  | 305% | 138%            |
+
+Capital generation is positive on a base case in every year. No planned
+distributions threaten the internal risk-appetite floor of 175% under
+base case. Under the binding stress (mass lapse) the coverage path
+remains above MCR but below internal appetite from year 1 onwards."""),
+
+        (7, "conclusions", "Conclusions and overall solvency needs statement", "annual_review", last_q, annual_review, """\
+The Board concludes that the Group's overall solvency needs are well covered
+by the current capital position. The Group remains well-capitalised on a
+base case and resilient to the standing stresses tested. The mass-lapse
+exposure in the unit-linked book is the binding constraint and is
+continuously monitored.
+
+The Group's capital management policy, reinsurance program, and risk
+appetite framework remain appropriate for the current and projected risk
+profile."""),
+
+        (8, "board_statement", "Board statement", "annual_review", annual_review, annual_review, """\
+The Board has reviewed the Own Risk and Solvency Assessment, including the
+quantitative results, methodology, and conclusions, and confirms that:
+
+(a) the assessment provides a true and fair view of the Group's overall
+solvency needs;
+(b) the standard formula remains appropriate for the Group's risk profile;
+(c) the Group has, at the date of this assessment, sufficient eligible own
+funds to cover both regulatory capital requirements and internally
+defined economic capital needs over the projected planning horizon.
+
+Approved by the Board of Directors at its meeting of **24 July 2025**.
+Reviewed at the **18 November 2025** governance committee."""),
+    ]
+
+    rows = [(1, sid, title, body, status, last_q, last_n, order, "actuarial.team@bricksurance.eu")
+            for order, sid, title, status, last_q, last_n, body in sections]
+    insert_rows(
+        "gold_orsa_draft",
+        ["version", "section_id", "section_title", "body_markdown", "status",
+         "last_quantitative_refresh", "last_narrative_review", "order_index", "generated_by"],
+        rows,
+    )
+
+
 def main() -> None:
     print(f"Phase 5 narrative seed in {CATALOG}.{SCHEMA}")
     ensure_tables()
@@ -384,6 +515,7 @@ def main() -> None:
     seed_cyber_book()
     seed_orsa_history()
     seed_sf_challenger()
+    seed_orsa_draft()
     print("\nPhase 5 seed complete.")
 
 
