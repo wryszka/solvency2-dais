@@ -1,9 +1,7 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import {
-  Building2, FileText, BarChart3, Activity, ShieldCheck, Bot, Code2, Home,
-  Archive as ArchiveIcon, Shield, Landmark, Flame, FlaskConical,
-  Scale, Workflow, BookOpen, Lock, Newspaper, ScrollText, Layers, Beaker,
-  Compass,
+  Building2, FileText, Activity, ShieldCheck, Code2, Home,
+  Layers, Beaker, Compass, Sun, GraduationCap, BookOpen,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Landing from './pages/Landing';
@@ -29,7 +27,10 @@ import ActuarialLab from './pages/ActuarialLab';
 import LabModelDetail from './pages/LabModelDetail';
 import Adjacencies from './pages/Adjacencies';
 import Horizon from './pages/Horizon';
-import PillarChip, { type Pillar } from './components/PillarChip';
+import Today from './pages/Today';
+import ReportingCycle from './pages/ReportingCycle';
+import Learn from './pages/Learn';
+import Breadcrumb from './components/Breadcrumb';
 import DemoModeToggle from './components/DemoModeToggle';
 import WorkbenchAssistant from './components/WorkbenchAssistant';
 
@@ -37,64 +38,54 @@ interface NavEntry {
   to: string;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  pillar: Pillar;
 }
 
 interface NavSection {
   heading: string;
-  pillar: Pillar;
   entries: NavEntry[];
 }
 
+interface DoorLink {
+  to: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  tagline: string;
+  accent: 'amber' | 'blue' | 'emerald';
+}
+
+const DOORS: DoorLink[] = [
+  { to: '/today',           icon: Sun,           label: 'Today',           tagline: 'Where are we now?',   accent: 'amber' },
+  { to: '/reporting-cycle', icon: Layers,        label: 'Reporting Cycle', tagline: 'Three pillars.',      accent: 'blue' },
+  { to: '/learn',           icon: GraduationCap, label: 'Learn',           tagline: 'How it all works.',   accent: 'emerald' },
+];
+
 const NAV_SECTIONS: NavSection[] = [
   {
-    heading: 'Control',
-    pillar: 'cross',
+    heading: 'Today',
     entries: [
-      { to: '/',              icon: Home,         label: 'Home',          pillar: 'cross' },
-      { to: '/monitor',       icon: Activity,     label: 'Control Tower', pillar: 'cross' },
-      { to: '/data-quality',  icon: ShieldCheck,  label: 'Data Quality',  pillar: 'cross' },
-    ],
-  },
-  {
-    heading: 'Pillar 1 — Capital',
-    pillar: 1,
-    entries: [
-      { to: '/scr',                icon: Shield,        label: 'SCR & Standard Formula',     pillar: 1 },
-      { to: '/reserving-pnc',      icon: BarChart3,     label: 'Reserving & TPs (P&C)',      pillar: 1 },
-      { to: '/reserving-life',     icon: BookOpen,      label: 'Reserving & TPs (Life)',     pillar: 1 },
-      { to: '/nl-uw-risk',         icon: Flame,         label: 'Non-Life UW Risk',           pillar: 1 },
-      { to: '/life-uw-risk',       icon: FlaskConical,  label: 'Life UW Risk',               pillar: 1 },
-      { to: '/assets',             icon: Landmark,      label: 'Asset Register',             pillar: 1 },
+      { to: '/',              icon: Home,         label: 'Home' },
+      { to: '/monitor',       icon: Activity,     label: 'Control Tower' },
     ],
   },
   {
     heading: 'Actuarial Lab',
-    pillar: 'cross',
     entries: [
-      { to: '/lab',                icon: Beaker,        label: 'Models',                     pillar: 'cross' },
-      { to: '/overlays',           icon: Layers,        label: 'Overlays Register',          pillar: 'cross' },
-      { to: '/adjacencies',        icon: Compass,       label: 'Adjacencies',                pillar: 'cross' },
+      { to: '/lab',                icon: Beaker,        label: 'Models' },
+      { to: '/overlays',           icon: Layers,        label: 'Overlays Register' },
+      { to: '/examples',           icon: BookOpen,      label: 'Worked examples' },
     ],
   },
   {
-    heading: 'Pillar 2 — Governance',
-    pillar: 2,
+    heading: 'Data',
     entries: [
-      { to: '/orsa',               icon: Workflow,      label: 'ORSA',                       pillar: 2 },
-      { to: '/model-governance',   icon: Scale,         label: 'Model Governance',           pillar: 2 },
-      { to: '/afr',                icon: ScrollText,    label: 'Actuarial Function',         pillar: 2 },
-      { to: '/internal-controls',  icon: Lock,          label: 'Internal Controls',          pillar: 2 },
+      { to: '/data-quality',       icon: ShieldCheck,   label: 'Data quality' },
     ],
   },
   {
-    heading: 'Pillar 3 — Disclosure',
-    pillar: 3,
+    heading: 'Workbench',
     entries: [
-      { to: '/archive',            icon: ArchiveIcon,   label: 'QRT Submission Pack',        pillar: 3 },
-      { to: '/sfcr',               icon: Newspaper,     label: 'SFCR (Public)',              pillar: 3 },
-      { to: '/rsr',                icon: FileText,      label: 'RSR (Supervisor)',           pillar: 3 },
-      { to: '/regulator-qa',       icon: Bot,           label: 'Regulator Q&A',              pillar: 3 },
+      { to: '/adjacencies',        icon: Compass,       label: 'Adjacencies' },
+      { to: '/horizon',            icon: FileText,      label: 'Workbench horizon' },
     ],
   },
 ];
@@ -106,67 +97,87 @@ function NavLink({ entry }: { entry: NavEntry }) {
   return (
     <Link
       to={entry.to}
-      className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-[13px] font-medium transition-colors ${
-        active ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'
+      className={`flex items-center gap-2.5 pl-3 pr-3 py-1.5 text-[13px] font-medium transition-colors border-l-2 ${
+        active
+          ? 'border-blue-400 bg-white/[0.04] text-white'
+          : 'border-transparent text-gray-400 hover:text-white hover:bg-white/[0.03]'
       }`}
     >
       <Icon className="w-4 h-4 shrink-0" />
       <span className="truncate flex-1">{entry.label}</span>
-      <PillarChip pillar={entry.pillar} size="sm" />
     </Link>
   );
 }
 
-function NavSectionHeader({ section }: { section: NavSection }) {
-  // Section heading text uses the pillar colour at full saturation; the
-  // following bar uses the same colour at lower opacity so the relationship
-  // is unmistakeable. Cross-pillar uses slate.
-  const colorVar = section.pillar === 'cross'
-    ? 'var(--color-cross-border)'
-    : `var(--color-pillar-${section.pillar}-border)`;
+function NavSectionHeader({ heading }: { heading: string }) {
   return (
-    <div className="px-3 pt-4 pb-1.5 text-[10px] uppercase tracking-wider font-semibold flex items-center gap-2"
-         style={{ color: colorVar }}>
-      <span>{section.heading}</span>
-      <span className="flex-1 h-px" style={{ background: colorVar, opacity: 0.5 }} />
+    <div className="px-3 pt-4 pb-1.5 text-[11px] tracking-wide font-semibold text-gray-500">
+      {heading}
     </div>
+  );
+}
+
+function DoorRow({ door }: { door: DoorLink }) {
+  const { pathname } = useLocation();
+  const active = pathname.startsWith(door.to);
+  const cls = {
+    amber:   { dot: 'bg-amber-400',   text: active ? 'text-amber-300'   : 'text-amber-300/70' },
+    blue:    { dot: 'bg-blue-400',    text: active ? 'text-blue-300'    : 'text-blue-300/70' },
+    emerald: { dot: 'bg-emerald-400', text: active ? 'text-emerald-300' : 'text-emerald-300/70' },
+  }[door.accent];
+  const Icon = door.icon;
+  return (
+    <Link to={door.to}
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors ${
+        active ? 'bg-white/10' : 'hover:bg-white/5'
+      }`}>
+      <div className={`w-7 h-7 rounded-md flex items-center justify-center ${cls.dot}/20`} style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
+        <Icon className={`w-4 h-4 ${cls.text}`} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className={`text-sm font-bold leading-tight ${active ? 'text-white' : 'text-gray-200'}`}>{door.label}</div>
+        <div className="text-[10px] text-gray-500 truncate">{door.tagline}</div>
+      </div>
+    </Link>
   );
 }
 
 function Sidebar() {
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-60 bg-[#1e293b] text-white flex flex-col">
+    <aside className="fixed left-0 top-0 bottom-0 w-[268px] bg-[#1e293b] text-white flex flex-col">
       {/* Brand */}
-      <Link to="/" className="flex items-center gap-3 px-4 py-4 border-b border-white/10 hover:opacity-90 transition-opacity">
-        <FileText className="w-6 h-6 text-blue-400 shrink-0" />
+      <Link to="/" className="flex items-center gap-3 px-4 py-3.5 border-b border-white/10 hover:opacity-90 transition-opacity">
+        <FileText className="w-5 h-5 text-blue-400 shrink-0" />
         <div className="min-w-0">
           <h1 className="text-base font-bold tracking-tight truncate">Solvency II</h1>
-          <p className="text-[10px] text-gray-400 truncate">Composite — Reporting & Governance</p>
+          <p className="text-[10px] text-gray-400 truncate">Bricksurance SE — Composite</p>
         </div>
       </Link>
 
-      {/* Sections */}
+      {/* Three doors — primary navigation */}
+      <div className="px-2 pt-3 pb-1 space-y-1">
+        {DOORS.map((d) => <DoorRow key={d.to} door={d} />)}
+      </div>
+
+      <div className="mx-3 mt-2 mb-1 h-px bg-white/10" />
+
+      {/* Operational tools */}
       <nav className="flex-1 flex flex-col gap-0.5 p-2 overflow-y-auto">
         {NAV_SECTIONS.map((section) => (
           <div key={section.heading}>
-            <NavSectionHeader section={section} />
+            <NavSectionHeader heading={section.heading} />
             {section.entries.map((entry) => <NavLink key={entry.to} entry={entry} />)}
           </div>
         ))}
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-white/10 p-3 space-y-2 text-xs text-gray-400">
-        <div className="flex items-center gap-2 min-w-0">
-          <Building2 className="w-3.5 h-3.5 shrink-0" />
-          <span className="font-medium text-gray-300 truncate">Bricksurance SE — Composite</span>
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <SignedInUser />
-          <div className="flex items-center gap-1.5">
-            <DemoModeToggle />
-            <BackstageLink />
-          </div>
+      <div className="border-t border-white/10 p-3 flex items-center gap-2 text-[10px] text-gray-400">
+        <Building2 className="w-3 h-3 shrink-0" />
+        <SignedInUser />
+        <div className="ml-auto flex items-center gap-1">
+          <DemoModeToggle />
+          <BackstageLink />
         </div>
       </div>
     </aside>
@@ -186,6 +197,17 @@ function SignedInUser() {
     <span title={user} className="text-[10px] text-gray-400 truncate max-w-[140px]">
       {user}
     </span>
+  );
+}
+
+function BreadcrumbStrip() {
+  const location = useLocation();
+  const crumbs = (location.state as { crumbs?: unknown } | null)?.crumbs;
+  if (!crumbs) return null;
+  return (
+    <div className="max-w-7xl mx-auto px-6 pt-4 pb-0">
+      <Breadcrumb />
+    </div>
   );
 }
 
@@ -212,12 +234,19 @@ export default function App() {
     <BrowserRouter>
       <div className="min-h-screen bg-gray-100 font-[system-ui]">
         <Sidebar />
-        <main className="ml-60">
+        <main className="ml-[268px]">
+          <BreadcrumbStrip />
           <Routes>
-            {/* Control */}
+            {/* Doors — primary entry points */}
             <Route path="/" element={<Landing />} />
+            <Route path="/today"            element={<Today />} />
+            <Route path="/reporting-cycle"  element={<ReportingCycle />} />
+            <Route path="/learn"            element={<Learn />} />
+
+            {/* Operational tools — direct access */}
             <Route path="/monitor" element={<Monitor />} />
             <Route path="/data-quality" element={<DataQuality />} />
+            <Route path="/examples" element={<Navigate to="/lab" replace />} />
 
             {/* Pillar 1 — Capital. Pretty URLs redirect to the legacy QRT routes. */}
             <Route path="/scr"             element={<Navigate to="/report/s2501" replace />} />

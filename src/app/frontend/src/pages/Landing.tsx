@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import {
   ArrowRight, Shield, BarChart3, BookOpen, Flame, FlaskConical, Landmark,
   Workflow, Scale, ScrollText, Lock, Archive as ArchiveIcon, Newspaper, FileText, Bot,
-  CheckCircle2, AlertTriangle, Clock, Activity, ShieldCheck,
+  CheckCircle2, AlertTriangle, Clock, Activity, ShieldCheck, Sun, GraduationCap, Layers,
 } from 'lucide-react';
 import PillarChip, { type Pillar, PILLAR_META } from '../components/PillarChip';
 import { fetchLandingStatus, type LandingStatus, type TileStatus } from '../lib/api';
@@ -69,24 +69,65 @@ export default function Landing() {
   if (isForum) return <ForumHero status={status} loading={loading} />;
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
+    <div className="max-w-6xl mx-auto p-6 space-y-7">
       {/* Hero */}
       <div className="pt-2">
-        <h2 className="text-3xl font-bold text-gray-900">Solvency II — Composite Insurer Cycle</h2>
-        <p className="text-base text-gray-500 mt-1">
+        <h2 className="text-3xl font-bold text-gray-900">Solvency II at the Speed of Lakehouse</h2>
+        <p className="text-base text-gray-500 mt-1.5 leading-relaxed">
           Bricksurance SE — a mid-size European composite (P&C + Life on one balance sheet).
-          The cycle below is structured by the Solvency II three-pillar framework.
+          Three doors below: today's operational state, the regime's reference view, or a guided
+          walkthrough of how Solvency II works.
         </p>
       </div>
 
-      {/* 3-column pillar hero */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <PillarColumn pillar={1} status={status} loading={loading} />
-        <PillarColumn pillar={2} status={status} loading={loading} />
-        <PillarColumn pillar={3} status={status} loading={loading} />
+      {/* Three doors — primary entry points */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <DoorCard
+          to="/today"
+          icon={Sun}
+          eyebrow="Door 1"
+          title="Today"
+          tagline="Where are we now?"
+          body="Operational state. Control Tower, late feeds, pending approvals, what needs doing."
+          accent="amber"
+        />
+        <DoorCard
+          to="/reporting-cycle"
+          icon={Layers}
+          eyebrow="Door 2"
+          title="Reporting Cycle"
+          tagline="Three pillars, every artefact."
+          body="Reference view. Pillar 1 calculation, Pillar 2 governance, Pillar 3 disclosure. Click any deliverable to open it."
+          accent="blue"
+        />
+        <DoorCard
+          to="/learn"
+          icon={GraduationCap}
+          eyebrow="Door 3"
+          title="Learn"
+          tagline="How Solvency II works."
+          body="A guided walkthrough — the regime, the data, the cycle, the reports, the governance. About 12 minutes."
+          accent="emerald"
+        />
       </div>
 
-      {/* Control Tower strip — Monday-morning view */}
+      {/* Pillar preview — de-emphasised peek into Reporting Cycle */}
+      <details className="bg-white rounded-lg border border-gray-200 p-4 group">
+        <summary className="cursor-pointer flex items-center gap-2 text-sm">
+          <span className="text-[11px] uppercase tracking-widest text-gray-500 font-bold">Pillar preview</span>
+          <span className="text-gray-400">— peek at the Reporting Cycle without leaving home</span>
+          <Link to="/reporting-cycle" className="ml-auto text-[11px] text-blue-600 font-semibold hover:underline" onClick={(e) => e.stopPropagation()}>
+            Open Reporting Cycle →
+          </Link>
+        </summary>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mt-3 pt-3 border-t border-gray-100">
+          <PillarColumn pillar={1} status={status} loading={loading} />
+          <PillarColumn pillar={2} status={status} loading={loading} />
+          <PillarColumn pillar={3} status={status} loading={loading} />
+        </div>
+      </details>
+
+      {/* Control Tower strip — quick glance, links into Today */}
       <ControlTowerStrip status={status} loading={loading} />
 
       {/* Workbench horizon — the closing frame */}
@@ -128,6 +169,41 @@ export default function Landing() {
         </div>
       </details>
     </div>
+  );
+}
+
+function DoorCard({ to, icon: Icon, eyebrow, title, tagline, body, accent }: {
+  to: string;
+  icon: React.ComponentType<{ className?: string }>;
+  eyebrow: string;
+  title: string;
+  tagline: string;
+  body: string;
+  accent: 'amber' | 'blue' | 'emerald';
+}) {
+  const cls = {
+    amber:   { hover: 'hover:border-amber-400 hover:shadow-amber-100',     iconBg: 'bg-amber-100 group-hover:bg-amber-200',     iconColor: 'text-amber-700',   eyebrow: 'text-amber-700',   title: 'text-amber-900',   arrow: 'text-amber-700' },
+    blue:    { hover: 'hover:border-blue-400 hover:shadow-blue-100',       iconBg: 'bg-blue-100 group-hover:bg-blue-200',       iconColor: 'text-blue-700',    eyebrow: 'text-blue-700',    title: 'text-blue-900',    arrow: 'text-blue-700' },
+    emerald: { hover: 'hover:border-emerald-400 hover:shadow-emerald-100', iconBg: 'bg-emerald-100 group-hover:bg-emerald-200', iconColor: 'text-emerald-700', eyebrow: 'text-emerald-700', title: 'text-emerald-900', arrow: 'text-emerald-700' },
+  }[accent];
+  return (
+    <Link to={to}
+      className={`group bg-white border-2 border-gray-200 rounded-2xl p-5 transition-all hover:shadow-lg ${cls.hover} flex flex-col`}>
+      <div className="flex items-start gap-3 mb-3">
+        <div className={`w-12 h-12 rounded-xl ${cls.iconBg} flex items-center justify-center transition-colors`}>
+          <Icon className={`w-6 h-6 ${cls.iconColor}`} />
+        </div>
+        <div className="flex-1">
+          <div className={`text-[10px] uppercase tracking-widest font-bold ${cls.eyebrow}`}>{eyebrow}</div>
+          <h3 className={`text-2xl font-bold ${cls.title} tracking-tight`}>{title}</h3>
+        </div>
+      </div>
+      <p className="text-sm font-semibold text-gray-800">{tagline}</p>
+      <p className="text-xs text-gray-600 mt-1 leading-relaxed flex-1">{body}</p>
+      <div className={`mt-3 inline-flex items-center gap-1 text-sm font-bold ${cls.arrow}`}>
+        Open <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+      </div>
+    </Link>
   );
 }
 

@@ -57,7 +57,13 @@ export default function Q4PainCallouts() {
           return (
             <button
               key={pain.id}
-              onClick={() => navigate(pain.drill_path)}
+              onClick={() => navigate(pain.drill_path, { state: {
+                crumbs: [
+                  { label: 'Today', to: '/today' },
+                  { label: 'Control Tower', to: '/monitor' },
+                  { label: `Pain ${pain.id} — ${pain.title}` },
+                ],
+              }})}
               className={`text-left flex items-start gap-3 p-3 rounded-md border transition-shadow hover:shadow-sm ${v.cardCls}`}
             >
               <v.Icon className={`w-4 h-4 mt-0.5 shrink-0 ${v.iconCls}`} />
