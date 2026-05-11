@@ -35,6 +35,7 @@ import FeedDetail from './pages/FeedDetail';
 import OrsaDraft from './pages/OrsaDraft';
 import Workbench from './pages/Workbench';
 import RoadmapStub from './pages/RoadmapStub';
+import Pillar1Overview from './pages/Pillar1Overview';
 import Breadcrumb from './components/Breadcrumb';
 import ResetDemoButton from './components/ResetDemoButton';
 import DemoModeToggle from './components/DemoModeToggle';
@@ -288,6 +289,7 @@ export default function App() {
             <Route path="/whatif"   element={<Whatif />} />
             <Route path="/feeds/:feedName" element={<FeedDetail />} />
             <Route path="/orsa/draft" element={<OrsaDraft />} />
+            <Route path="/pillar-1" element={<Pillar1Overview />} />
 
             {/* Pillar 1 — Capital. Pretty URLs redirect to the legacy QRT routes. */}
             <Route path="/scr"             element={<Navigate to="/report/s2501" replace />} />

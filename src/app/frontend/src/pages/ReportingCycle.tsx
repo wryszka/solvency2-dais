@@ -121,6 +121,14 @@ function PillarColumnCard({ col, status }: { col: PillarColumn; status: LandingS
           <PillarChip pillar={col.pillar as Pillar} size="sm" />
         </div>
         <p className={`text-xs ${colour.text} opacity-80 mt-0.5`}>{col.blurb}</p>
+        {col.pillar === 1 && (
+          <Link to="/pillar-1"
+            state={{ crumbs: [{ label: 'Reporting Cycle', to: '/reporting-cycle' }, { label: 'Pillar 1 — overview' }] }}
+            className={`mt-2 inline-flex items-center gap-1 text-[11px] font-bold ${colour.text} hover:underline`}>
+            Open Pillar 1 overview — architecture, engines, controls
+            <ChevronRight className="w-3 h-3" />
+          </Link>
+        )}
       </header>
 
       <ul className="divide-y divide-gray-100 flex-1">
