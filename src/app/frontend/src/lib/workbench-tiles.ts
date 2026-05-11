@@ -39,9 +39,10 @@ export const TILES: Tile[] = [
     slug: 'pricing',
     label: 'Pricing',
     description: 'Rate-making, GBM models, bias monitoring. Same model registry pattern as the Solvency II Lab.',
-    status: 'roadmap',
+    status: 'live',
     icon: TrendingUp,
-    to: '/roadmap/pricing',
+    to: 'https://pricing-workbench-7474656169654171.aws.databricksapps.com/',
+    accent: 'blue',
   },
   {
     slug: 'ifrs-17',

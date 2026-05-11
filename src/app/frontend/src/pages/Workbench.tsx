@@ -59,13 +59,16 @@ export default function Workbench() {
 function TileCard({ tile, period }: { tile: Tile; period: string | null }) {
   const isLive = tile.status === 'live';
   const Icon = tile.icon;
+  const isExternal = isLive && /^https?:\/\//.test(tile.to);
 
   if (isLive) {
     const cls = LIVE_TILE_PALETTE[tile.accent ?? 'blue'];
-    const periodNote = tile.slug === 'solvency-2' && period ? `Live cycle: ${period}` : 'Live';
-    return (
-      <Link to={tile.to}
-        className={`block bg-white border-2 ${cls.border} rounded-2xl p-5 transition-all hover:shadow-lg ${cls.hover} group flex flex-col`}>
+    const periodNote = tile.slug === 'solvency-2' && period
+      ? `Live cycle: ${period}`
+      : isExternal ? 'External app · opens in new tab' : 'Live';
+    const containerCls = `block bg-white border-2 ${cls.border} rounded-2xl p-5 transition-all hover:shadow-lg ${cls.hover} group flex flex-col`;
+    const inner = (
+      <>
         <div className="flex items-start gap-3 mb-3">
           <div className={`w-12 h-12 rounded-xl ${cls.iconBg} flex items-center justify-center transition-colors`}>
             <Icon className={`w-6 h-6 ${cls.iconColor}`} />
@@ -84,8 +87,11 @@ function TileCard({ tile, period }: { tile: Tile; period: string | null }) {
         <div className={`mt-3 inline-flex items-center gap-1 text-sm font-bold ${cls.arrow}`}>
           Open <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </div>
-      </Link>
+      </>
     );
+    return isExternal
+      ? <a href={tile.to} target="_blank" rel="noopener noreferrer" className={containerCls}>{inner}</a>
+      : <Link to={tile.to} className={containerCls}>{inner}</Link>;
   }
 
   // Roadmap tile — visually de-emphasised
