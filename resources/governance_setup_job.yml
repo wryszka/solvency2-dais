@@ -1,16 +1,23 @@
-# Governance setup — one-shot serverless jobs
+# Governance setup — one-shot serverless job covering the full bootstrap
+# chain. After `databricks bundle deploy`, run this once to seed everything
+# the app needs.
 #
-# Two tasks, runnable independently via `databricks bundle run`:
-#   1. register_reserving_models — chain-ladder + life pyfunc to UC MLflow
-#   2. bootstrap_governance      — populate 6_gov_* tables (alternative to
-#                                  the local scripts/seed_governance.py)
+# Task DAG:
 #
-# Both run on serverless compute (this is a serverless-only workspace).
+#   bootstrap_archive ─→ register_reserving_models ─→ bootstrap_governance ─→ seed_phase5_demo
+#         │                                                                          │
+#         ↓ Q1-Q4 raw + silver + gold tables                                          ↓
+#                                                                          6_demo_* + gold_submissions_archive
+#
+# Idempotent — safe to re-run. bootstrap_archive uses `full_reset` mode on
+# the first quarter to drop+recreate; subsequent quarters append.
+#
+# All tasks run on serverless compute.
 
 resources:
   jobs:
     governance_setup:
-      name: "Governance Setup — Reserving Models + 6_gov_* tables"
+      name: "Governance Setup — Data + Models + Governance + Demo State"
       parameters:
         - name: catalog_name
           default: ${var.catalog_name}
@@ -20,7 +27,24 @@ resources:
           default: "2025"
 
       tasks:
+        # Step 1: Generate synthetic Q1-Q4 raw data (bronze + silver tables).
+        # bootstrap_archive iterates Q1-Q4 calling generate_data.py for each.
+        # ~4-6 minutes total.
+        - task_key: bootstrap_archive
+          notebook_task:
+            notebook_path: ../src/00_Generate_Data/bootstrap_archive.py
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name: ${var.schema_name}
+              reporting_year: "2025"
+              entity_name: ${var.entity_name}
+              include_q4: "true"
+          environment_key: default
+
+        # Step 2: Register the reserving (P&C + Life) pyfunc models in UC MLflow.
         - task_key: register_reserving_models
+          depends_on:
+            - task_key: bootstrap_archive
           notebook_task:
             notebook_path: ../src/02_Reserving_Model/register_reserving_models.py
             base_parameters:
@@ -28,7 +52,23 @@ resources:
               schema_name: ${var.schema_name}
           environment_key: default
 
+        # Step 2b: Register the Standard Formula model (Champion v1 / Challenger v2).
+        # Required before any SCR calculation can run; the s2501 pipeline depends on this.
+        - task_key: register_standard_formula
+          depends_on:
+            - task_key: bootstrap_archive
+          notebook_task:
+            notebook_path: ../src/03_QRT_S2501_SCR/register_standard_formula_model.py
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name: ${var.schema_name}
+          environment_key: default
+
+        # Step 3: Create + seed 6_gov_* tables (overlays, promotions, aliases, diagnostics).
         - task_key: bootstrap_governance
+          depends_on:
+            - task_key: register_reserving_models
+            - task_key: register_standard_formula
           notebook_task:
             notebook_path: ../src/01_Bootstrap_Governance/bootstrap_governance.py
             base_parameters:
@@ -37,6 +77,8 @@ resources:
               reporting_year: "2025"
           environment_key: default
 
+        # Step 4: Phase 5 demo state — 6_demo_* tables + gold_submissions_archive
+        # + gold_orsa_draft. Required for Today / Control Tower to render.
         - task_key: seed_phase5_demo
           depends_on:
             - task_key: bootstrap_governance

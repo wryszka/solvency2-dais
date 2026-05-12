@@ -1,0 +1,638 @@
+================================================================================
+  SOLVENCY II AT THE SPEED OF LAKEHOUSE — DEPLOYMENT GUIDE
+  (also: gap audit · troubleshooting · what each component does)
+================================================================================
+
+For someone pulling a fresh clone of this repository who wants to deploy the
+demo on their own Databricks workspace. Treat this as the canonical setup
+reference; the README is the marketing surface, this is the operator manual.
+
+
+================================================================================
+  1. PREREQUISITES — what you need before you run anything
+================================================================================
+
+1.1 Local machine
+-----------------
+- macOS or Linux (Windows works via WSL2; not tested directly).
+- Python 3.10+ on PATH (for the few orchestration scripts).
+- Node.js 20+ + npm (only needed if you want to rebuild the frontend; the
+  dist/ folder is committed so re-build is optional).
+- Databricks CLI v0.230+ with bundle support:
+  $ curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
+  $ databricks --version    # check >= 0.230
+- A configured CLI profile for the target workspace:
+  $ databricks auth login --host https://<your-workspace>.cloud.databricks.com --profile DEV
+- (Optional) pandoc + a LaTeX engine, only if you want `make cue-cards.pdf`.
+
+1.2 Databricks workspace
+------------------------
+- Unity Catalog enabled (mandatory — every table lives in UC).
+- Serverless SQL + serverless jobs enabled (all jobs run on serverless).
+- Foundation Model API access with at least ONE of:
+    databricks-claude-sonnet-4         (preferred)
+    databricks-claude-3-7-sonnet       (fallback 1)
+    databricks-meta-llama-3-3-70b-instruct (fallback 2)
+  Verify:
+  $ databricks serving-endpoints get databricks-claude-sonnet-4 --profile DEV
+  All AI agents (ORSA narrative · SFCR drafts · AFR drafts · cat agent ·
+  Senior Reserving Actuary · Regulator Q&A · Workbench Assistant · supervisor
+  follow-up · what-if second opinion) fail at runtime if none of these are
+  available. Preflight does NOT detect this — see GAP-4 below.
+- Databricks Apps service enabled in the workspace.
+- Genie space creation permission (optional — degrades gracefully if not).
+- Lakeview dashboards permission (optional — degrades gracefully).
+- MLflow Registry on UC (i.e. `mlflow.set_registry_uri("databricks-uc")`
+  must work for your user).
+
+1.3 Permissions on first run
+----------------------------
+The user running `deploy_demo.sh` needs:
+- USE CATALOG + CREATE SCHEMA on the target catalog.
+- CREATE TABLE / CREATE VOLUME / CREATE MATERIALIZED VIEW on the schema.
+- CAN_MANAGE on the SQL warehouse (used for ad-hoc SQL).
+- Permissions to create: jobs, DLT pipelines, Databricks Apps, Lakeview
+  dashboards, Genie spaces.
+
+The app's service principal (created automatically with the App resource)
+needs:
+- USE CATALOG on the catalog
+- ALL PRIVILEGES on the schema
+- CAN_USE on the warehouse
+deploy_demo.sh grants these in step 7.
+
+
+================================================================================
+  2. CONFIGURATION — every variable you might want to change
+================================================================================
+
+All deployment knobs live in `databricks.yml` under `variables:`. The
+defaults target the `dev_v2` workspace; override per-target or pass `--var`.
+
+| Variable               | Purpose                                              |
+|------------------------|------------------------------------------------------|
+| catalog_name           | Unity Catalog name (must exist)                       |
+| schema_name            | Schema for all demo tables (will be created)          |
+| warehouse_id           | Serverless SQL warehouse (must exist)                 |
+| app_name               | Databricks App URL slug (must be unique in workspace) |
+| app_display_name       | Sidebar header label                                  |
+| reporting_year         | Demo anchor year (default "2026")                     |
+| reporting_date         | Reference date (default "2025-12-31")                 |
+| entity_name            | Synthetic firm name (default Bricksurance SE)         |
+| entity_lei             | Synthetic LEI                                         |
+| entity_type            | composite | nonlife | life                            |
+| dashboard_id           | Filled by deploy_demo.sh after Lakeview create        |
+| genie_space_id         | Filled by deploy_demo.sh after Genie create           |
+| backstage_notebook_path| Sidebar Backstage link target (optional)              |
+| pricing_app_url        | External pricing-workbench tile URL (optional)        |
+| workspace_host         | https://<workspace>.cloud.databricks.com              |
+| databricks_profile     | CLI profile name                                      |
+
+For a fresh workspace, the minimum you must override:
+- catalog_name
+- schema_name  (or accept the default)
+- warehouse_id
+- workspace_host
+- databricks_profile
+
+Add a new target to `databricks.yml` `targets:` rather than editing `dev_v2`.
+Existing targets:
+- `dev`     — original FE serverless workspace (frozen)
+- `dev_v2`  — active demo target (the one you'd clone from)
+- `prod`    — empty stub for promotion
+
+
+================================================================================
+  3. DEPLOY — the canonical single-command path
+================================================================================
+
+After cloning + configuring the CLI profile:
+
+    $ bash deploy_demo.sh --target dev_v2 --profile DEV
+
+That script does, in order:
+
+    Step 1.  Validate CLI auth + target.
+    Step 2.  databricks bundle deploy -t <target>
+             - Creates all DLT pipelines (s2501 / s2606 / s0501 / s0602 /
+               s1201 / life_uw_risk).
+             - Creates the wrapper jobs (qrt_s2501, qrt_s2606, etc.) and
+               the governance_setup job.
+             - Syncs notebook + app source to /Workspace/.bundle/...
+             - Creates the Databricks App resource.
+    Step 2b. CREATE VOLUME IF NOT EXISTS for:
+             - regulatory_exports          (PDF/XBRL output)
+             - 4_eng_stochastic_exchange   (Igloo handoff)
+             - 4_eng_life_exchange         (Prophet handoff)
+    Step 3.  databricks bundle run governance_setup
+             - bootstrap_archive       — generates Q1-Q4 raw data (~5 min)
+             - register_reserving_models — chain ladder + life pyfunc to MLflow
+             - register_standard_formula — SCR SF Champion v1 / Challenger v2
+             - bootstrap_governance    — 6_gov_* tables + alias state
+             - seed_phase5_demo        — 6_demo_* + gold_submissions_archive
+                                          + gold_orsa_draft
+             ~10 minutes total.
+    Step 4.  Create Lakeview dashboard (idempotent, via scripts/create_dashboard_v2.py).
+    Step 5.  Create Genie space (idempotent, via scripts/deploy_genie_space.py).
+    Step 6.  Re-deploy bundle with dashboard_id + genie_space_id baked into
+             app.yaml env vars.
+    Step 7.  Grant catalog/schema/warehouse to the app's service principal.
+    Step 8.  Print URLs.
+
+After Step 3 succeeds, the raw data exists but the GOLD QRT tables are
+EMPTY because the QRT DLT pipelines have not run. You must run them:
+
+    $ databricks bundle run qrt_s2501 -t dev_v2 --profile DEV
+    $ databricks bundle run qrt_s2606 -t dev_v2 --profile DEV
+    $ databricks bundle run qrt_s0501 -t dev_v2 --profile DEV
+    $ databricks bundle run qrt_s0602 -t dev_v2 --profile DEV
+    $ databricks bundle run qrt_s1201 -t dev_v2 --profile DEV
+    $ databricks bundle run qrt_life_uw_risk -t dev_v2 --profile DEV
+
+These take 2-5 minutes each. They can run in parallel except: qrt_s2606
+depends on qrt_s2501 having populated `2_stg_scr_results`, so run s2501
+first or accept that the first s2606 run may produce no s2501-linked NL UW
+SCR (gold reconciliation now reads from s2501; if absent, s2606 falls back).
+
+Then deploy the app code:
+
+    $ databricks apps deploy <app_name> \
+        --source-code-path /Workspace/Users/<you>/.bundle/solvency-ii-qrt-demo/dev_v2/files/src/app \
+        --profile DEV
+
+Or use `make deploy-dev` for the dev_v2 shortcut.
+
+
+================================================================================
+  4. WHAT EACH PART OF THE REPO DOES
+================================================================================
+
+databricks.yml               Bundle definition. Variables + targets + includes.
+deploy_demo.sh               End-to-end deploy orchestrator (see §3).
+remove_demo.sh               Tear-down counterpart (schema drop + app delete).
+Makefile                     Shortcuts: deploy-dev · preflight · bake-cache.
+README.md                    Marketing + 1-paragraph overview.
+DEMO_RUNBOOK.md              Forum talk script — operator-facing.
+reinstallation_info.txt      This file.
+
+resources/*.yml              Bundle resource definitions (DLT pipelines + jobs).
+                              - governance_setup_job.yml      (data + models + gov bootstrap)
+                              - qrt_s2501_pipeline.yml        (SCR Standard Formula)
+                              - qrt_s2606_pipeline.yml        (Non-life UW + cat)
+                              - qrt_s0501_pipeline.yml        (Premiums, claims, expenses)
+                              - qrt_s0602_pipeline.yml        (Asset register)
+                              - qrt_s1201_pipeline.yml        (Life TPs)
+                              - qrt_life_uw_risk_pipeline.yml (Life UW risk)
+
+scripts/                     One-shot tooling.
+                              - preflight_check.sh         (38 probes before demo)
+                              - bake_cache.sh              (pre-bake AI outputs)
+                              - create_dashboard_v2.py     (Lakeview)
+                              - deploy_genie_space.py      (Genie)
+                              - seed_governance.py         (laptop fallback for bootstrap_governance)
+                              - seed_phase5.py             (laptop fallback for seed_phase5_demo)
+                              - add_descriptions.py        (add UC table descriptions)
+
+src/00_Generate_Data/        Synthetic data generation.
+                              - generate_data.py              (one quarter at a time — bronze tables)
+                              - bootstrap_archive.py          (loops Q1-Q4 calling generate_data)
+                              - inject_demo_gotchas.py        (Q4 2025 pain injection)
+                              - teardown.py / full_teardown.py (counterpart cleanup)
+                              - demo_walkthrough.py           (scripted demo notebook)
+                              - setup_guide_and_demo_script.py
+
+src/01_Bootstrap_Governance/ Governance state + Phase 5 demo state.
+                              - bootstrap_governance.py     (6_gov_* tables + per-quarter state)
+                              - seed_phase5_demo.py         (6_demo_* + gold_submissions_archive)
+
+src/02_Reserving_Model/      MLflow-registered reserving pyfuncs (P&C + Life).
+src/03_QRT_S2501_SCR/        Standard Formula model + DLT pipeline notebooks.
+src/04_QRT_S2606_NL_Risk/    Non-life UW + Igloo handoff.
+src/04b_QRT_Life_UW_Risk/    Life UW + Prophet handoff.
+src/02_QRT_S0501_PnL/        Premiums/claims/expenses pipeline.
+src/02_QRT_S0602_Assets/     Asset register pipeline.
+src/05_QRT_S1201_Life_TPs/   Life technical provisions pipeline.
+
+src/app/                     FastAPI + React app.
+                              - app.py            (FastAPI entrypoint)
+                              - app.yaml          (Databricks Apps spec; reads ${var.X})
+                              - requirements.txt  (backend deps)
+                              - server/           (FastAPI routes)
+                              - frontend/         (React + Vite; dist/ committed)
+
+src/examples/                Worked-example notebooks (chain ladder · BF · SF walkthrough).
+
+docs/                        Forum operator + audit docs.
+                              - cue_cards.md                  (one-card-per-scene)
+                              - demo_fallbacks/index.html     (offline fallback)
+                              - REDEPLOYABILITY_AUDIT.md      (earlier deeper audit)
+                              - ADDING_WORKBENCH_TILE.md      (how-to)
+                              - backstage_technical.py        (linked from sidebar)
+                              - demo_agent_walkthrough.py     (scripted agent demo)
+
+
+================================================================================
+  5. DATA SEEDING — what gets created and when
+================================================================================
+
+5.1 Tables created by the bundle (via DLT pipelines)
+----------------------------------------------------
+All `2_stg_*` silver tables (DLT pipeline output) — no manual creation.
+All `3_qrt_*` gold tables — materialised views via the QRT DLT pipelines.
+
+5.2 Tables created by generate_data.py (called from bootstrap_archive)
+----------------------------------------------------------------------
+Bronze layer per quarter:
+  1_raw_policies · 1_raw_premiums · 1_raw_claims · 1_raw_claims_triangles
+  1_raw_expenses · 1_raw_reinsurance · 1_raw_volume_measures · 1_raw_exposures
+  1_raw_counterparties · 1_raw_assets · 1_raw_balance_sheet · 1_raw_own_funds
+  1_raw_risk_factors · 1_raw_life_policies · 1_raw_life_assumptions
+  1_raw_life_reserves · 1_raw_life_lapses · 1_raw_life_mortality_experience
+  1_raw_life_claims
+Plus engine results:
+  4_eng_stochastic_results · 4_eng_prophet_results
+Plus monitoring:
+  5_mon_pipeline_sla_status · 5_mon_dq_expectation_results
+  5_mon_cross_qrt_reconciliation
+Plus reference data:
+  7_ref_scr_parameters · 0_cfg_feed_sla · 0_cfg_bafin_questions
+  0_cfg_assumption_versions
+
+5.3 Tables created by bootstrap_governance.py
+---------------------------------------------
+  6_gov_overlays          (overlays register — Q1-Q4 seeded rows)
+  6_gov_promotions        (model promotion event log)
+  6_gov_model_aliases     (alias state for Igloo / Prophet)
+  6_gov_model_diagnostics (per-version diagnostics snapshot)
+
+5.4 Tables created by seed_phase5_demo.py
+-----------------------------------------
+  gold_submissions_archive   (33 rows × 6 periods — Archive page source)
+  gold_orsa_draft            (continuous ORSA draft document)
+  6_demo_data_feeds          (Late ABN AMRO custodian feed scenario)
+  6_demo_solvency_daily      (90-day daily solvency series)
+  6_demo_orsa_history        (30-day × 3-scenario ORSA history)
+  6_demo_sf_challenger       (SF Challenger pending-approval scenario)
+  6_demo_event_log           (external event log for cat agent)
+  6_demo_cyber_book          (cyber book scenario)
+  6_demo_whatif_runs         (what-if engine state)
+
+5.5 Tables created lazily by the app (CREATE IF NOT EXISTS)
+-----------------------------------------------------------
+  6_ai_approvals          (sign-off events)
+  6_ai_model_approvals    (model-promotion approvals)
+  6_ai_model_runs         (ad-hoc model runs from the Lab)
+  6_ai_demo_cache         (pre-baked AI outputs)
+  5_mon_agent_audit       (request middleware audit)
+  6_gov_evr_resolutions   (EVR failure resolutions — referenced, lazy)
+  6_gov_fitproper_register (fit-and-proper register — placeholder, lazy)
+
+5.6 Tables created by the QRT pipelines after `databricks bundle run`
+---------------------------------------------------------------------
+For each of the 6 QRTs:
+  2_stg_*  (silver staging)
+  3_qrt_*_breakdown  (long-format EIOPA template)
+  3_qrt_*_summary    (sign-off view)
+
+5.7 Volumes
+-----------
+  regulatory_exports             (PDF/XBRL export artefacts)
+  4_eng_stochastic_exchange      (Igloo handoff — exposures out, results in)
+  4_eng_life_exchange            (Prophet handoff — policies out, scenarios in)
+
+deploy_demo.sh step 2b creates all three (CREATE VOLUME IF NOT EXISTS).
+
+
+================================================================================
+  6. KNOWN GAPS — what's NOT automated, with proposed remediation
+================================================================================
+
+These are gaps where someone cloning the repo can hit a wall. Each item is
+labelled with severity (🔴 blocking · 🟡 noticeable · 🟢 polish).
+
+GAP-1 🟢 — Frontend rebuild not automated.
+  The `src/app/frontend/dist/` directory is tracked in git. On first deploy
+  the committed bundle is what runs. If you change frontend code, you must:
+      cd src/app/frontend && npm install && npm run build
+  before `databricks apps deploy`. The Makefile `deploy-dev` does NOT
+  rebuild the frontend. Add a `make build-frontend` step in your workflow
+  if you're modifying React code.
+
+GAP-2 🟢 — QRT pipelines not chained into governance_setup.
+  After `bash deploy_demo.sh` finishes, the bronze layer exists but gold
+  QRT tables are empty until you run each `databricks bundle run qrt_*`
+  manually (see §3). This is documented above; not automated because users
+  may want to selectively run pipelines.
+  Remediation already applied: governance_setup now includes the
+  `bootstrap_archive` + `register_standard_formula` tasks so at least the
+  upstream prerequisites are guaranteed.
+
+GAP-3 🟡 — App SP grants race condition.
+  In `deploy_demo.sh` step 7, if the App resource hasn't finished
+  provisioning by the time grants run, the service-principal lookup
+  returns empty and grants are skipped (`APP SP not yet known`). The app
+  then fails to read tables until grants are applied. Re-run the script
+  if you see that warning.
+  Workaround: add a `sleep 60` before step 7, OR re-run `deploy_demo.sh`
+  after the App finishes provisioning (it's idempotent).
+
+GAP-4 🔴 — Foundation Model API endpoint not validated in preflight.
+  `scripts/preflight_check.sh` runs 38 probes but does NOT verify that any
+  of the Claude/Llama serving endpoints are available. If your workspace
+  doesn't have Foundation Model API access, every AI agent (ORSA narrative,
+  SFCR draft, cat agent, Senior Reserving Actuary, etc.) will return 500
+  errors at runtime, and the demo's central reveal moments don't work.
+  Mitigation: before running preflight, manually verify:
+      $ databricks serving-endpoints get databricks-claude-sonnet-4 --profile DEV
+  Adding this check to preflight is a 5-line fix:
+      probe_endpoint "claude-sonnet-4 endpoint" \
+        "$HOST/api/2.0/serving-endpoints/databricks-claude-sonnet-4"
+
+GAP-5 🔴 — Schema/Catalog must exist before first deploy.
+  `databricks bundle deploy` requires the catalog AND schema to exist with
+  CREATE TABLE permission. Create them out of band:
+      USE CATALOG <your_catalog>;
+      CREATE SCHEMA IF NOT EXISTS <your_schema>;
+  The bundle does not create the catalog (correctly — that's a workspace
+  governance decision); it creates tables/MVs inside.
+
+GAP-6 🟡 — Multi-jurisdiction / group reporting requires data extension.
+  The `/pillar-3` hub shows S.32-S.37 group templates as "group only —
+  N/A solo" and presents BaFin VAG as the in-scope national return. If
+  you want to extend the demo to cover a group structure or different
+  jurisdiction, you'd add:
+      - Additional bronze tables (one per entity in the group)
+      - A consolidation step in the gold layer (Method 1 / Method 2)
+      - Update the QRT inventory in `src/app/frontend/src/pages/Pillar3Overview.tsx`
+  This is intentionally out of scope.
+
+GAP-7 🟡 — Pricing tile URL is dev_v2-specific in databricks.yml.
+  `pricing_app_url` defaults to the FE-DEV pricing-workbench app. On a
+  fresh workspace you should either:
+      - Set this in your target's `variables:` block to an empty string
+        (hides the link), OR
+      - Deploy your own pricing app and point to it.
+  Frontend now gracefully hides the deep-link if the URL is empty.
+
+GAP-8 🟢 — Dashboard + Genie create rely on Python scripts.
+  `scripts/create_dashboard_v2.py` and `scripts/deploy_genie_space.py` are
+  imperative scripts called from `deploy_demo.sh`. They are not declared
+  as bundle resources because Genie spaces aren't yet a first-class bundle
+  type. Re-running deploy_demo.sh is safe (both scripts are idempotent
+  by name match), but the IDs aren't persisted in git — they live in the
+  bundle var overrides re-deployed in step 6.
+
+GAP-9 🟢 — Backstage notebook path defaults to empty.
+  `backstage_notebook_path` is an optional bundle var. If non-empty, a
+  small Backstage link appears in the sidebar pointing at a technical
+  deep-dive notebook (`docs/backstage_technical.py`). Configure if you
+  want the demo's "show me the code" affordance.
+
+GAP-10 🟢 — Reset Demo cutoff dates are hardcoded.
+  `src/app/server/routes/demo.py` has a few literal date anchors (e.g.
+  `2026-01-15` for overlay cleanup boundary). The `_rebase_demo_state`
+  function rolls most dates relative to today, but a fresh deploy in
+  2027+ may see edge cases. Worth checking when re-running after a long
+  gap. The 210% solvency baseline + EUR 556M SCR are immune; this only
+  affects the Q4-2025-anchored narrative.
+
+GAP-11 🟡 — Standard Formula model registration not idempotent.
+  `register_standard_formula_model.py` re-registers v1 + v2 on every run.
+  After N deploys you accumulate versions 1-2N in the registry. Aliases
+  (Champion → v1, Challenger → v2) get re-pointed correctly but stale
+  versions persist. Clean up periodically:
+      $ databricks models delete-version <model_name> <version>
+  Same applies to `register_reserving_models.py` for `reserving_pnc` and
+  `reserving_life`.
+
+GAP-12 🟡 — DQ trend vs Archive DQ snapshot intentionally differ.
+  The Process tab DQ trend (from `5_mon_dq_expectation_results`) shows
+  ~99.9% per period; the Archive table rows (from `gold_submissions_archive`)
+  show 99.1-99.8% snapshots. This is by design — the Governance page hint
+  clarifies "live monitoring vs sign-off snapshot". If you want strict
+  reconciliation, edit `seed_phase5_demo.py` to read from the monitoring
+  aggregates rather than use hardcoded narrative values.
+
+GAP-13 🟢 — Frontend bundle size is large (~820 KB JS).
+  Vite warns at build time. Not blocking — gzip is ~220 KB. Adding code-
+  splitting via dynamic imports would help but isn't required.
+
+
+================================================================================
+  7. VERIFICATION — confirm everything is working
+================================================================================
+
+After deploy:
+
+7.1 Manual smoke test (5 minutes)
+---------------------------------
+1. Open the App URL printed by `deploy_demo.sh`.
+2. The Workbench landing shows 6 tiles. "Solvency II" is live; click it.
+3. The Solvency II Landing shows two doors. Click "Control Tower".
+4. You should see 3 headline tiles (Solvency · MCR · ORSA) with non-zero
+   values. Solvency should read ~210%, MCR coverage ~720%.
+5. Click into Reporting Cycle → Pillar 1 column → "Open Pillar 1 overview".
+6. Architecture diagram + 6 metric tiles should render with EUR values.
+7. Click SCR → /report/s2501. Connections panel at top, data table, and
+   the foldable "Where this changes the conversation" panel at the bottom.
+8. Open the foldable. The "Three SCRs from one cycle" SVG should render.
+9. Back to Reporting Cycle → Pillar 2 → "Open Pillar 2 overview".
+10. Should see 11 sections including ORSA scenarios, Article 48 crosswalk,
+    fit-and-proper register, outsourcing register, audit trail.
+11. Same for Pillar 3 — MCR panel · full QRT inventory · LTG measures ·
+    national reporting · peer benchmarking · EVR · sign-off chain ·
+    restatement workflow.
+
+7.2 Automated preflight
+-----------------------
+    $ make preflight                # uses dev_v2 defaults
+    $ ./scripts/preflight_check.sh --catalog X --schema Y --warehouse Z --app A
+Expects all 38 probes to pass. Any FAIL is a real issue.
+
+7.3 Cross-table number consistency
+-----------------------------------
+The number-audit baseline is 210% solvency / EUR 556M SCR / EUR 1.17B OF.
+Verify with:
+
+    SELECT solvency_ratio_pct, mcr_ratio_pct, ROUND(total_own_funds_eur/1e6,1) AS of_meur
+    FROM <catalog>.<schema>.`3_qrt_s2501_summary`
+    WHERE reporting_period='2025-Q4'
+
+Expected: ~210% / ~700-750% / ~1170M
+Compare against Today daily series:
+    SELECT AVG(ratio_pct) FROM <catalog>.<schema>.`6_demo_solvency_daily`
+Expected: ~210%
+
+Cross-check s2501 ↔ s2606 NL UW:
+    SELECT
+      (SELECT non_life_uw_risk_eur FROM <catalog>.<schema>.`3_qrt_s2501_summary` WHERE reporting_period='2025-Q4') AS s2501_nl,
+      (SELECT total_nl_uw_scr FROM <catalog>.<schema>.`3_qrt_s2606_summary` WHERE reporting_period='2025-Q4') AS s2606_nl
+Both should be identical. (Fixed via gold_s2606_nl_uw_risk.sql sourcing R0100
+from 2_stg_scr_results.SCR_non_life.)
+
+
+================================================================================
+  8. TROUBLESHOOTING — common failures and resolutions
+================================================================================
+
+ERROR: "App with name ... does not exist or is deleted"
+    The bundle creates the App resource but `databricks apps deploy` is a
+    separate imperative step. Run:
+        $ databricks apps deploy <app_name> \
+            --source-code-path /Workspace/Users/<you>/.bundle/solvency-ii-qrt-demo/<target>/files/src/app \
+            --profile DEV
+    Or use `make deploy-dev` (dev_v2 only).
+
+ERROR: "RuntimeError: No serving endpoint found among ..."
+    Foundation Model API not enabled on this workspace, or the named
+    endpoints are not provisioned. Add at least databricks-claude-sonnet-4
+    to your workspace's serving endpoints. See GAP-4.
+
+ERROR: "PERMISSION_DENIED: User does not have USE CATALOG"
+    The app's service principal lacks grants. Re-run step 7 of deploy_demo.sh
+    or grant manually:
+        GRANT USE CATALOG ON CATALOG <cat> TO `<app_sp_client_id>`;
+        GRANT ALL PRIVILEGES ON SCHEMA <cat>.<schema> TO `<app_sp_client_id>`;
+        -- and CAN_USE on the warehouse via the workspace UI
+
+WARNING: "Cannot REFRESH a Materialized View created from DLT"
+    Run the corresponding DLT pipeline to refresh the MV:
+        $ databricks bundle run qrt_s2501 -t dev_v2 --profile DEV
+
+ERROR: Process tab on Control Tower is empty
+    The `gold_submissions_archive` table was not seeded. Run:
+        $ databricks bundle run governance_setup -t dev_v2 --profile DEV
+    Specifically the `seed_phase5_demo` task. Alternatively the legacy
+    laptop path: `python3 scripts/seed_phase5.py`.
+
+ERROR: SCR report shows 333% instead of 210%
+    The 1_raw_own_funds rows are at the original scale (pre-Phase 1 fix).
+    Re-run governance_setup, OR manually scale:
+        UPDATE <cat>.<schema>.`1_raw_own_funds` SET amount_eur = amount_eur * 0.6324;
+    Then re-run qrt_s2501.
+
+ERROR: NL UW SCR differs between s2501 (385M) and s2606 (523M)
+    The s2606 pipeline is using the old SQL. Run:
+        $ databricks bundle deploy -t dev_v2 --profile DEV
+        $ databricks bundle run qrt_s2606 -t dev_v2 --profile DEV
+    Verifies the updated gold_s2606_nl_uw_risk.sql is what runs.
+
+ERROR: Frontend shows old version after deploy
+    Browser cache. Hard-reload with Cmd+Shift+R (Mac) / Ctrl+Shift+R (Win/Linux).
+    Verify the served bundle hash matches dist/:
+        $ curl -s <app_url>/ | grep -oE 'index-[A-Za-z0-9_-]+\.js'
+        $ ls src/app/frontend/dist/assets/ | grep '^index-.*\.js$'
+    Both should match.
+
+ERROR: ORSA narrative or other AI agent times out
+    The FM serving endpoint is cold or rate-limited. The app retries with
+    fallbacks (sonnet-4 → 3-7-sonnet → llama-3-3-70b). If all fail, check:
+        $ databricks serving-endpoints get databricks-claude-sonnet-4 --profile DEV
+    state should be READY.
+
+
+================================================================================
+  9. CLEAN REMOVAL — uninstalling the demo
+================================================================================
+
+    $ bash remove_demo.sh --catalog <your_catalog> --profile <profile>
+
+Deletes (with confirmation):
+- The Databricks App
+- All DLT pipelines (s2501, s2606, s0501, s0602, s1201, life_uw_risk)
+- All workflow jobs (governance_setup + per-QRT)
+- The Lakeview dashboard (if found)
+- The Genie space (if found)
+- The schema and all tables within it
+- The bundle's workspace folder
+
+Volumes are NOT deleted automatically — drop them manually if you want
+the catalog clean:
+    DROP VOLUME <cat>.<schema>.regulatory_exports;
+    DROP VOLUME <cat>.<schema>.`4_eng_stochastic_exchange`;
+    DROP VOLUME <cat>.<schema>.`4_eng_life_exchange`;
+
+MLflow models in UC are not deleted by the schema drop — they live in
+their own UC namespace. Drop manually:
+    $ databricks models-uc delete <cat>.<schema>.standard_formula
+    $ databricks models-uc delete <cat>.<schema>.reserving_pnc
+    $ databricks models-uc delete <cat>.<schema>.reserving_life
+
+
+================================================================================
+  10. UPGRADE PATH — moving an existing deployment forward
+================================================================================
+
+After `git pull`:
+
+1. Run `databricks bundle deploy -t <target>` to update pipeline + job
+   definitions and sync new source.
+
+2. If any DLT SQL changed (e.g. `gold_s2501_summary.sql` MCR formula fix),
+   re-run the affected pipeline:
+       $ databricks bundle run qrt_s2501 -t dev_v2 --profile DEV
+
+3. If `generate_data.py` changed (e.g. own-funds rebalance):
+       $ databricks bundle run governance_setup -t dev_v2 --profile DEV
+   This re-generates all bronze data and re-seeds governance.
+
+4. If app code changed:
+       $ cd src/app/frontend && npm run build          # only if frontend changed
+       $ databricks apps deploy <app_name> \
+           --source-code-path /Workspace/Users/<you>/.bundle/solvency-ii-qrt-demo/<target>/files/src/app \
+           --profile DEV
+
+5. Hard-reload the browser.
+
+
+================================================================================
+  11. EXTENDING — adding a new artefact or pillar
+================================================================================
+
+To add a new QRT (say S.07.01 Structured Products):
+
+1. Author bronze + silver SQL notebooks in `src/03_QRT_S0701_Structured/`.
+2. Create `resources/qrt_s0701_pipeline.yml` declaring:
+       - DLT pipeline pointing at the notebooks
+       - Wrapper job `qrt_s0701` that triggers the pipeline
+3. Add the artefact to `src/app/frontend/src/lib/artefact-connections.ts`
+   (methodology + models + downstream).
+4. Add to `src/app/frontend/src/lib/artefact-impact.ts` if you want the
+   "where this changes the conversation" panel.
+5. Update `src/app/frontend/src/pages/ReportingCycle.tsx` to add the
+   deliverable row in the appropriate pillar column.
+6. Run the new pipeline: `databricks bundle run qrt_s0701 -t dev_v2`.
+
+To add a new pillar tile or hub section, see `docs/ADDING_WORKBENCH_TILE.md`.
+
+
+================================================================================
+  12. AUDIT TRAIL — version history of this deployment audit
+================================================================================
+
+This file supersedes `docs/REDEPLOYABILITY_AUDIT.md` (which captured the
+state as of Phase 6a). Key changes since that audit:
+
+- Phase 6a addressed: app.yaml now reads ${var.X} for all IDs (no
+  hardcoded catalog/schema/warehouse/dashboard/genie); volumes ensured
+  via deploy script; backstage notebook path parameterised.
+- Phase 1 number alignment: own-funds seed scaled to produce 210%
+  solvency ratio; gold_s2501_summary.sql MCR formula corrected; demo.py
+  reset constants re-anchored. Survives fresh deploys.
+- Phase 3 reconciliations: s2606 sources NL UW total from s2501 (no
+  more 385 vs 523 split); cross-template EIOPA validation now passes.
+- Phase 3 fixes shipped with this audit:
+    * governance_setup_job now chains bootstrap_archive (was missing —
+      raw data wasn't generated on fresh deploys).
+    * governance_setup_job now includes register_standard_formula (was
+      missing — SCR pipeline depended on a non-existent model).
+    * remove_demo.sh defaults updated from `solvency2demo_agentic` /
+      ab79... to `solvency2demo_v2` / empty (forces user to supply).
+
+The remaining gaps (GAP-1 through GAP-13 above) are documented as known
+limitations with their workarounds. None are blocking for a fresh deploy
+following §3 strictly.
+
+================================================================================
+  END
+================================================================================

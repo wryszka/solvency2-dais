@@ -12,11 +12,11 @@
 
 set -euo pipefail
 
-PROFILE="${DATABRICKS_PROFILE:-DEFAULT}"
+PROFILE="${DATABRICKS_PROFILE:-DEV}"
 CATALOG=""
-SCHEMA="solvency2demo_agentic"
+SCHEMA="solvency2demo_v2"
 WORKSPACE_DIR=""
-WAREHOUSE_ID="ab79eced8207d29b"
+WAREHOUSE_ID=""
 SKIP_CONFIRM=""
 
 while [[ $# -gt 0 ]]; do
