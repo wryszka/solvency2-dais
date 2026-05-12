@@ -12,14 +12,23 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { TILES, type Tile } from '../lib/workbench-tiles';
-import { fetchPeriodState } from '../lib/api';
+import { fetchPeriodState, fetchEmbeds } from '../lib/api';
 import { useEffect, useState } from 'react';
 
 export default function Workbench() {
   const [period, setPeriod] = useState<string | null>(null);
+  // Pricing tile target URL is per-workspace; source from PRICING_APP_URL env
+  // via /api/embeds rather than the static tile registry. Falls back to the
+  // hardcoded value in TILES if the API is unavailable.
+  const [pricingUrl, setPricingUrl] = useState<string | null>(null);
   useEffect(() => {
     fetchPeriodState().then((p) => setPeriod(p.current_period)).catch(() => undefined);
+    fetchEmbeds().then((e) => { if (e.pricing_app_url) setPricingUrl(e.pricing_app_url); }).catch(() => undefined);
   }, []);
+
+  const tiles: Tile[] = TILES.map((t) =>
+    t.slug === 'pricing' && pricingUrl ? { ...t, to: pricingUrl } : t,
+  );
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-7">
@@ -34,7 +43,7 @@ export default function Workbench() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {TILES.map((t) => <TileCard key={t.slug} tile={t} period={period} />)}
+        {tiles.map((t) => <TileCard key={t.slug} tile={t} period={period} />)}
       </div>
 
       <details className="bg-white rounded-lg border border-gray-200 p-4 text-sm text-gray-700 mt-2">
@@ -49,6 +58,11 @@ export default function Workbench() {
             Data is synthetic; reserving, SF, Igloo and Prophet are illustrative — vehicle, not
             cargo. Source code on GitHub. Deployable to any Databricks workspace with serverless
             and Foundation Model API access.
+          </p>
+          <p className="text-[11px] text-gray-500">
+            Demo assets: <Link to="/architecture" className="text-blue-600 hover:underline">architecture diagram</Link>
+            {' '}· <Link to="/learn" className="text-blue-600 hover:underline">regime walk-through</Link>
+            {' '}· <Link to="/horizon" className="text-blue-600 hover:underline">workbench horizon</Link>
           </p>
         </div>
       </details>

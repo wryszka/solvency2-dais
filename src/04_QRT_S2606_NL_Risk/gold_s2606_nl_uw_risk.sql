@@ -15,7 +15,7 @@ CREATE OR REFRESH MATERIALIZED VIEW `3_qrt_s2606_nl_uw_risk`(
   CONSTRAINT row_id_present    EXPECT (template_row_id IS NOT NULL)  ON VIOLATION DROP ROW,
   CONSTRAINT amount_not_null   EXPECT (amount_eur IS NOT NULL)       ON VIOLATION DROP ROW
 )
-COMMENT 'EIOPA S.26.06 Non-Life Underwriting Risk — premium, reserve, cat risk with correlation'
+COMMENT 'EIOPA S.26.06 Non-Life Underwriting Risk — premium, reserve, cat risk. Total (R0100) sourced from the Standard Formula model output (2_stg_scr_results.SCR_non_life) so s2606 and s2501 always reconcile.'
 AS
 
 WITH prem_res AS (
@@ -39,6 +39,16 @@ cat AS (
   FROM LIVE.`2_stg_cat_risk_by_lob`
   GROUP BY reporting_period
 ),
+sf_total AS (
+  -- Canonical SCR_non_life from the Standard Formula model run.
+  -- This is what s2501 reports as the non-life UW module charge; s2606
+  -- inherits it so the two templates can never disagree (EIOPA cross-template
+  -- validation EV would fail otherwise).
+  SELECT reporting_period,
+         amount_eur AS sf_scr_non_life
+  FROM LIVE.`2_stg_scr_results`
+  WHERE component = 'SCR_non_life'
+),
 combined AS (
   SELECT
     p.reporting_period,
@@ -47,13 +57,10 @@ combined AS (
     p.combined_prem_res_risk,
     c.total_cat_risk,
     c.total_cat_tvar,
-    -- Diversified NL UW SCR: sqrt(prem_res^2 + cat^2 + 2 * 0.25 * prem_res * cat)
-    SQRT(POWER(p.combined_prem_res_risk, 2)
-       + POWER(c.total_cat_risk, 2)
-       + 2 * 0.25 * p.combined_prem_res_risk * c.total_cat_risk)
-      AS diversified_nl_uw_scr
+    s.sf_scr_non_life AS diversified_nl_uw_scr
   FROM prem_res p
-  JOIN cat c ON p.reporting_period = c.reporting_period
+  JOIN cat c     ON p.reporting_period = c.reporting_period
+  JOIN sf_total s ON p.reporting_period = s.reporting_period
 )
 
 -- R0010: Premium risk

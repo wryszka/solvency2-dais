@@ -92,6 +92,13 @@ def get_genie_space_id() -> str:
     return os.getenv("GENIE_SPACE_ID", "").strip()
 
 
+def get_pricing_app_url() -> str:
+    """External pricing-workbench app URL — parameterised via PRICING_APP_URL so
+    the Workbench tile points at the right per-workspace deployment.
+    Returns empty string if not configured (tile then hides)."""
+    return os.getenv("PRICING_APP_URL", "").strip()
+
+
 def get_workspace_host() -> str:
     """Return the workspace host without trailing slash."""
     host = os.getenv("DATABRICKS_HOST", "").strip()

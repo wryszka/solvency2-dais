@@ -113,6 +113,22 @@ export default function Pillar3Overview() {
       </Section>
 
       <Section
+        id="national"
+        title="National reporting — beyond Solvency II"
+        subtitle="EIOPA harmonises the core; every member state adds national supplementary returns. Multi-jurisdiction firms run them off the same gold layer."
+      >
+        <NationalReporting />
+      </Section>
+
+      <Section
+        id="peer"
+        title="Peer benchmarking — where we sit vs the European book"
+        subtitle="EIOPA publishes industry-aggregate solvency statistics twice a year. Comparing the firm's position against the cross-firm distribution is part of the Board pack."
+      >
+        <PeerBenchmarking />
+      </Section>
+
+      <Section
         id="restatement"
         title="Restatement workflow"
         subtitle="When a prior submission is found wrong — Q1 derivative valuations re-priced, a reserving overlay re-stated, classification corrected — the platform handles it as a first-class workflow rather than an off-system patch."
@@ -826,9 +842,14 @@ function FullQRTInventory() {
             </ul>
           </div>
         ))}
-        <p className="text-[11px] text-gray-500 italic pt-2 border-t border-gray-100">
-          "Same pipeline pattern" means: silver staging → gold materialisation → audit snapshot → XBRL packaging — the same workflow that drives the five live templates. Onboarding a new template is a config addition, not a code rewrite.
-        </p>
+        <div className="pt-2 border-t border-gray-100 text-[11px] text-gray-500 italic space-y-1">
+          <p>
+            <span className="font-semibold not-italic text-gray-700">Same pipeline pattern</span> means: silver staging → gold materialisation → audit snapshot → XBRL packaging — the same workflow that drives the five live templates. Onboarding a new template is a config addition, not a code rewrite.
+          </p>
+          <p>
+            <span className="font-semibold not-italic text-gray-700">Group templates (S.32–S.37)</span> are not exercised because Bricksurance is presented as a solo composite. For a group structure, the same pattern applies: each group entity contributes solo-level submissions; the group templates aggregate them with Method 1 (default accounting consolidation) or Method 2 (deduction + aggregation). Group SCR, IGT (S.36), and risk concentration (S.37) sit on top of solo gold tables — no separate engine.
+          </p>
+        </div>
       </div>
     </details>
   );
@@ -1199,6 +1220,193 @@ function RestatementWorkflow() {
           </article>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ═══════ National reporting — supplementary returns by jurisdiction ═══════ */
+
+interface NationalReturn {
+  jurisdiction: string;
+  flag: string;          // emoji-free; just a 2-3 letter code we render in a chip
+  authority: string;
+  return_name: string;
+  frequency: string;
+  what: string;
+  in_scope: boolean;
+}
+
+const NATIONAL_RETURNS: NationalReturn[] = [
+  {
+    jurisdiction: 'Germany',
+    flag: 'DE',
+    authority: 'BaFin',
+    return_name: 'VAG meldewesen (Versicherungsaufsichtsgesetz)',
+    frequency: 'Quarterly + annual',
+    what: 'Branch-by-branch business + investment + risk reports under §§ 47-51 VAG. Goes beyond Solvency II QRTs: distribution-channel splits, complaints stats, AML.',
+    in_scope: true,
+  },
+  {
+    jurisdiction: 'United Kingdom',
+    flag: 'UK',
+    authority: 'PRA',
+    return_name: 'National Specific Templates (NST)',
+    frequency: 'Annual + ad-hoc',
+    what: 'NST.01-NST.09 (with-profits, ring-fenced funds, Lloyds, asset look-through extensions). Replaces some EIOPA templates with PRA-specific cuts.',
+    in_scope: false,
+  },
+  {
+    jurisdiction: 'United Kingdom',
+    flag: 'UK',
+    authority: 'FCA',
+    return_name: 'RMAR + IRS returns',
+    frequency: 'Quarterly + annual',
+    what: 'Conduct + capital adequacy returns for FCA-regulated activities (brokerage, distribution).',
+    in_scope: false,
+  },
+  {
+    jurisdiction: 'France',
+    flag: 'FR',
+    authority: 'ACPR',
+    return_name: 'États comptables + Tableaux complémentaires',
+    frequency: 'Quarterly + annual',
+    what: 'Accounting statements + life-specific complementary tables (PER, contracts en déshérence). Goes beyond EIOPA on assignment of profits + bonus.',
+    in_scope: false,
+  },
+  {
+    jurisdiction: 'Italy',
+    flag: 'IT',
+    authority: 'IVASS',
+    return_name: 'Modulistica',
+    frequency: 'Annual',
+    what: 'IVASS-specific risk profile + corporate governance tables, distribution by mediator type.',
+    in_scope: false,
+  },
+  {
+    jurisdiction: 'EIOPA stress test',
+    flag: 'EU',
+    authority: 'EIOPA',
+    return_name: 'Insurance stress test',
+    frequency: 'Biennial',
+    what: 'Cross-firm market + insurance stress applied to harmonised templates. Currently 2026 cycle in scope.',
+    in_scope: true,
+  },
+];
+
+function NationalReporting() {
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <table className="w-full text-sm">
+        <thead className="bg-amber-50 text-[10px] uppercase tracking-widest text-amber-900">
+          <tr>
+            <th className="text-left px-3 py-2.5 w-[14%]">Jurisdiction</th>
+            <th className="text-left px-3 py-2.5">Authority + return</th>
+            <th className="text-left px-3 py-2.5 w-[16%]">Frequency</th>
+            <th className="text-left px-3 py-2.5">What it adds beyond Solvency II</th>
+            <th className="text-center px-3 py-2.5 w-[10%]">In scope</th>
+          </tr>
+        </thead>
+        <tbody>
+          {NATIONAL_RETURNS.map((r, i) => (
+            <tr key={i} className={`border-t border-gray-100 align-top ${r.in_scope ? '' : 'bg-slate-50/40'}`}>
+              <td className="px-3 py-2.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200">{r.flag}</span>
+                  <span className="text-xs text-gray-800">{r.jurisdiction}</span>
+                </div>
+              </td>
+              <td className="px-3 py-2.5">
+                <div className="text-xs text-gray-900 font-semibold">{r.authority}</div>
+                <div className="text-[11px] text-gray-600 italic mt-0.5">{r.return_name}</div>
+              </td>
+              <td className="px-3 py-2.5 text-xs text-amber-800 font-mono">{r.frequency}</td>
+              <td className="px-3 py-2.5 text-xs text-gray-700 leading-relaxed">{r.what}</td>
+              <td className="px-3 py-2.5 text-center">
+                {r.in_scope ? (
+                  <span className="text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">in scope</span>
+                ) : (
+                  <span className="text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">N/A</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="text-[11px] text-gray-500 italic px-4 py-2.5 border-t border-gray-100">
+        Bricksurance is German-licensed (BaFin primary supervisor); only BaFin VAG meldewesen + the EIOPA biennial stress test are in scope.
+        The pipeline pattern is identical for any other jurisdiction — additional national templates land in <code className="text-amber-700 font-mono">3_qrt_national_*</code>
+        alongside the EIOPA gold tables, and the same XBRL + sign-off chain applies. No engine rewrite to enter a new market.
+      </p>
+    </div>
+  );
+}
+
+/* ═══════ Peer benchmarking ═══════ */
+
+interface PeerBand { label: string; bricksurance_pct: number; eiopa_median_pct: number; eiopa_p25_pct: number; eiopa_p75_pct: number; }
+
+const PEER_BANDS: PeerBand[] = [
+  { label: 'Solvency ratio (SCR coverage)', bricksurance_pct: 210, eiopa_median_pct: 215, eiopa_p25_pct: 165, eiopa_p75_pct: 280 },
+  { label: 'MCR coverage ratio',             bricksurance_pct: 720, eiopa_median_pct: 480, eiopa_p25_pct: 320, eiopa_p75_pct: 650 },
+  { label: 'Tier-1 % of own funds',          bricksurance_pct:  84, eiopa_median_pct:  82, eiopa_p25_pct:  72, eiopa_p75_pct:  90 },
+  { label: 'BSCR diversification benefit',   bricksurance_pct:  18, eiopa_median_pct:  22, eiopa_p25_pct:  14, eiopa_p75_pct:  30 },
+];
+
+function PeerBenchmarking() {
+  return (
+    <div className="space-y-3">
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-amber-50 text-[10px] uppercase tracking-widest text-amber-900">
+            <tr>
+              <th className="text-left px-3 py-2.5 w-[28%]">Metric</th>
+              <th className="text-center px-3 py-2.5">Bricksurance</th>
+              <th className="text-center px-3 py-2.5">EIOPA P25</th>
+              <th className="text-center px-3 py-2.5">EIOPA median</th>
+              <th className="text-center px-3 py-2.5">EIOPA P75</th>
+              <th className="text-left px-3 py-2.5 w-[28%]">Position</th>
+            </tr>
+          </thead>
+          <tbody>
+            {PEER_BANDS.map((b) => {
+              const isHigh = b.bricksurance_pct >= b.eiopa_p75_pct;
+              const isLow  = b.bricksurance_pct <= b.eiopa_p25_pct;
+              const pos = isHigh ? { lbl: 'Above P75 (strong)', cls: 'bg-emerald-100 text-emerald-800 border-emerald-200' }
+                       : isLow  ? { lbl: 'Below P25 (review)', cls: 'bg-rose-100 text-rose-800 border-rose-200' }
+                       : { lbl: 'Within IQR', cls: 'bg-amber-100 text-amber-800 border-amber-200' };
+              return (
+                <tr key={b.label} className="border-t border-gray-100">
+                  <td className="px-3 py-2.5 text-xs text-gray-900 font-semibold">{b.label}</td>
+                  <td className="px-3 py-2.5 text-center text-xs font-mono font-bold text-amber-900">{b.bricksurance_pct}%</td>
+                  <td className="px-3 py-2.5 text-center text-xs font-mono text-gray-600">{b.eiopa_p25_pct}%</td>
+                  <td className="px-3 py-2.5 text-center text-xs font-mono text-gray-700 font-semibold">{b.eiopa_median_pct}%</td>
+                  <td className="px-3 py-2.5 text-center text-xs font-mono text-gray-600">{b.eiopa_p75_pct}%</td>
+                  <td className="px-3 py-2.5">
+                    <span className={`text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded border ${pos.cls}`}>{pos.lbl}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p className="text-[11px] text-gray-500 italic px-4 py-2.5 border-t border-gray-100">
+          EIOPA reference: <em>Insurance Statistics — Year-end Q3</em>, latest published cycle. Comparable peer set = European composite + non-life mid-cap insurers (~140 firms).
+          The benchmarks are a snapshot; the platform refreshes them when EIOPA publishes the next semi-annual aggregate.
+        </p>
+      </div>
+
+      <article className="border-2 border-amber-200 bg-amber-50/40 rounded-xl p-4">
+        <h4 className="text-sm font-bold text-amber-900 flex items-center gap-1.5">
+          <Globe className="w-4 h-4 text-amber-700" />
+          How the Board reads this
+        </h4>
+        <p className="text-xs text-gray-700 mt-2 leading-relaxed">
+          The solvency ratio sits roughly at the European median (210% vs 215%) — comfortable but not over-capitalised.
+          MCR coverage at 720% is in the top quartile, reflecting the tier-1-heavy capital structure.
+          BSCR diversification benefit at 18% is on the lower side of the IQR — a non-life-dominant book without significant life UW offsetting market risk would typically reach 25-30%.
+          Worth examining in the next ORSA cycle.
+        </p>
+      </article>
     </div>
   );
 }

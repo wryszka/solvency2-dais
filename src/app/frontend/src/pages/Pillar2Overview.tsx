@@ -95,6 +95,14 @@ export default function Pillar2Overview() {
       </Section>
 
       <Section
+        id="outsourcing"
+        title="Article 274 — outsourcing register"
+        subtitle="Material outsourcings (critical or important functions) require a contractual + governance framework under Article 274 and EIOPA's Outsourcing Guidelines. The register names what's outsourced, to whom, with what oversight and exit strategy."
+      >
+        <OutsourcingRegister />
+      </Section>
+
+      <Section
         title="Continuous vs annual"
         subtitle="Some governance runs every quarter (or every model output). Some runs once a year. Both live on the same audit chain."
       >
@@ -1002,6 +1010,150 @@ function FitProperRegister() {
             Both reassessed at appointment + every 3 years + on material change. Linked to <code className="text-emerald-700 font-mono">6_gov_fitproper_register</code>; assessments + supporting documents in <code className="text-emerald-700 font-mono">6_gov_fitproper_evidence</code>.
           </span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════ Article 274 — outsourcing register ═══════ */
+
+interface OutsourcingEntry {
+  function_outsourced: string;
+  provider: string;
+  category: 'critical' | 'important' | 'standard';
+  contract_id: string;
+  oversight: string;
+  exit_strategy: string;
+  notification_to_supervisor: boolean;
+}
+
+const OUTSOURCING_ENTRIES: OutsourcingEntry[] = [
+  {
+    function_outsourced: 'Non-life catastrophe modelling (Igloo engine)',
+    provider: 'WTW Igloo · UK',
+    category: 'critical',
+    contract_id: 'OS-2023-IGL-01',
+    oversight: 'Cat Modelling Committee · monthly governance call · annual model validation review',
+    exit_strategy: '6-month parallel run with RMS as backup · re-platform contingency documented · UC Volume exchange means data egress is portable',
+    notification_to_supervisor: true,
+  },
+  {
+    function_outsourced: 'Life UW + cat projection (Prophet engine)',
+    provider: 'FIS Prophet · USA',
+    category: 'critical',
+    contract_id: 'OS-2022-FIS-02',
+    oversight: 'Senior Life Actuary · quarterly run review · annual assumption-set audit',
+    exit_strategy: 'AXIS dual-track maintained for high-criticality runs · 12-month transition timeline · libraries portable',
+    notification_to_supervisor: true,
+  },
+  {
+    function_outsourced: 'Custodian + asset valuation feeds',
+    provider: 'ABN AMRO · HSBC · BNY Mellon',
+    category: 'critical',
+    contract_id: 'OS-2024-CUS-03 (multi)',
+    oversight: 'Asset Accounting Committee · daily reconciliation · monthly look-through review',
+    exit_strategy: 'Multi-provider design (no single point of failure) · 90-day notice termination · industry-standard SWIFT message format',
+    notification_to_supervisor: true,
+  },
+  {
+    function_outsourced: 'External actuarial peer review',
+    provider: 'Milliman GmbH · Munich',
+    category: 'important',
+    contract_id: 'OS-2024-MIL-04',
+    oversight: 'Annual engagement letter · CRO approves scope · independent reporting line to Audit Committee',
+    exit_strategy: 'Annual contract · no proprietary IP transferred to provider · easy switch to KPMG/PwC actuarial',
+    notification_to_supervisor: false,
+  },
+  {
+    function_outsourced: 'IT infrastructure (Databricks platform)',
+    provider: 'Databricks Inc. · AWS Frankfurt region',
+    category: 'critical',
+    contract_id: 'OS-2024-DBR-05',
+    oversight: 'CTO + DPO · annual SOC2 + ISO 27001 review · BCM testing twice a year',
+    exit_strategy: 'Data residency in EU; gold tables exportable as Delta/Parquet; 6-month transition window',
+    notification_to_supervisor: true,
+  },
+  {
+    function_outsourced: 'External audit (SFCR + statutory)',
+    provider: 'Deloitte GmbH',
+    category: 'important',
+    contract_id: 'OS-2023-DEL-06',
+    oversight: 'Audit Committee · annual partner rotation review · BaFin notified of changes',
+    exit_strategy: 'Statutory provider; rotation expected every 10 years under EU statutory audit rules. Hand-over playbook maintained.',
+    notification_to_supervisor: true,
+  },
+];
+
+const CATEGORY_META: Record<OutsourcingEntry['category'], { label: string; cls: string }> = {
+  critical:  { label: 'critical',  cls: 'bg-rose-100 text-rose-800 border-rose-200' },
+  important: { label: 'important', cls: 'bg-amber-100 text-amber-800 border-amber-200' },
+  standard:  { label: 'standard',  cls: 'bg-slate-100 text-slate-700 border-slate-200' },
+};
+
+function OutsourcingRegister() {
+  const summary = OUTSOURCING_ENTRIES.reduce(
+    (acc, e) => { acc[e.category]++; return acc; },
+    { critical: 0, important: 0, standard: 0 },
+  );
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-lg border border-rose-200 bg-rose-50/50 p-3">
+          <div className="text-2xl font-bold text-rose-900">{summary.critical}</div>
+          <div className="text-xs text-rose-800 font-medium">Critical outsourcings</div>
+          <div className="text-[10px] text-rose-700/80">supervisor notified on change</div>
+        </div>
+        <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+          <div className="text-2xl font-bold text-amber-900">{summary.important}</div>
+          <div className="text-xs text-amber-800 font-medium">Important outsourcings</div>
+          <div className="text-[10px] text-amber-700/80">governance + audit oversight</div>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="text-2xl font-bold text-slate-700">{summary.standard}</div>
+          <div className="text-xs text-slate-700 font-medium">Standard</div>
+          <div className="text-[10px] text-slate-600">routine sourcing</div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-emerald-50 text-[10px] uppercase tracking-widest text-emerald-900">
+            <tr>
+              <th className="text-left px-3 py-2.5">Function outsourced</th>
+              <th className="text-left px-3 py-2.5">Provider</th>
+              <th className="text-center px-3 py-2.5 w-[8%]">Category</th>
+              <th className="text-left px-3 py-2.5 w-[22%]">Oversight</th>
+              <th className="text-left px-3 py-2.5 w-[24%]">Exit strategy</th>
+            </tr>
+          </thead>
+          <tbody>
+            {OUTSOURCING_ENTRIES.map((e) => {
+              const c = CATEGORY_META[e.category];
+              return (
+                <tr key={e.contract_id} className="border-t border-gray-100 align-top">
+                  <td className="px-3 py-2.5 text-xs">
+                    <div className="font-semibold text-gray-900">{e.function_outsourced}</div>
+                    <div className="text-[10px] font-mono text-gray-500 mt-0.5">{e.contract_id}</div>
+                  </td>
+                  <td className="px-3 py-2.5 text-xs text-gray-700 leading-snug">{e.provider}</td>
+                  <td className="px-3 py-2.5 text-center">
+                    <span className={`text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded border ${c.cls}`}>{c.label}</span>
+                    {e.notification_to_supervisor && (
+                      <div className="text-[9px] mt-1 text-emerald-700 italic">BaFin notified</div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 text-[11px] text-gray-700 leading-snug">{e.oversight}</td>
+                  <td className="px-3 py-2.5 text-[11px] text-gray-700 leading-snug">{e.exit_strategy}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <p className="text-[11px] text-gray-500 italic px-4 py-2.5 border-t border-gray-100">
+          Article 274 + EIOPA Guidelines on Outsourcing of Critical or Important Functions (CIF) require: written agreement, defined SLAs,
+          right of supervisor inspection, exit strategy, business-continuity provisions, sub-outsourcing controls. The register is reviewed
+          annually by the Audit Committee and BaFin is notified of changes to any critical CIF.
+        </p>
       </div>
     </div>
   );

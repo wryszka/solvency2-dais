@@ -14,6 +14,8 @@ env:
     value: ${var.genie_space_id}
   - name: BACKSTAGE_NOTEBOOK_PATH
     value: ${var.backstage_notebook_path}
+  - name: PRICING_APP_URL
+    value: ${var.pricing_app_url}
   - name: AI_GATEWAY_ENDPOINT
     value: ""
   - name: MLFLOW_TRACKING_URI

@@ -178,6 +178,7 @@ async def me(request: Request):
 
 @app.get("/api/embeds")
 async def embeds():
+    from server.config import get_pricing_app_url
     host = get_workspace_host()
     dashboard_id = get_dashboard_id()
     genie_space_id = get_genie_space_id()
@@ -186,6 +187,7 @@ async def embeds():
         "genie_url": f"{host}/embed/genie/spaces/{genie_space_id}",
         "dashboard_id": dashboard_id,
         "genie_space_id": genie_space_id,
+        "pricing_app_url": get_pricing_app_url(),
     }
 
 

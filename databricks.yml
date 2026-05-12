@@ -67,6 +67,9 @@ variables:
   backstage_notebook_path:
     description: Workspace path to the technical-deep-dive notebook for the sidebar Backstage link
     default: ""
+  pricing_app_url:
+    description: External pricing-workbench Databricks App URL (per-workspace). Empty hides the tile from the live deep-link.
+    default: ""
 
   # — Workspace / auth —
   workspace_host:
@@ -119,6 +122,7 @@ targets:
       workspace_host: https://fevm-lr-dev-aws-us.cloud.databricks.com
       databricks_profile: DEV
       entity_type: composite
+      pricing_app_url: https://pricing-workbench-7474656169654171.aws.databricksapps.com/
 
   prod:
     mode: production

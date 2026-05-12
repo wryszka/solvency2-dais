@@ -213,6 +213,7 @@ export interface EmbedUrls {
   genie_url: string;
   dashboard_id: string;
   genie_space_id: string;
+  pricing_app_url?: string;
 }
 
 export function fetchEmbeds(): Promise<EmbedUrls> {
