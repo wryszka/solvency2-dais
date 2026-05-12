@@ -5,8 +5,9 @@
  * "AI cannot approve" assertion, and a live audit trail of agent calls.
  */
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
-  Lock, Loader2, AlertTriangle, ShieldCheck, ShieldAlert, ShieldOff,
+  Lock, Loader2, AlertTriangle, ShieldCheck, ShieldAlert, ShieldOff, ArrowRight,
 } from 'lucide-react';
 import PillarChip from '../components/PillarChip';
 import {
@@ -51,6 +52,20 @@ export default function InternalControls() {
           The 12 AI guardrails arranged by control layer, the live audit trail of agent calls,
           counts of blocked attempts, and the architectural invariants the platform enforces.
         </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link to="/pillar-2#fit-and-proper"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 px-2 py-1 rounded border border-emerald-200 bg-emerald-50/50">
+            Fit-and-proper register (Art. 42) <ArrowRight className="w-3 h-3" />
+          </Link>
+          <Link to="/pillar-2#audit-trail"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 px-2 py-1 rounded border border-emerald-200 bg-emerald-50/50">
+            Audit-trail event types <ArrowRight className="w-3 h-3" />
+          </Link>
+          <Link to="/pillar-3#evr"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:text-amber-900 px-2 py-1 rounded border border-amber-200 bg-amber-50/50">
+            EIOPA validation rules <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
       </div>
 
       {error && (

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import {
   ArrowRight, Shield, BarChart3, BookOpen, Flame, FlaskConical, Landmark,
   Workflow, Scale, ScrollText, Lock, Archive as ArchiveIcon, Newspaper, FileText, Bot,
-  CheckCircle2, AlertTriangle, Clock, Activity, ShieldCheck, Sun, Layers,
+  CheckCircle2, AlertTriangle, Clock, Activity, ShieldCheck, Layers,
 } from 'lucide-react';
 import PillarChip, { type Pillar, PILLAR_META } from '../components/PillarChip';
 import { fetchLandingStatus, type LandingStatus, type TileStatus } from '../lib/api';
@@ -84,10 +84,10 @@ export default function Landing() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DoorCard
           to="/today"
-          icon={Sun}
-          title="Today"
+          icon={Activity}
+          title="Control Tower"
           tagline="Where are we now?"
-          body="Operational state. Control Tower, late feeds, pending approvals, what needs doing."
+          body="Operational state — late feeds, pending approvals, what needs doing, solvency tile + ORSA tile, recent overlays + pending model promotions."
           accent="amber"
         />
         <DoorCard

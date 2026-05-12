@@ -46,19 +46,19 @@ router = APIRouter(prefix="/api/sfcr", tags=["sfcr"])
 SFCR_SECTIONS: list[dict[str, Any]] = [
     {"id": "business_performance",
      "title": "A. Business and Performance",
-     "summary": "Activity, performance from underwriting, performance from investments."},
+     "summary": "A.1 Business · A.2 Performance from underwriting · A.3 Performance from investments · A.4 Any other information."},
     {"id": "system_of_governance",
      "title": "B. System of Governance",
-     "summary": "Governance structure, fit and proper, risk management, internal controls, internal audit, actuarial, outsourcing."},
+     "summary": "B.1 General governance · B.2 Fit + proper · B.3 Risk management + ORSA · B.4 Internal control · B.5 Internal audit · B.6 Actuarial function · B.7 Outsourcing."},
     {"id": "risk_profile",
      "title": "C. Risk Profile",
-     "summary": "Underwriting, market, credit, liquidity, operational, other material risks."},
+     "summary": "C.1 Underwriting risk · C.2 Market risk · C.3 Credit risk · C.4 Liquidity risk · C.5 Operational risk · C.6 Other material risks (climate, conduct, ICT)."},
     {"id": "valuation_solvency",
      "title": "D. Valuation for Solvency Purposes",
-     "summary": "Assets, technical provisions, other liabilities — valuation methods + differences vs financial statements."},
+     "summary": "D.1 Assets · D.2 Technical provisions · D.3 Other liabilities · D.4 Alternative valuation methods. LTG measures (Art. 77b/77d) disclosed in D.2."},
     {"id": "capital_management",
      "title": "E. Capital Management",
-     "summary": "Own funds, SCR + MCR, internal model (if used), non-compliance + remediation."},
+     "summary": "E.1 Own funds · E.2 SCR + MCR · E.3 Duration-based equity risk sub-module (where used) · E.4 Internal model differences (if used). Article 138 status disclosed in E.2."},
 ]
 SFCR_SECTION_IDS = {s["id"] for s in SFCR_SECTIONS}
 

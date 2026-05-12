@@ -1,12 +1,19 @@
 """Submissions archive + process-management metrics.
 
-The archive route exposes every (qrt_id, reporting_period) submission with
-its status, approver, DQ pass rate snapshot, and summary metric so a
-process manager can browse history and download the PDF for any past
-period.
+Both endpoints read from `gold_submissions_archive` — the single source of
+truth for the demo's reporting-history (33 rows × 6 periods, seeded by
+`seed_phase5_demo`). The earlier `6_ai_approvals`-based implementation
+relied on a write path that's only exercised when a live user submits a
+QRT, so the table stayed empty after a clean deploy and the Process tab
+rendered blank.
 
-The process-metrics route aggregates KPIs across periods (cycle time,
-on-time rate, rejection rate, DQ trend) for the Governance page.
+The archive table carries pre-computed cycle_days, dq_pass_rate, and a
+"feeds_complete" `X/Y` string per row, so the metric aggregation here is
+straightforward and avoids re-deriving cycle time from timestamps.
+
+The independent monitoring tables (`5_mon_dq_expectation_results` +
+`5_mon_pipeline_sla_status`) still drive the period-level DQ and feed
+trend charts — they're populated and live-correct.
 """
 
 import asyncio
@@ -16,115 +23,122 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from server.config import fqn
-from server.sql import execute_query, execute_query_cached
+from server.sql import execute_query_cached
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/archive", tags=["archive"])
 
 
-QRT_INFO = {
-    "s0602": {"name": "S.06.02", "title": "List of Assets", "summary_table": "3_qrt_s0602_summary"},
-    "s0501": {"name": "S.05.01", "title": "Premiums, Claims & Expenses", "summary_table": "3_qrt_s0501_summary"},
-    "s2501": {"name": "S.25.01", "title": "SCR — Standard Formula", "summary_table": "3_qrt_s2501_summary"},
-    "s2606": {"name": "S.26.06", "title": "Non-Life Underwriting Risk", "summary_table": "3_qrt_s2606_summary"},
+# `qrt` column in the archive carries the EIOPA template label (e.g. "S.05.01")
+# or a doc-type label ("SFCR", "RSR", "ORSA"). We normalise to a slug for the
+# frontend so links like /report/s0501 continue to work.
+_QRT_LABEL_TO_SLUG: dict[str, str] = {
+    "S.05.01": "s0501",
+    "S.06.02": "s0602",
+    "S.12.01": "s1201",
+    "S.25.01": "s2501",
+    "S.26.06": "s2606",
 }
+
+_QRT_TITLES: dict[str, str] = {
+    "s0501": "Premiums, Claims & Expenses",
+    "s0602": "List of Assets",
+    "s1201": "Life Technical Provisions",
+    "s2501": "SCR — Standard Formula",
+    "s2606": "Non-Life Underwriting Risk",
+    "sfcr":  "Solvency and Financial Condition Report",
+    "rsr":   "Regular Supervisory Report",
+    "orsa":  "Own Risk & Solvency Assessment",
+}
+
+
+def _qrt_slug(qrt_label: str) -> str:
+    if qrt_label in _QRT_LABEL_TO_SLUG:
+        return _QRT_LABEL_TO_SLUG[qrt_label]
+    return qrt_label.lower().replace(".", "")
+
+
+def _normalised_status(raw: str | None) -> str:
+    """Map archive-table statuses to the frontend's 3-state vocabulary."""
+    if not raw:
+        return "pending"
+    r = str(raw).strip().lower()
+    if r in {"approved", "submitted"}:
+        return "approved"
+    if r == "rejected":
+        return "rejected"
+    return "pending"
+
+
+def _parse_feeds_complete(s: str | None) -> tuple[int, int]:
+    """`'7/8'` → (received=7, total=8). Returns (0, 0) when unparseable."""
+    if not s or "/" not in str(s):
+        return 0, 0
+    try:
+        a, b = str(s).split("/", 1)
+        return int(a.strip()), int(b.strip())
+    except Exception:
+        return 0, 0
+
+
+async def _load_archive_rows() -> list[dict[str, Any]]:
+    q = f"""
+        SELECT period, qrt, qrt_title, doc_type, status,
+               submitted_at, submitted_by, reviewed_by, reviewed_at,
+               cycle_days, dq_pass_rate, feeds_complete,
+               headline_metric, headline_value, narrative, audit_snapshot_id
+        FROM {fqn('gold_submissions_archive')}
+        ORDER BY period DESC, qrt
+    """
+    rows = await execute_query_cached(q, ttl_seconds=30)
+    return rows or []
 
 
 @router.get("/submissions")
 async def list_submissions():
-    """List every submission (qrt × period) with status, approver, DQ snapshot."""
+    """Every (qrt × period) submission with status, approver, DQ snapshot."""
     try:
-        approvals_q = f"""
-            SELECT approval_id, qrt_id, reporting_period, status,
-                   submitted_by, submitted_at, reviewed_by, reviewed_at, comments
-            FROM {fqn('6_ai_approvals')}
-            ORDER BY reporting_period DESC, qrt_id
-        """
-        # DQ pass rate per period — joined later in Python
-        dq_q = f"""
-            SELECT reporting_period,
-                   ROUND(SUM(passing_records) * 100.0 / NULLIF(SUM(total_records), 0), 1) AS pass_rate_pct
-            FROM {fqn('5_mon_dq_expectation_results')}
-            GROUP BY reporting_period
-        """
-        # SLA — count of late or missing feeds per period
-        sla_q = f"""
-            SELECT reporting_period,
-                   COUNT(*) AS feed_count,
-                   SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late_count,
-                   SUM(CASE WHEN status = 'missing' THEN 1 ELSE 0 END) AS missing_count
-            FROM {fqn('5_mon_pipeline_sla_status')}
-            GROUP BY reporting_period
-        """
-
-        approvals, dq_rows, sla_rows = await asyncio.gather(
-            execute_query_cached(approvals_q, ttl_seconds=15),
-            execute_query_cached(dq_q, ttl_seconds=60),
-            execute_query_cached(sla_q, ttl_seconds=60),
-            return_exceptions=True,
-        )
-
-        def _ok(x: Any) -> list:
-            return [] if isinstance(x, Exception) else x
-
-        approvals = _ok(approvals)
-        dq_by_period = {r["reporting_period"]: r["pass_rate_pct"] for r in _ok(dq_rows)}
-        sla_by_period = {r["reporting_period"]: r for r in _ok(sla_rows)}
-
-        # Compute cycle time per row (review timestamp - submit timestamp), in hours
-        def _cycle_hours(submitted: str | None, reviewed: str | None) -> float | None:
-            if not submitted or not reviewed:
-                return None
-            try:
-                from datetime import datetime
-                fmt = "%Y-%m-%d %H:%M:%S"
-                # Strip timezone if present
-                s = submitted.split('+')[0].split('.')[0].replace('T', ' ').strip()
-                r = reviewed.split('+')[0].split('.')[0].replace('T', ' ').strip()
-                t_s = datetime.strptime(s, fmt)
-                t_r = datetime.strptime(r, fmt)
-                return round((t_r - t_s).total_seconds() / 3600, 1)
-            except Exception:
-                return None
-
-        out = []
-        for a in approvals:
-            qrt_id = a.get("qrt_id", "")
-            info = QRT_INFO.get(qrt_id, {"name": qrt_id, "title": qrt_id})
-            period = a.get("reporting_period", "")
-            sla = sla_by_period.get(period, {})
-            out.append({
-                "approval_id": a.get("approval_id"),
-                "qrt_id": qrt_id,
-                "qrt_name": info["name"],
-                "qrt_title": info["title"],
-                "reporting_period": period,
-                "status": a.get("status"),
-                "submitted_by": a.get("submitted_by"),
-                "submitted_at": a.get("submitted_at"),
-                "reviewed_by": a.get("reviewed_by"),
-                "reviewed_at": a.get("reviewed_at"),
-                "comments": a.get("comments"),
-                "cycle_hours": _cycle_hours(a.get("submitted_at"), a.get("reviewed_at")),
-                "dq_pass_rate_pct": dq_by_period.get(period),
-                "feeds_late": int(sla.get("late_count", 0) or 0),
-                "feeds_missing": int(sla.get("missing_count", 0) or 0),
-            })
-
-        return {"data": out}
+        rows = await _load_archive_rows()
     except Exception as exc:
-        logger.exception("Failed to list submissions")
+        logger.exception("Failed to read gold_submissions_archive")
         raise HTTPException(500, str(exc)) from exc
+
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        qrt_label = r.get("qrt") or ""
+        slug = _qrt_slug(qrt_label)
+        period = r.get("period") or ""
+        status = _normalised_status(r.get("status"))
+        cd = r.get("cycle_days")
+        cycle_hours = round(float(cd) * 24, 1) if cd is not None else None
+        received, total = _parse_feeds_complete(r.get("feeds_complete"))
+        feeds_incomplete = max(total - received, 0) if total else 0
+        out.append({
+            "approval_id":     r.get("audit_snapshot_id") or f"{period}-{slug}",
+            "qrt_id":          slug,
+            "qrt_name":        qrt_label,
+            "qrt_title":       r.get("qrt_title") or _QRT_TITLES.get(slug, qrt_label),
+            "reporting_period": period,
+            "status":          status,
+            "submitted_by":    r.get("submitted_by"),
+            "submitted_at":    str(r.get("submitted_at")) if r.get("submitted_at") else None,
+            "reviewed_by":     r.get("reviewed_by"),
+            "reviewed_at":     str(r.get("reviewed_at")) if r.get("reviewed_at") else None,
+            "comments":        r.get("narrative"),
+            "cycle_hours":     cycle_hours,
+            "dq_pass_rate_pct": r.get("dq_pass_rate"),
+            # Best-effort split: count all incomplete feeds as "late" — the demo
+            # data doesn't distinguish late vs missing per row.
+            "feeds_late":      feeds_incomplete,
+            "feeds_missing":   0,
+        })
+    return {"data": out}
 
 
 @router.get("/process-metrics")
 async def process_metrics():
     """Aggregate KPIs for the process-manager dashboard."""
     try:
-        approvals_q = f"""
-            SELECT qrt_id, reporting_period, status, submitted_at, reviewed_at
-            FROM {fqn('6_ai_approvals')}
-        """
         dq_trend_q = f"""
             SELECT reporting_period,
                    ROUND(SUM(passing_records) * 100.0 / NULLIF(SUM(total_records), 0), 1) AS pass_rate_pct,
@@ -144,41 +158,34 @@ async def process_metrics():
             ORDER BY reporting_period
         """
 
-        approvals, dq_trend, sla_trend = await asyncio.gather(
-            execute_query_cached(approvals_q, ttl_seconds=30),
+        rows, dq_trend, sla_trend = await asyncio.gather(
+            _load_archive_rows(),
             execute_query_cached(dq_trend_q, ttl_seconds=60),
             execute_query_cached(sla_trend_q, ttl_seconds=60),
             return_exceptions=True,
         )
 
         def _ok(x: Any) -> list:
-            return [] if isinstance(x, Exception) else x
+            return [] if isinstance(x, Exception) else (x or [])
 
-        approvals = _ok(approvals)
+        rows = _ok(rows)
         dq_trend = _ok(dq_trend)
         sla_trend = _ok(sla_trend)
 
-        # Aggregate KPIs
-        total = len(approvals)
-        approved = sum(1 for a in approvals if a.get("status") == "approved")
-        rejected = sum(1 for a in approvals if a.get("status") == "rejected")
-        pending = sum(1 for a in approvals if a.get("status") == "pending")
-        periods = sorted({a.get("reporting_period", "") for a in approvals if a.get("reporting_period")})
+        total = len(rows)
+        approved = sum(1 for r in rows if _normalised_status(r.get("status")) == "approved")
+        rejected = sum(1 for r in rows if _normalised_status(r.get("status")) == "rejected")
+        pending = sum(1 for r in rows if _normalised_status(r.get("status")) == "pending")
+        periods = sorted({r.get("period") or "" for r in rows if r.get("period")})
 
-        # Cycle times — only for approved rows
+        # Cycle times — only for completed submissions (cycle_days populated)
         cycle_hours: list[float] = []
-        from datetime import datetime
-        fmt = "%Y-%m-%d %H:%M:%S"
-        for a in approvals:
-            if a.get("status") != "approved":
-                continue
-            s, r = a.get("submitted_at"), a.get("reviewed_at")
-            if not s or not r:
+        for r in rows:
+            cd = r.get("cycle_days")
+            if cd is None:
                 continue
             try:
-                ts = datetime.strptime(str(s).split('+')[0].split('.')[0].replace('T', ' ').strip(), fmt)
-                tr = datetime.strptime(str(r).split('+')[0].split('.')[0].replace('T', ' ').strip(), fmt)
-                cycle_hours.append((tr - ts).total_seconds() / 3600)
+                cycle_hours.append(float(cd) * 24)
             except Exception:
                 pass
 
@@ -191,23 +198,21 @@ async def process_metrics():
         approval_rate = round(approved * 100.0 / total, 1) if total > 0 else None
         rejection_rate = round(rejected * 100.0 / total, 1) if total > 0 else None
 
-        # Approver workload — count of reviews per reviewer
         from collections import Counter
         reviewer_counter: Counter[str] = Counter()
         submitter_counter: Counter[str] = Counter()
-        for a in approvals:
-            if a.get("reviewed_by"):
-                reviewer_counter[a["reviewed_by"]] += 1
-            if a.get("submitted_by"):
-                submitter_counter[a["submitted_by"]] += 1
+        for r in rows:
+            if r.get("reviewed_by"):
+                reviewer_counter[r["reviewed_by"]] += 1
+            if r.get("submitted_by"):
+                submitter_counter[r["submitted_by"]] += 1
         top_reviewers = [{"name": n, "count": c} for n, c in reviewer_counter.most_common(5)]
         top_submitters = [{"name": n, "count": c} for n, c in submitter_counter.most_common(5)]
 
-        # Submissions per period
         period_counter: Counter[str] = Counter()
-        for a in approvals:
-            if a.get("reporting_period"):
-                period_counter[a["reporting_period"]] += 1
+        for r in rows:
+            if r.get("period"):
+                period_counter[r["period"]] += 1
         submissions_per_period = sorted(
             [{"period": p, "count": c} for p, c in period_counter.items()],
             key=lambda x: x["period"],

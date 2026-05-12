@@ -54,7 +54,7 @@ export default function OrsaDraft() {
   return (
     <div className="max-w-7xl mx-auto p-6">
       <Link to="/today" className="text-xs text-gray-500 hover:text-gray-800 inline-flex items-center gap-1 mb-3">
-        <ArrowLeft className="w-3.5 h-3.5" /> Back to Today
+        <ArrowLeft className="w-3.5 h-3.5" /> Back to Control Tower
       </Link>
 
       <div className="grid grid-cols-12 gap-6">

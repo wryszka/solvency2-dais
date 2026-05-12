@@ -1,15 +1,13 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import {
-  Building2, FileText, Activity, ShieldCheck, Code2, Home,
-  Layers, Beaker, Compass, GraduationCap, BookOpen, CircleHelp, Workflow,
+  Building2, FileText, Activity, ShieldCheck, Code2,
+  Layers, Beaker, Compass, GraduationCap, BookOpen, CircleHelp, Workflow, MessageCircleQuestion,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Landing from './pages/Landing';
 import Monitor from './pages/Monitor';
-import ReportsList from './pages/ReportsList';
 import ReportDetail from './pages/ReportDetail';
 import DataQuality from './pages/DataQuality';
-import Dashboard from './pages/Dashboard';
 import Genie from './pages/Genie';
 import RegulatorQA from './pages/RegulatorQA';
 import Archive from './pages/Archive';
@@ -36,6 +34,8 @@ import OrsaDraft from './pages/OrsaDraft';
 import Workbench from './pages/Workbench';
 import RoadmapStub from './pages/RoadmapStub';
 import Pillar1Overview from './pages/Pillar1Overview';
+import Pillar2Overview from './pages/Pillar2Overview';
+import Pillar3Overview from './pages/Pillar3Overview';
 import Breadcrumb from './components/Breadcrumb';
 import ResetDemoButton from './components/ResetDemoButton';
 import DemoModeToggle from './components/DemoModeToggle';
@@ -65,9 +65,6 @@ const DOORS: DoorLink[] = [
   { to: '/reporting-cycle', icon: Layers,   label: 'Reporting Cycle', tagline: 'Three pillars.',    accent: 'blue' },
 ];
 
-// Home sits above the doors as a single solo row — primary orientation.
-const HOME_ENTRY: NavEntry = { to: '/', icon: Home, label: 'Home' };
-
 const NAV_SECTIONS: NavSection[] = [
   {
     heading: 'Actuarial Lab',
@@ -87,9 +84,10 @@ const NAV_SECTIONS: NavSection[] = [
   {
     heading: 'Workbench',
     entries: [
-      { to: '/whatif',             icon: CircleHelp,    label: 'What-if scenarios' },
-      { to: '/adjacencies',        icon: Compass,       label: 'Adjacencies' },
-      { to: '/horizon',            icon: FileText,      label: 'Workbench horizon' },
+      { to: '/whatif',             icon: CircleHelp,            label: 'What-if scenarios' },
+      { to: '/genie',              icon: MessageCircleQuestion, label: 'Ask AI (Genie)' },
+      { to: '/adjacencies',        icon: Compass,               label: 'Adjacencies' },
+      { to: '/horizon',            icon: FileText,              label: 'Workbench horizon' },
     ],
   },
 ];
@@ -157,13 +155,8 @@ function Sidebar() {
         </div>
       </Link>
 
-      {/* Home — solo at top */}
-      <div className="px-2 pt-3 pb-1">
-        <NavLink entry={HOME_ENTRY} />
-      </div>
-
-      {/* Primary doors */}
-      <div className="px-2 pt-1 pb-1 space-y-1">
+      {/* Primary doors — Workbench brand above doubles as Home */}
+      <div className="px-2 pt-3 pb-1 space-y-1">
         {DOORS.map((d) => <DoorRow key={d.to} door={d} />)}
       </div>
 
@@ -264,12 +257,30 @@ function BackstageLink() {
   );
 }
 
+function ScrollToHash() {
+  const { hash, pathname } = useLocation();
+  useEffect(() => {
+    if (!hash) {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      return;
+    }
+    // Wait a frame so the destination section is mounted before we scroll.
+    const id = hash.slice(1);
+    requestAnimationFrame(() => {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [hash, pathname]);
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-gray-100 font-[system-ui]">
         <Sidebar />
         <main className="ml-[268px]">
+          <ScrollToHash />
           <BreadcrumbStrip />
           <Routes>
             {/* Workbench top-level — six tiles, Solvency II is the live one */}
@@ -283,7 +294,6 @@ export default function App() {
             <Route path="/learn"            element={<Learn />} />
 
             {/* Operational tools — direct access */}
-            <Route path="/monitor" element={<Monitor />} />
             <Route path="/ingestion" element={<Monitor initialTab="ingestion" />} />
             <Route path="/data-quality" element={<DataQuality />} />
             <Route path="/examples" element={<Navigate to="/lab" replace />} />
@@ -291,6 +301,8 @@ export default function App() {
             <Route path="/feeds/:feedName" element={<FeedDetail />} />
             <Route path="/orsa/draft" element={<OrsaDraft />} />
             <Route path="/pillar-1" element={<Pillar1Overview />} />
+            <Route path="/pillar-2" element={<Pillar2Overview />} />
+            <Route path="/pillar-3" element={<Pillar3Overview />} />
 
             {/* Pillar 1 — Capital. Pretty URLs redirect to the legacy QRT routes. */}
             <Route path="/scr"             element={<Navigate to="/report/s2501" replace />} />
@@ -322,9 +334,6 @@ export default function App() {
             {/* Architecture asset */}
             <Route path="/architecture"       element={<Architecture />} />
 
-            {/* Other / legacy */}
-            <Route path="/reports"            element={<ReportsList />} />
-            <Route path="/dashboard"          element={<Dashboard />} />
             <Route path="/report/:qrtId"      element={<ReportDetail />} />
             <Route path="/genie"              element={<Genie />} />
           </Routes>

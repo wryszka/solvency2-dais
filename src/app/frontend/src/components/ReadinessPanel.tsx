@@ -152,8 +152,7 @@ export default function ReadinessPanel() {
           {rows.map((r) => (
             <tr key={r.qrt_id}
               onClick={() => navigate(`/report/${r.qrt_id}`, { state: { crumbs: [
-                { label: 'Today', to: '/today' },
-                { label: 'Control Tower', to: '/monitor' },
+                { label: 'Control Tower', to: '/today' },
                 { label: r.qrt_name },
               ]}})}
               className="border-t border-gray-100 hover:bg-gray-50 cursor-pointer">

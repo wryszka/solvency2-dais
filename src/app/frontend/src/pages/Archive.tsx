@@ -8,10 +8,10 @@
  *   - View as-of         → same QRT page but with the period's audit snapshot
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   Archive as ArchiveIcon, Download, ExternalLink, Search, Filter,
-  CheckCircle2, Clock, Eye,
+  CheckCircle2, Clock, Eye, ArrowRight,
 } from 'lucide-react';
 import { fetchArchiveSubmissions, archivePdfUrl, type ArchiveSubmission } from '../lib/api';
 import { Skeleton, SkeletonTable } from '../components/Skeleton';
@@ -70,6 +70,16 @@ export default function Archive() {
             Every QRT, SFCR, RSR and ORSA submission. Click a row to download the PDF, open the
             QRT detail, or open the as-of audit panel for that period.
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link to="/pillar-3#restatement"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:text-amber-900 px-2 py-1 rounded border border-amber-200 bg-amber-50/50">
+              Restatement workflow — when a prior submission needs amending <ArrowRight className="w-3 h-3" />
+            </Link>
+            <Link to="/pillar-3#evr"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:text-amber-900 px-2 py-1 rounded border border-amber-200 bg-amber-50/50">
+              EIOPA validation rules — the gate before submission <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
         </div>
       </header>
 

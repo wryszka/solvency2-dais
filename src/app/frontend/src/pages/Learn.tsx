@@ -269,7 +269,7 @@ const PANELS: Panel[] = [
     diagram: <WholePictureDiagram />,
     links: [
       { label: 'Open the Reporting Cycle reference', to: '/reporting-cycle' },
-      { label: "See today's operational state",       to: '/today' },
+      { label: 'Open the Control Tower',              to: '/today' },
     ],
   },
 ];
@@ -346,8 +346,8 @@ export default function Learn() {
         <section className="bg-slate-900 text-white rounded-xl p-6">
           <h3 className="text-lg font-bold tracking-tight">You've read the regime.</h3>
           <p className="text-sm text-slate-300 mt-2 leading-relaxed">
-            Now look at it running. Open <Link to="/today" className="text-violet-300 underline hover:text-white">Today</Link> for
-            operational state, <Link to="/reporting-cycle" className="text-violet-300 underline hover:text-white">Reporting Cycle</Link> for
+            Now look at it running. Open the <Link to="/today" className="text-violet-300 underline hover:text-white">Control Tower</Link> for
+            operational state, the <Link to="/reporting-cycle" className="text-violet-300 underline hover:text-white">Reporting Cycle</Link> for
             every artefact organised by pillar, or <Link to="/horizon" className="text-violet-300 underline hover:text-white">Workbench Horizon</Link> for
             where this extends next.
           </p>

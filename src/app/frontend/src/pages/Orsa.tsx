@@ -13,8 +13,9 @@
  *   4. Generated narrative + version history
  */
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
-  Workflow, AlertTriangle, Sparkles, Loader2, Play, RefreshCw, CheckCircle2, FileText,
+  Workflow, AlertTriangle, Sparkles, Loader2, Play, RefreshCw, CheckCircle2, FileText, ArrowRight,
 } from 'lucide-react';
 import PillarChip from '../components/PillarChip';
 import { Skeleton } from '../components/Skeleton';
@@ -150,6 +151,16 @@ export default function Orsa() {
             Scenario-based capital adequacy projection over 3 years. Pick a stress, run the engine,
             generate the Board-facing narrative.
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link to="/orsa/draft"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 px-2 py-1 rounded border border-emerald-200 bg-emerald-50/50">
+              Continuous draft document <ArrowRight className="w-3 h-3" />
+            </Link>
+            <Link to="/pillar-2#use-test"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 px-2 py-1 rounded border border-emerald-200 bg-emerald-50/50">
+              Use-test evidence — Article 45 <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
         </div>
       </div>
 

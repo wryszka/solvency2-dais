@@ -11,10 +11,11 @@
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Layers, Clock, ChevronRight, Zap, Sparkles, Sun } from 'lucide-react';
+import { Layers, Clock, ChevronRight, Zap, Sparkles, Activity } from 'lucide-react';
 import Monitor from './Monitor';
 import TodaySolvencyTile from '../components/TodaySolvencyTile';
 import TodayOrsaTile from '../components/TodayOrsaTile';
+import TodayMCRTile from '../components/TodayMCRTile';
 import {
   fetchOverlays, fetchLabModels, formatEur,
   type Overlay, type LabModelRow,
@@ -26,18 +27,20 @@ export default function Today() {
       <header className="max-w-6xl mx-auto px-6 pt-4 pb-1">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-            <Sun className="w-4 h-4 text-amber-700" />
+            <Activity className="w-4 h-4 text-amber-700" />
           </div>
           <div>
-            <div className="text-[11px] uppercase tracking-widest text-amber-700 font-bold">Today</div>
+            <div className="text-[11px] uppercase tracking-widest text-amber-700 font-bold">Control Tower</div>
             <p className="text-xs text-gray-500">Operational state · quick actions · recent activity</p>
           </div>
         </div>
       </header>
 
-      {/* Headline tiles — two always-on readings: capital today (P1) + capital under stress today (P2) */}
-      <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-4 pb-2">
+      {/* Headline tiles — three always-on readings: solvency today (SCR) ·
+          MCR coverage (Art. 138 floor) · solvency under stress (ORSA) */}
+      <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-4 pb-2">
         <TodaySolvencyTile />
+        <TodayMCRTile />
         <TodayOrsaTile />
       </div>
 
@@ -72,7 +75,7 @@ function RecentActivityRow() {
   return (
     <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
       <Panel title="Recent overlays" icon={Layers} accent="violet"
-        link={{ label: 'Open Overlays Register', to: '/overlays', crumbs: [{ label: 'Today', to: '/today' }, { label: 'Overlays Register' }] }}
+        link={{ label: 'Open Overlays Register', to: '/overlays', crumbs: [{ label: 'Control Tower', to: '/today' }, { label: 'Overlays Register' }] }}
       >
         {overlays.length === 0 ? (
           <Empty msg="No overlays this quarter." />
@@ -100,7 +103,7 @@ function RecentActivityRow() {
       </Panel>
 
       <Panel title="Pending model promotions" icon={Zap} accent="blue"
-        link={{ label: 'Open Actuarial Lab', to: '/lab', crumbs: [{ label: 'Today', to: '/today' }, { label: 'Actuarial Lab' }] }}
+        link={{ label: 'Open Actuarial Lab', to: '/lab', crumbs: [{ label: 'Control Tower', to: '/today' }, { label: 'Actuarial Lab' }] }}
       >
         {pendingPromotions.length === 0 ? (
           <Empty msg="No promotions pending." />

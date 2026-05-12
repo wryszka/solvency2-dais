@@ -160,7 +160,7 @@ export function ProcessOverview() {
 
       {/* DQ + SLA trend */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <PanelCard title="Data quality trend" icon={ShieldCheck} hint="Pass rate per period; lower = more failing rows.">
+        <PanelCard title="Data quality trend (live monitoring)" icon={ShieldCheck} hint="Aggregate pass-rate across all bronze tables, refreshed live. The Submissions Archive shows the DQ snapshot at sign-off — typically slightly lower because it includes feed-window incidents that resolved later.">
           <DqTrendBars data={metrics.dq_trend} />
         </PanelCard>
         <PanelCard title="Feed punctuality" icon={Workflow} hint="Late + missing feeds per period.">

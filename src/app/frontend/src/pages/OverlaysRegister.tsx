@@ -65,6 +65,8 @@ export default function OverlaysRegister() {
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [filterLob, setFilterLob] = useState<string>('');
   const [filterModel, setFilterModel] = useState<string>('');
+  // Deep-linked cell-prefix filter (?cell=s2501. from artefact connections panel)
+  const [filterCellPrefix, setFilterCellPrefix] = useState<string>('');
   const [selected, setSelected] = useState<Overlay | null>(null);
   const [showNew, setShowNew] = useState(false);
 
@@ -90,10 +92,22 @@ export default function OverlaysRegister() {
             [filterQuarter, filterStatus, filterLob, filterModel]);
 
   // Deep-link: /overlays?new=1 with optional pre-fill query string opens the new-overlay form
+  // Deep-link: /overlays?cell=s2501.  applies a cell-prefix filter so connections panels can
+  // land you on an artefact-scoped view.
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('new') === '1') setShowNew(true);
+    const cell = params.get('cell');
+    setFilterCellPrefix(cell ? cell : '');
   }, [location.search]);
+
+  const visibleOverlays = useMemo(() => {
+    if (!filterCellPrefix) return overlays;
+    return overlays.filter((o) => {
+      const cells = asArray<string>(o.linked_qrt_cells as unknown);
+      return cells.some((c) => typeof c === 'string' && c.startsWith(filterCellPrefix));
+    });
+  }, [overlays, filterCellPrefix]);
 
   const totals = useMemo(() => {
     if (!summary) return { approved: 0, pending: 0, drafts: 0, magnitude: 0 };
@@ -151,8 +165,16 @@ export default function OverlaysRegister() {
         <FilterSelect label="Status"   value={filterStatus}  onChange={setFilterStatus}  options={['', ...STATUSES]} />
         <FilterSelect label="LoB"      value={filterLob}     onChange={setFilterLob}     options={['', ...LOBS]} />
         <FilterSelect label="Model"    value={filterModel}   onChange={setFilterModel}   options={['', ...MODELS]} />
+        {filterCellPrefix && (
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-violet-800 bg-violet-100 border border-violet-200 px-2 py-1 rounded">
+            cell prefix: <code className="font-mono">{filterCellPrefix}</code>
+            <button onClick={() => setFilterCellPrefix('')} className="text-violet-700 hover:text-violet-900 ml-1" title="Clear">
+              <XCircle className="w-3.5 h-3.5" />
+            </button>
+          </span>
+        )}
         <button
-          onClick={() => { setFilterQuarter('2025-Q4'); setFilterStatus(''); setFilterLob(''); setFilterModel(''); }}
+          onClick={() => { setFilterQuarter('2025-Q4'); setFilterStatus(''); setFilterLob(''); setFilterModel(''); setFilterCellPrefix(''); }}
           className="text-xs text-gray-500 hover:text-gray-700 ml-auto"
         >
           reset
@@ -188,7 +210,7 @@ export default function OverlaysRegister() {
               </tr>
             </thead>
             <tbody>
-              {overlays.map((o) => (
+              {visibleOverlays.map((o) => (
                 <tr
                   key={o.overlay_id}
                   onClick={() => setSelected(o)}

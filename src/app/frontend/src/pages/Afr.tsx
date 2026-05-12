@@ -7,7 +7,8 @@
  * human review/edit/approve workflow.
  */
 import { useEffect, useState } from 'react';
-import { ScrollText, Loader2, AlertTriangle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ScrollText, Loader2, AlertTriangle, ArrowRight } from 'lucide-react';
 import PillarChip from '../components/PillarChip';
 import SectionEditor from '../components/SectionEditor';
 import {
@@ -133,6 +134,16 @@ export default function Afr() {
           Article 48 of Solvency II Directive — four sections, each grounded in current SCR /
           model / DQ / ORSA evidence. AI drafts; appointed actuary reviews + approves.
         </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link to="/pillar-2#article-48"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 px-2 py-1 rounded border border-emerald-200 bg-emerald-50/50">
+            Article 48 crosswalk — 7 obligations <ArrowRight className="w-3 h-3" />
+          </Link>
+          <Link to="/pillar-2#fit-and-proper"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 px-2 py-1 rounded border border-emerald-200 bg-emerald-50/50">
+            AFR holder — fit + proper <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
         <div className="mt-3 bg-green-50 border border-green-200 rounded-md px-3 py-2 text-xs text-green-900">
           <span className="font-semibold">Drafting workspace.</span> Four cards below — one per
           Article 48 section. Click <span className="font-semibold">Generate draft</span> on any

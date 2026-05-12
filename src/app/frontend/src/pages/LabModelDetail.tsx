@@ -216,7 +216,7 @@ function VersionsTab({ detail }: { detail: ModelDetail }) {
 }
 
 function DiagnosticsTab({ diagnostics }: { diagnostics: ModelDiagnostic[] }) {
-  if (diagnostics.length === 0) return <Empty msg="No diagnostics computed yet." />;
+  if (diagnostics.length === 0) return <DiagnosticsTaxonomyPlaceholder />;
   // Group by reporting_period (latest first)
   const grouped = new Map<string, ModelDiagnostic[]>();
   for (const d of diagnostics) {
@@ -464,6 +464,43 @@ function PromoteTab({ detail, candidateVersion, onPromoted }: {
           Diagnostics for this quarter must all pass; failure aborts the promotion.
         </span>
       </div>
+    </div>
+  );
+}
+
+function DiagnosticsTaxonomyPlaceholder() {
+  const checks = [
+    { name: 'Actual vs Expected (AvE)',          desc: 'Production output reconciled to realised experience by LoB / cohort / period.' },
+    { name: 'Triangle consistency',                desc: 'Reserving — chain-ladder + BF outputs reconciled across diagonals + accident-year cells.' },
+    { name: 'Variance vs prior period',            desc: 'Q-over-Q drift in model output, by sub-module or LoB. Tolerance in pp.' },
+    { name: 'Assumption drift',                    desc: 'Material parameter changes vs the last full assumption review. Watches mortality, lapse, inflation.' },
+    { name: 'Backtesting (predictive accuracy)',   desc: 'Out-of-sample evaluation — required for internal-model approval under Article 124.' },
+    { name: 'Sensitivity calibration',             desc: 'Magnitude of response to +1σ shocks vs expected response (per Annex II).' },
+    { name: 'Cross-engine reconciliation',         desc: 'Cat-engine output vs reserving-model assumption set · Prophet stress vs Igloo cat charge.' },
+    { name: 'Reasonableness vs market data',       desc: 'Cat aggregates vs Munich Re / EM-DAT external event log · spread assumptions vs market indices.' },
+  ];
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <header className="px-4 py-3 border-b border-gray-200 bg-amber-50/60">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-700" />
+          <h4 className="text-sm font-bold text-amber-900">No diagnostics computed for this model yet</h4>
+        </div>
+        <p className="text-[11px] text-amber-700/80 mt-1">
+          Once a model run completes, diagnostics in the categories below land in <code className="font-mono">6_gov_model_diagnostics</code> and surface here.
+        </p>
+      </header>
+      <ul className="divide-y divide-gray-100">
+        {checks.map((c) => (
+          <li key={c.name} className="px-4 py-2.5">
+            <div className="text-xs font-semibold text-gray-900">{c.name}</div>
+            <div className="text-[11px] text-gray-600 mt-0.5 leading-snug">{c.desc}</div>
+          </li>
+        ))}
+      </ul>
+      <p className="text-[10px] text-gray-500 italic px-4 py-2.5 border-t border-gray-100">
+        Tier 1 models (drives SCR + SFCR) require all eight diagnostic categories; Tier 2 + 3 may run a subset. See <code className="font-mono">/pillar-2</code> for the tiering rules.
+      </p>
     </div>
   );
 }

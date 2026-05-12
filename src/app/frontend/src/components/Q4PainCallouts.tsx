@@ -93,8 +93,7 @@ export default function Q4PainCallouts() {
               key={it.id}
               onClick={() => navigate(it.drill_path, { state: {
                 crumbs: [
-                  { label: 'Today', to: '/today' },
-                  { label: 'Control Tower', to: '/monitor' },
+                  { label: 'Control Tower', to: '/today' },
                   { label: it.title },
                 ],
               }})}
