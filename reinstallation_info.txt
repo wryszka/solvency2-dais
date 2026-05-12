@@ -542,6 +542,40 @@ ERROR: ORSA narrative or other AI agent times out
 
 
 ================================================================================
+  8b. MINIMISING DBU CONSUMPTION
+================================================================================
+
+The Databricks demo charges DBUs for:
+
+  - Databricks App compute (charged per uptime while RUNNING).
+  - SQL warehouse (charged while running; auto-stops on idle).
+  - DLT pipeline runs (charged per pipeline invocation; idle = 0 DBU).
+  - Job runs (charged per job invocation; idle = 0 DBU).
+
+What you can do:
+
+1. STOP THE APP when not actively using it. The app currently runs MEDIUM
+   compute 24/7 (Databricks Apps' smallest available size is MEDIUM as of
+   2026-05; SMALL is not yet exposed via the API).
+       make app-stop           # zero DBU while stopped
+       make app-start          # ~30s to resume
+   When stopped, the app URL returns 502 — it auto-restarts on the next
+   `start` command, NOT on incoming traffic.
+
+2. SQL WAREHOUSE is already configured to auto-stop after 10 min idle
+   (serverless PRO). Check / adjust via Databricks UI → Compute → SQL
+   warehouses, or:
+       databricks warehouses get <warehouse_id> --profile DEV
+
+3. DLT PIPELINES + JOBS are on-demand serverless. No cost when idle.
+   Pipelines stay in IDLE state between runs; jobs stay in TERMINATED.
+   You only pay during `databricks bundle run` execution.
+
+4. If you want the App to run cheaper FULL-TIME (rather than stop/start),
+   you'd need a "compute_size: SMALL" option which doesn't yet exist via
+   the Apps API. Watch for it in future releases.
+
+================================================================================
   9. CLEAN REMOVAL — uninstalling the demo
 ================================================================================
 

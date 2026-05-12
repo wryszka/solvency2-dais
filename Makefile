@@ -1,12 +1,20 @@
 # Make targets for the Solvency II demo.
 
-.PHONY: help cue-cards.pdf preflight bake-cache deploy-dev
+.PHONY: help cue-cards.pdf preflight bake-cache deploy-dev app-start app-stop
 
 help:
 	@echo "  make cue-cards.pdf   — render docs/cue_cards.md to PDF (requires pandoc)"
 	@echo "  make preflight       — run scripts/preflight_check.sh"
 	@echo "  make bake-cache      — pre-bake AI outputs into 6_ai_demo_cache"
 	@echo "  make deploy-dev      — bundle deploy + app deploy to the dev target"
+	@echo "  make app-start       — start the Databricks App (resumes DBU billing)"
+	@echo "  make app-stop        — stop the Databricks App (no DBU while stopped)"
+
+app-start:
+	databricks apps start solvency2-workbench --profile DEV
+
+app-stop:
+	databricks apps stop solvency2-workbench --profile DEV
 
 cue-cards.pdf: docs/cue_cards.md
 	@command -v pandoc >/dev/null || { echo "pandoc not installed — install with 'brew install pandoc' (and a TeX engine like basictex/mactex)."; exit 1; }
