@@ -63,6 +63,26 @@ spec.loader.exec_module(mod)
 
 # COMMAND ----------
 
+# Monkey-patch run_sql to use spark.sql directly when running inside a
+# notebook — the original seed_phase5.py shells out via `databricks api`,
+# which requires a configured CLI profile (fine on a laptop, not in a
+# serverless job context). spark.sql is available here and gives us the
+# same execution semantics.
+def _spark_run_sql(stmt: str) -> dict:
+    try:
+        df = spark.sql(stmt)
+        # DDL (CREATE/INSERT/DELETE) returns no data. Reads return rows.
+        # Either way we emulate the CLI response envelope main() checks.
+        try:
+            rows = [list(r) for r in df.collect()]
+        except Exception:
+            rows = []
+        return {"status": {"state": "SUCCEEDED"}, "result": {"data_array": rows}}
+    except Exception as exc:
+        return {"status": {"state": "FAILED", "error": {"message": str(exc)}}}
+
+mod.run_sql = _spark_run_sql
+
 mod.main()
 
 print()
