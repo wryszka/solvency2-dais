@@ -90,7 +90,7 @@ export default function Pillar1Overview() {
             kind="native"
             title="Standard Formula"
             icon={Shield}
-            what="Aggregates sub-module charges via the EIOPA correlation matrix. Adds operational risk (3% of EP, capped). Subtracts LAC_DT (10% cap)."
+            what="Aggregates sub-module charges via the EIOPA correlation matrix into BSCR. Adds operational risk = min(max(Op_premium, Op_provisions) + Op_UL, 30%·BSCR). Subtracts LAC_TP and LAC_DT, each limited by available recoverability."
             inputs={["1_raw_risk_factors", "1_raw_own_funds"]}
             outputs={["2_stg_scr_results", "3_qrt_s2501_*"]}
             engine="Native UC · MLflow pyfunc"
@@ -99,8 +99,8 @@ export default function Pillar1Overview() {
             controls={[
               "Sub-module total reconciles to BSCR within rounding tolerance",
               "EIOPA correlation matrix unchanged from canonical (hash check)",
-              "Op risk parameter ∈ [2%, 4%] of earned premium",
-              "LAC_DT ≤ 10% of (BSCR + op risk)",
+              "Op risk = min(max(Op_premium, Op_provisions) + Op_UL, 30%·BSCR)",
+              "LAC_DT ≤ available DT recoverability (no fixed % cap)",
               "Solvency ratio = own_funds / SCR — sanity cross-check",
             ]}
             modelRow={modelByName('standard_formula')}
@@ -361,9 +361,9 @@ function Edge({ x1, y1, x2, y2, colour, strokeWidth = 1 }: { x1: number; y1: num
 function MetricsGrid({ modelByName }: { models: LabModelRow[]; modelByName: (n: string) => LabModelRow | undefined }) {
   const tiles = [
     { label: 'Solvency Capital Requirement', value: 'EUR 556 M', sub: 'Standard Formula · production v1', to: '/report/s2501', icon: Shield, accent: 'blue' as const, model: modelByName('standard_formula') },
-    { label: 'Basic SCR (pre op-risk + LAC_DT)', value: '~EUR 825 M', sub: 'EIOPA correlation across modules', to: '/report/s2501', icon: Gauge, accent: 'slate' as const },
-    { label: 'Non-life UW SCR', value: 'EUR 524 M', sub: '61% catastrophe · Igloo-derived', to: '/report/s2606', icon: Flame, accent: 'orange' as const, model: modelByName('igloo_cat') },
-    { label: 'Life best estimate', value: 'EUR 2.0 B', sub: 'Prophet 5K-scenario projection', to: '/report/s1201', icon: FlaskConical, accent: 'purple' as const, model: modelByName('prophet_life') },
+    { label: 'BSCR (pre op-risk + LAC_DT)', value: 'EUR 598 M', sub: 'EIOPA correlation across modules', to: '/report/s2501', icon: Gauge, accent: 'slate' as const },
+    { label: 'Non-life UW SCR', value: 'EUR 385 M', sub: 'Sub-module input to BSCR · 61% cat-driven', to: '/report/s2606', icon: Flame, accent: 'orange' as const, model: modelByName('igloo_cat') },
+    { label: 'Life best estimate', value: 'EUR 1.85 B', sub: 'Prophet 5K-scenario projection', to: '/reserving-life', icon: FlaskConical, accent: 'purple' as const, model: modelByName('prophet_life') },
     { label: 'Asset register total', value: 'EUR 6.4 B', sub: 'S.06.02 · CIC-classified · look-through', to: '/report/s0602', icon: Landmark, accent: 'amber' as const },
     { label: 'P&C reserves (best estimate)', value: 'see S.05.01', sub: 'reserving_pnc · chain ladder + BF', to: '/report/s0501', icon: BookOpen, accent: 'violet' as const, model: modelByName('reserving_pnc') },
   ];
@@ -575,6 +575,10 @@ function SpeedComparison() {
           ))}
         </tbody>
       </table>
+      <p className="text-[11px] text-gray-500 italic px-4 py-2.5 border-t border-gray-100">
+        Timings are illustrative — actual numbers vary by firm size, portfolio complexity, cat-engine
+        configuration and reinsurance treaty shape. Use these as orders of magnitude, not benchmarks.
+      </p>
     </div>
   );
 }
@@ -636,8 +640,8 @@ function ControlsList({ recon }: { recon: Row[] }) {
   const modelControls = [
     { name: 'SF sub-module reconciliation',     description: 'Sum of sub-module charges ↔ BSCR ± rounding tolerance',         source: 'standard_formula',         status: 'MATCH' },
     { name: 'EIOPA correlation matrix hash',     description: 'Active matrix matches canonical EIOPA reference hash',          source: 'standard_formula',         status: 'MATCH' },
-    { name: 'Op risk parameter bounds',          description: 'Op risk factor ∈ [2%, 4%] of earned premium',                    source: 'standard_formula',         status: 'MATCH' },
-    { name: 'LAC_DT cap',                         description: 'LAC_DT ≤ 10% of (BSCR + op risk)',                              source: 'standard_formula',         status: 'MATCH' },
+    { name: 'Op risk cap',                        description: 'Op risk capped at 30% of BSCR (Article 204 SF Delegated Regs)',  source: 'standard_formula',         status: 'MATCH' },
+    { name: 'LAC_DT recoverability',              description: 'LAC_DT ≤ available DT recoverability (probability-weighted future profits)', source: 'standard_formula',         status: 'MATCH' },
     { name: 'Triangle consistency score',        description: 'Reserving model actual-vs-expected on Q-1 cohort ≥ 0.85',        source: 'reserving_pnc',            status: 'MATCH' },
     { name: 'Cat reasonableness vs AAL',         description: 'Igloo modelled cat charge within ±30% of long-run AAL',         source: 'igloo_cat',                status: 'MATCH' },
     { name: 'Prophet scenario convergence',      description: 'Convergence score across 5K scenarios ≥ 0.95',                   source: 'prophet_life',             status: 'MATCH' },

@@ -587,7 +587,7 @@ async def run_stress(req: StressRequest, request: Request):
     await asyncio.sleep(32)
 
     if is_low_rate:
-        ratios = [333.0, 245.0, 210.0, 182.0, 168.0, 162.0]    # 6 points: t0..t5
+        ratios = [210.0, 192.0, 178.0, 168.0, 162.0, 158.0]    # 6 points: t0..t5
         narrative_seed = (
             f"Sustained low interest rates over {req.duration_years} years compress the discount "
             "applied to life best-estimate liabilities. By year 5 the projected solvency ratio "
@@ -596,7 +596,7 @@ async def run_stress(req: StressRequest, request: Request):
             "prolonged low discount rates dominates the path; non-life impact is second-order."
         )
     else:
-        ratios = [333.0, 320.0, 305.0, 295.0, 287.0, 280.0]
+        ratios = [210.0, 204.0, 198.0, 194.0, 191.0, 189.0]
         narrative_seed = f"Generic stress '{req.scenario_label}': solvency ratio drifts to {ratios[-1]:.0f}% over {req.duration_years} years."
 
     return {
@@ -759,7 +759,10 @@ async def _rebase_demo_state() -> dict[str, str]:
             cur += (rng.random() - 0.5) * 0.4
             ratio = round(cur, 1)
             driver, klass, delta = "—", "drift", round(ratio - (series[-1][1] if series else ratio), 2)
-        series.append((observed, ratio, 556_000_000.0, 1_850_000_000.0 * (ratio / 333.0), float(delta), driver, klass))
+        # Anchor the implied own-funds figure to the s2501 reality (~210% baseline,
+        # ~EUR 1.17B OF against ~EUR 556M SCR). Earlier 1.85B/333% pair clashed
+        # with every other surface — see number-audit reconciliation.
+        series.append((observed, ratio, 556_000_000.0, 1_168_000_000.0 * (ratio / 210.0), float(delta), driver, klass))
 
     # Insert in batches via parameterised statements
     for i in range(0, len(series), 30):
@@ -777,16 +780,19 @@ async def _rebase_demo_state() -> dict[str, str]:
     # ── 3. ORSA history — rolling 30 days × 3 stresses × 4 year-offsets ─────
     orsa_hist_table = fqn("6_demo_orsa_history")
     await execute_query(f"DELETE FROM {orsa_hist_table}")
+    # Baselines re-calibrated to 210% (the canonical baseline shared across
+    # Control Tower, s2501 gold and the new Pillar 3 panels). Drift profiles
+    # are preserved as percentages-of-baseline so the demo narrative still lands.
     SCENARIOS = [
-        ("natcat_1_in_200",     "1-in-200 nat cat",          [333, 257, 250, 251]),
-        ("equity_minus_30",     "Equity shock −30%",          [333, 245, 248, 252]),
-        ("mass_lapse_plus_35",  "Mass lapse +35%",            [333, 195, 165, 142]),
+        ("natcat_1_in_200",     "1-in-200 nat cat",          [210, 162, 158, 159]),
+        ("equity_minus_30",     "Equity shock −30%",          [210, 155, 156, 159]),
+        ("mass_lapse_plus_35",  "Mass lapse +35%",            [210, 123, 104,  90]),
     ]
     rng2 = random.Random(7)
     orsa_rows: list[str] = []
     for d in range(30):
         observed = (today_date - timedelta(days=29 - d)).date()
-        ml_drift = 142 - (4.0 * d / 29.0)
+        ml_drift = 90 - (3.0 * d / 29.0)
         for sid, sname, base_ratios in SCENARIOS:
             for yo, base_ratio in enumerate(base_ratios):
                 if sid == "mass_lapse_plus_35" and yo == 3:
@@ -797,7 +803,7 @@ async def _rebase_demo_state() -> dict[str, str]:
                 orsa_rows.append(
                     f"(CAST('{observed.isoformat()}' AS DATE), '{sid}', "
                     f"'{sname.replace(chr(39), chr(39)*2)}', {yo}, {py}, {ratio}, "
-                    f"556000000.0, {1_850_000_000.0 * (ratio / 333.0)}, "
+                    f"556000000.0, {1_168_000_000.0 * (ratio / 210.0)}, "
                     f"'{observed.isoformat()}-{sid}')"
                 )
     for i in range(0, len(orsa_rows), 80):

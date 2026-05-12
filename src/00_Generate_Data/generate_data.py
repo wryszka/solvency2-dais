@@ -1786,14 +1786,18 @@ write_quarterly_table(pd.DataFrame(igloo_rows), "4_eng_stochastic_results",
 
 # COMMAND ----------
 
-# Own funds components
+# Own funds components — calibrated so total OF ≈ EUR 1.17B against SCR ≈ EUR 556M,
+# giving a Q-end solvency ratio of ~210% (matches the daily series shown on the
+# Control Tower; broadly in line with the European mid-cap composite distribution).
+# Earlier values (EUR 500M / 200M / 600-800M / etc.) produced ~333% which clashed
+# with every other surface — see number-audit report for the reconciliation.
 own_funds_rows = [
-    {"component": "ordinary_share_capital", "tier": 1, "amount_eur": to_eur(500e6 * growth), "reporting_period": reporting_period},
-    {"component": "share_premium", "tier": 1, "amount_eur": to_eur(200e6 * growth), "reporting_period": reporting_period},
-    {"component": "reconciliation_reserve", "tier": 1, "amount_eur": to_eur(rng.uniform(600, 800) * 1e6 * growth), "reporting_period": reporting_period},
-    {"component": "subordinated_liabilities_t1", "tier": 1, "amount_eur": to_eur(150e6 * growth), "reporting_period": reporting_period},
-    {"component": "subordinated_liabilities_t2", "tier": 2, "amount_eur": to_eur(rng.uniform(200, 300) * 1e6 * growth), "reporting_period": reporting_period},
-    {"component": "ancillary_own_funds", "tier": 3, "amount_eur": to_eur(rng.uniform(30, 60) * 1e6 * growth), "reporting_period": reporting_period},
+    {"component": "ordinary_share_capital", "tier": 1, "amount_eur": to_eur(300e6 * growth), "reporting_period": reporting_period},
+    {"component": "share_premium", "tier": 1, "amount_eur": to_eur(125e6 * growth), "reporting_period": reporting_period},
+    {"component": "reconciliation_reserve", "tier": 1, "amount_eur": to_eur(rng.uniform(400, 500) * 1e6 * growth), "reporting_period": reporting_period},
+    {"component": "subordinated_liabilities_t1", "tier": 1, "amount_eur": to_eur(100e6 * growth), "reporting_period": reporting_period},
+    {"component": "subordinated_liabilities_t2", "tier": 2, "amount_eur": to_eur(rng.uniform(140, 180) * 1e6 * growth), "reporting_period": reporting_period},
+    {"component": "ancillary_own_funds", "tier": 3, "amount_eur": to_eur(rng.uniform(20, 40) * 1e6 * growth), "reporting_period": reporting_period},
 ]
 
 write_quarterly_table(pd.DataFrame(own_funds_rows), "1_raw_own_funds",

@@ -88,11 +88,10 @@ SELECT
       ) * 100.0 / s.scr_eur, 1
     ) AS solvency_ratio_pct,
 
-    -- MCR ratio
+    -- MCR ratio (uses MCR-specific eligibility: T1 fully eligible · T2 ≤ 20%·MCR · T3 not eligible)
     ROUND(
       (f.tier1_eur
-        + LEAST(f.tier2_eur, ROUND(s.scr_eur * 0.50, 2))
-        + LEAST(f.tier3_eur, ROUND(s.scr_eur * 0.15, 2))
+        + LEAST(f.tier2_eur, ROUND(GREATEST(s.scr_eur * 0.25, 3700000) * 0.20, 2))
       ) * 100.0 / GREATEST(ROUND(s.scr_eur * 0.25, 2), 3700000), 1
     ) AS mcr_ratio_pct,
 
