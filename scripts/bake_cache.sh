@@ -8,8 +8,9 @@
 
 set -uo pipefail
 
-PROFILE="${DATABRICKS_PROFILE:-DEV}"
-APP_NAME="${APP_NAME:-solvency2-qrt-ai-dev}"
+# Resolve from databricks.yml (single source of truth).
+source "$(dirname "$0")/_load_defaults.sh" "${TARGET:-dev}"
+PROFILE="$DATABRICKS_PROFILE"
 PERIOD="${PERIOD:-2025-Q4}"
 
 while [[ $# -gt 0 ]]; do

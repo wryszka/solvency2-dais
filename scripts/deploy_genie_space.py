@@ -7,7 +7,7 @@ space ID to stdout (for capture by deploy_demo.sh) and to a small file at
 
 Usage:
   python3 scripts/deploy_genie_space.py --profile DEV \
-    --catalog lr_dev_aws_us_catalog --schema solvency2demo_v2 \
+    --catalog lr_dev_aws_us_catalog --schema solvency2_workbench \
     --warehouse a3b61648ea4809e3 --parent /Workspace/Users/me@example.com
 
 Re-running this script must NOT create a second space. If a space with the

@@ -7,7 +7,7 @@ import uuid
 import sys
 
 CATALOG = "lr_serverless_aws_us_catalog"
-SCHEMA = "solvency2demo_agentic"
+SCHEMA = "solvency2_workbench"
 WAREHOUSE_ID = "ab79eced8207d29b"
 PROFILE = "DEFAULT"
 FQN = f"{CATALOG}.{SCHEMA}"

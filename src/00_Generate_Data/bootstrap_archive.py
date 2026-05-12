@@ -11,7 +11,7 @@
 # COMMAND ----------
 
 dbutils.widgets.text("catalog_name", "main")
-dbutils.widgets.text("schema_name", "solvency2demo_v2")
+dbutils.widgets.text("schema_name", "solvency2_workbench")
 dbutils.widgets.text("reporting_year", "2025")
 dbutils.widgets.text("entity_name", "Bricksurance SE")
 dbutils.widgets.text("include_q4", "true")  # set false to leave Q4 for the live demo

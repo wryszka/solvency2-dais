@@ -1,5 +1,5 @@
 bundle:
-  name: solvency-ii-qrt-demo
+  name: solvency2_workbench
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Variables — single source of truth.
@@ -15,12 +15,14 @@ bundle:
 
 variables:
   # — Catalog + schema —
+  # All demo objects live in ONE schema under ONE catalog. Override per
+  # target (see `targets:` below) or via `--var` on bundle commands.
   catalog_name:
-    description: Unity Catalog for all demo tables
+    description: Unity Catalog for all workbench tables (must exist; create with USE CATALOG grant for the deployer)
     default: lr_dev_aws_us_catalog
   schema_name:
-    description: Schema for all demo tables (single schema design)
-    default: solvency2demo_v2
+    description: Schema for all workbench tables (single-schema design). Will be created by the deploy if missing.
+    default: solvency2_workbench
 
   # — Compute —
   warehouse_id:
@@ -29,8 +31,8 @@ variables:
 
   # — App identity —
   app_name:
-    description: Databricks Apps resource name (URL slug)
-    default: actuarial-workbench-dev
+    description: Databricks Apps resource name (URL slug — hyphens, not underscores)
+    default: solvency2-workbench
   app_display_name:
     description: User-visible app display name in browser title + sidebar
     default: Actuarial Workbench
@@ -70,6 +72,14 @@ variables:
   pricing_app_url:
     description: External pricing-workbench Databricks App URL (per-workspace). Empty hides the tile from the live deep-link.
     default: ""
+  fm_model_endpoints:
+    description: |
+      Comma-separated list of Foundation Model serving endpoints, in preference order.
+      The app probes each in turn and uses the first that's READY. Empty falls back to the
+      Claude/Llama trio that works on standard Databricks workspaces. For free-edition
+      Databricks (no Claude available), set this to "databricks-gpt-oss-120b" (the GPT-OSS-120B
+      OpenAI model that ships with the free tier). For self-hosted, point at your own endpoint.
+    default: ""
 
   # — Workspace / auth —
   workspace_host:
@@ -91,23 +101,9 @@ sync:
     - "*.bak"
 
 targets:
+  # ─ dev ─ Active development target (FE dev workspace, composite insurer).
+  # All variables can be overridden via `--var name=value` on the bundle CLI.
   dev:
-    # Original FEVM serverless target — kept for backward compat
-    mode: development
-    workspace:
-      host: https://fevm-lr-serverless-aws-us.cloud.databricks.com
-      profile: DEFAULT
-    variables:
-      catalog_name: lr_serverless_aws_us_catalog
-      schema_name: solvency2demo_agentic
-      warehouse_id: ab79eced8207d29b
-      app_name: solvency2-qrt-ai
-      app_display_name: Actuarial Workbench
-      workspace_host: https://fevm-lr-serverless-aws-us.cloud.databricks.com
-      databricks_profile: DEFAULT
-
-  dev_v2:
-    # Active forum-talk dev target — composite insurer on FE dev workspace
     mode: development
     default: true
     workspace:
@@ -115,14 +111,17 @@ targets:
       profile: DEV
     variables:
       catalog_name: lr_dev_aws_us_catalog
-      schema_name: solvency2demo_v2
+      schema_name: solvency2_workbench
       warehouse_id: a3b61648ea4809e3
-      app_name: solvency2-qrt-ai-dev
+      app_name: solvency2-workbench
       app_display_name: Actuarial Workbench
       workspace_host: https://fevm-lr-dev-aws-us.cloud.databricks.com
       databricks_profile: DEV
       entity_type: composite
       pricing_app_url: https://pricing-workbench-7474656169654171.aws.databricksapps.com/
+      # fm_model_endpoints: ""   # empty = use Claude/Llama trio (standard workspace)
+      # For free-edition Databricks (no Claude available), uncomment:
+      # fm_model_endpoints: "databricks-gpt-oss-120b"
 
   prod:
     mode: production

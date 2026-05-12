@@ -18,8 +18,8 @@
 # MAGIC
 # MAGIC ```bash
 # MAGIC # 1. Clone the repo
-# MAGIC git clone https://github.com/wryszka/solvency-ii-qrt-demo-pnc-agentic.git
-# MAGIC cd solvency-ii-qrt-demo-pnc-agentic
+# MAGIC git clone https://github.com/wryszka/solvency2_workbench-pnc-agentic.git
+# MAGIC cd solvency2_workbench-pnc-agentic
 # MAGIC
 # MAGIC # 2. Authenticate to your workspace
 # MAGIC databricks auth login --profile DEFAULT --host https://YOUR-WORKSPACE.cloud.databricks.com
@@ -28,7 +28,7 @@
 # MAGIC bash deploy_demo.sh --catalog YOUR_CATALOG_NAME
 # MAGIC
 # MAGIC # This takes ~15 minutes and will:
-# MAGIC #   - Create the solvency2demo_agentic schema
+# MAGIC #   - Create the solvency2_workbench schema
 # MAGIC #   - Generate Q1-Q3 synthetic data
 # MAGIC #   - Deploy 4 DLT pipelines via Databricks Asset Bundles
 # MAGIC #   - Register the MLflow Standard Formula model
@@ -75,6 +75,6 @@
 # MAGIC | **04_QRT_S2606_NL_Risk** | DLT pipeline + stochastic engine for S.26.06 (NL UW Risk) |
 # MAGIC | **05_AI_Agents** | Demo notebooks and security framework |
 # MAGIC
-# MAGIC **Schema:** `solvency2demo_agentic` in your workspace catalog
+# MAGIC **Schema:** `solvency2_workbench` in your workspace catalog
 # MAGIC
 # MAGIC **Cleanup:** Open **00_Generate_Data / 99_full_teardown** to remove everything

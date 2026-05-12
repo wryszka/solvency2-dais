@@ -26,7 +26,7 @@
 # COMMAND ----------
 
 dbutils.widgets.text("catalog_name", "main")
-dbutils.widgets.text("schema_name", "solvency2demo_agentic")
+dbutils.widgets.text("schema_name", "solvency2_workbench")
 dbutils.widgets.text("target_period", "2025-Q3")
 
 catalog = dbutils.widgets.get("catalog_name")

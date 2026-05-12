@@ -12,7 +12,7 @@
 # MAGIC ## Workspace Folder Structure
 # MAGIC
 # MAGIC ```
-# MAGIC solvency-ii-qrt-demo-agentic/
+# MAGIC solvency2_workbench-agentic/
 # MAGIC ├── 00_Generate_Data/
 # MAGIC │   ├── 00_START_HERE          <-- YOU ARE HERE
 # MAGIC │   ├── generate_data           -- Creates all tables for one quarter
@@ -31,7 +31,7 @@
 # MAGIC     └── agentic_security_framework -- IT security & governance doc
 # MAGIC ```
 # MAGIC
-# MAGIC ## Data Schema (`solvency2demo_agentic`)
+# MAGIC ## Data Schema (`solvency2_workbench`)
 # MAGIC
 # MAGIC Tables use numbered layer prefixes — they sort in pipeline order in Unity Catalog:
 # MAGIC
@@ -52,8 +52,8 @@
 # MAGIC ### Option A: One-click deploy script (from your laptop)
 # MAGIC
 # MAGIC ```bash
-# MAGIC git clone https://github.com/wryszka/solvency-ii-qrt-demo-pnc-agentic.git
-# MAGIC cd solvency-ii-qrt-demo-pnc-agentic
+# MAGIC git clone https://github.com/wryszka/solvency2_workbench-pnc-agentic.git
+# MAGIC cd solvency2_workbench-pnc-agentic
 # MAGIC databricks auth login --profile DEFAULT
 # MAGIC bash deploy_demo.sh
 # MAGIC ```
@@ -64,7 +64,7 @@
 # MAGIC
 # MAGIC 1. **Run `bootstrap_archive`** — generates Q1, Q2, Q3 data (~6 min)
 # MAGIC    - Set `catalog_name` = `lr_serverless_aws_us_catalog`
-# MAGIC    - Set `schema_name` = `solvency2demo_agentic`
+# MAGIC    - Set `schema_name` = `solvency2_workbench`
 # MAGIC
 # MAGIC 2. **Deploy the DAB bundle** (from your laptop):
 # MAGIC    ```bash
@@ -78,8 +78,8 @@
 # MAGIC
 # MAGIC 5. **Deploy the app**:
 # MAGIC    ```bash
-# MAGIC    databricks apps deploy solvency2-qrt-ai \
-# MAGIC      --source-code-path /Workspace/Users/$USER/.bundle/solvency-ii-qrt-demo-pnc/dev/files/src/app
+# MAGIC    databricks apps deploy solvency2-workbench \
+# MAGIC      --source-code-path /Workspace/Users/$USER/.bundle/solvency2_workbench-pnc/dev/files/src/app
 # MAGIC    ```
 # MAGIC
 # MAGIC ---
@@ -94,7 +94,7 @@
 # MAGIC
 # MAGIC 2. **Re-trigger S.05.01 and S.26.06 pipelines** — to propagate changes through DLT
 # MAGIC
-# MAGIC 3. **Open the app**: `https://solvency2-qrt-ai-7474659673789953.aws.databricksapps.com`
+# MAGIC 3. **Open the app**: `https://solvency2-workbench-7474659673789953.aws.databricksapps.com`
 # MAGIC
 # MAGIC ---
 # MAGIC

@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 # All workspace-specific values must come from env. deploy_demo.sh exports
-# these from databricks.yml. Bare defaults match the dev_v2 target so a
+# these from databricks.yml. Bare defaults match the dev target so a
 # laptop run with the DEV profile loaded works out of the box; on a fresh
 # clone the deploy script overrides everything.
 def _required_env(name: str, default: str = "") -> str:
@@ -33,7 +33,7 @@ def _required_env(name: str, default: str = "") -> str:
 
 PROFILE = os.environ.get("DATABRICKS_PROFILE", "DEV")
 CATALOG = _required_env("CATALOG", "lr_dev_aws_us_catalog")
-SCHEMA = _required_env("SCHEMA", "solvency2demo_v2")
+SCHEMA = _required_env("SCHEMA", "solvency2_workbench")
 WAREHOUSE_ID = _required_env("WAREHOUSE_ID", "a3b61648ea4809e3")
 
 

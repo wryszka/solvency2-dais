@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Composite Solvency II dashboard for the dev_v2 deployment.
+"""Composite Solvency II dashboard for the dev deployment.
 
 Five pages:
   1. Composite Overview     — solvency ratio, SCR, OF, BEL split
@@ -22,7 +22,7 @@ import sys
 import uuid
 
 CATALOG = "lr_dev_aws_us_catalog"
-SCHEMA = "solvency2demo_v2"
+SCHEMA = "solvency2_workbench"
 WAREHOUSE_ID = "a3b61648ea4809e3"
 PROFILE = "DEV"
 PARENT_PATH = "/Users/laurence.ryszka@databricks.com"
@@ -333,7 +333,7 @@ serialized = {
 serialized_json = json.dumps(serialized)
 
 if DASHBOARD_ID:
-    print(f"Updating dashboard {DASHBOARD_ID} (dev_v2)...")
+    print(f"Updating dashboard {DASHBOARD_ID} (dev)...")
     payload = {"serialized_dashboard": serialized_json}
     result = subprocess.run(
         ["databricks", "api", "patch", f"/api/2.0/lakeview/dashboards/{DASHBOARD_ID}",
@@ -341,9 +341,9 @@ if DASHBOARD_ID:
         capture_output=True, text=True,
     )
 else:
-    print("Creating dashboard (dev_v2)...")
+    print("Creating dashboard (dev)...")
     payload = {
-        "display_name": "Solvency II Composite — dev_v2",
+        "display_name": "Solvency II Composite — dev",
         "warehouse_id": WAREHOUSE_ID,
         "parent_path": PARENT_PATH,
         "serialized_dashboard": serialized_json,

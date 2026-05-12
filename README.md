@@ -79,8 +79,7 @@ In the app, three operator hooks:
 
 | Target | Workspace | Catalog | Schema | Purpose |
 |---|---|---|---|---|
-| `dev` | `fevm-lr-serverless-aws-us` | `lr_serverless_aws_us_catalog` | `solvency2demo_agentic` | Frozen — old live demo |
-| `dev_v2` | `fevm-lr-dev-aws-us` | `lr_dev_aws_us_catalog` | `solvency2demo_v2` | Active forum-talk dev |
+| `dev` | `fevm-lr-dev-aws-us` | `lr_dev_aws_us_catalog` | `solvency2_workbench` | Active development target |
 | `prod` | (configurable) | (configurable) | (configurable) | Promotion target |
 
 `main` branch is reserved for serverless promotion; day-to-day work happens on `dev`.
@@ -91,16 +90,16 @@ Requires the Databricks CLI v0.200+ with Asset Bundles. All jobs run on serverle
 
 ```bash
 # Validate
-databricks bundle validate -t dev_v2
+databricks bundle validate -t dev
 
 # Deploy (or use `make deploy-dev`)
-databricks bundle deploy -t dev_v2 --profile DEV
-databricks apps deploy solvency2-qrt-ai-dev \
-  --source-code-path "/Workspace/Users/<you>/.bundle/solvency-ii-qrt-demo/dev_v2/files/src/app" \
+databricks bundle deploy -t dev --profile DEV
+databricks apps deploy solvency2-workbench \
+  --source-code-path "/Workspace/Users/<you>/.bundle/solvency2_workbench/dev/files/src/app" \
   --profile DEV
 
 # One-time: register reserving models + seed governance tables on serverless
-databricks bundle run governance_setup -t dev_v2 --profile DEV
+databricks bundle run governance_setup -t dev --profile DEV
 
 # Pre-flight + bake cache before the demo
 make preflight
@@ -127,7 +126,7 @@ The `Makefile` carries shortcuts: `make preflight`, `make bake-cache`, `make dep
 │   ├── bake_cache.sh                     # Pre-bake AI outputs + warm agents
 │   ├── seed_governance.py                # Local seed for 6_gov_* tables
 │   ├── create_dashboard.py               # FEVM Lakeview dashboard
-│   └── create_dashboard_v2.py            # Composite (dev_v2) Lakeview dashboard
+│   └── create_dashboard_v2.py            # Composite (dev) Lakeview dashboard
 └── src/
     ├── 00_Generate_Data/                 # Synthetic data + bootstrap + teardown
     ├── 01_Bootstrap_Governance/          # 6_gov_* tables + historical Q1/Q2/Q3 state

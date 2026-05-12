@@ -365,7 +365,7 @@ except Exception:
 try:
     schema = dbutils.widgets.get("schema_name")
 except Exception:
-    schema = "solvency2demo_ai"
+    schema = "solvency2_workbench"
 model_name = f"{catalog}.{schema}.standard_formula"
 
 mlflow.set_registry_uri("databricks-uc")

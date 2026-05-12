@@ -15,7 +15,7 @@
 # COMMAND ----------
 
 dbutils.widgets.text("catalog_name", "lr_dev_aws_us_catalog")
-dbutils.widgets.text("schema_name", "solvency2demo_v2")
+dbutils.widgets.text("schema_name", "solvency2_workbench")
 dbutils.widgets.text("warehouse_id", "a3b61648ea4809e3")
 dbutils.widgets.text("databricks_profile", "DEV")
 

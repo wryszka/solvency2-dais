@@ -16,7 +16,7 @@
 # COMMAND ----------
 
 dbutils.widgets.text("catalog_name", "lr_dev_aws_us_catalog")
-dbutils.widgets.text("schema_name", "solvency2demo_v2")
+dbutils.widgets.text("schema_name", "solvency2_workbench")
 
 catalog = dbutils.widgets.get("catalog_name")
 schema = dbutils.widgets.get("schema_name")

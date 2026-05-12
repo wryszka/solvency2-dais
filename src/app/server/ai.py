@@ -30,12 +30,23 @@ except ImportError:
 # AI Gateway endpoint (if configured, routes through gateway for content filtering)
 AI_GATEWAY_ENDPOINT = os.getenv("AI_GATEWAY_ENDPOINT", "")
 
-# Model preference order: Gateway first (if set), then Sonnet, then Llama
-MODEL_ENDPOINTS = [
+# Model preference order — configurable via the FM_MODEL_ENDPOINTS env var
+# (comma-separated list, declared in app.yaml from bundle var). Empty/unset
+# falls back to the Claude-then-Llama preference that works on standard
+# Databricks workspaces.
+#
+# For free-edition Databricks workspaces the default Foundation Model endpoint
+# is `databricks-gpt-oss-120b` (GPT-OSS-120B from OpenAI) — set
+# `fm_model_endpoints: "databricks-gpt-oss-120b"` in databricks.yml to use it.
+#
+# The app probes each endpoint in order and uses the first one that's READY.
+_FM_DEFAULT = [
     "databricks-claude-sonnet-4",
     "databricks-claude-3-7-sonnet",
     "databricks-meta-llama-3-3-70b-instruct",
 ]
+_FM_ENV = os.getenv("FM_MODEL_ENDPOINTS", "").strip()
+MODEL_ENDPOINTS = [s.strip() for s in _FM_ENV.split(",") if s.strip()] if _FM_ENV else _FM_DEFAULT
 
 _active_endpoint: str | None = None
 

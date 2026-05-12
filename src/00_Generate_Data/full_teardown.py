@@ -8,11 +8,11 @@
 # MAGIC - All tables in the demo schema (bronze, silver, gold, 2_stg_scr_results, 1_raw_own_funds, etc.)
 # MAGIC - The schema itself
 # MAGIC - The MLflow model (`standard_formula`) from Unity Catalog
-# MAGIC - The Databricks App (`solvency2-qrt-ai`)
+# MAGIC - The Databricks App (`solvency2-workbench`)
 # MAGIC - The three per-QRT workflow jobs (S.06.02, S.05.01, S.25.01)
 # MAGIC - DLT pipelines
 # MAGIC - Lakeview dashboard and Genie space
-# MAGIC - Workspace files under `/Workspace/Users/<you>/solvency-ii-qrt-demo` and `/Workspace/Users/<you>/Solvency II QRT Demo`
+# MAGIC - Workspace files under `/Workspace/Users/<you>/solvency2_workbench` and `/Workspace/Users/<you>/Solvency II QRT Demo`
 # MAGIC - Dashboard `.lvdash.json` file and `.bundle` state
 # MAGIC
 # MAGIC **This is irreversible. Run only when you want to completely remove the demo.**
@@ -25,8 +25,8 @@
 # COMMAND ----------
 
 dbutils.widgets.text("catalog_name", "main", "Catalog")
-dbutils.widgets.text("schema_name", "solvency2demo_ai", "Schema")
-dbutils.widgets.text("app_name", "solvency2-qrt-ai", "App Name")
+dbutils.widgets.text("schema_name", "solvency2_workbench", "Schema")
+dbutils.widgets.text("app_name", "solvency2-workbench", "App Name")
 dbutils.widgets.dropdown("confirm", "no", ["no", "yes"], "Confirm teardown?")
 
 catalog = dbutils.widgets.get("catalog_name")
@@ -235,8 +235,8 @@ import os
 # Check both possible workspace folder names (deploy_demo.sh vs DAB bundle)
 workspace_folders = [
     "Solvency II QRT Demo",
-    "solvency-ii-qrt-demo",
-    "solvency-ii-qrt-demo-pnc",
+    "solvency2_workbench",
+    "solvency2_workbench-pnc",
 ]
 
 try:
@@ -255,7 +255,7 @@ try:
             pass  # folder doesn't exist, skip
 
     # Clean up DAB bundle state directory
-    bundle_path = f"/Workspace/Users/{user_email}/.bundle/solvency-ii-qrt-demo-pnc"
+    bundle_path = f"/Workspace/Users/{user_email}/.bundle/solvency2_workbench-pnc"
     try:
         w.workspace.get_status(bundle_path)
         print(f"Deleting DAB bundle state at {bundle_path} ...")

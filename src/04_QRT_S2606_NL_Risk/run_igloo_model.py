@@ -29,7 +29,7 @@ except Exception:
 try:
     schema = dbutils.widgets.get("schema_name")
 except Exception:
-    schema = "solvency2demo_ai"
+    schema = "solvency2_workbench"
 
 spark.sql(f"USE CATALOG {catalog}")
 spark.sql(f"USE SCHEMA {schema}")

@@ -11,7 +11,7 @@
 # MAGIC ### Demo Prep Checklist
 # MAGIC 1. Run `inject_demo_gotchas` notebook (injects 4 realistic issues into Q3 data)
 # MAGIC 2. Re-trigger S.05.01 and S.26.06 DLT pipelines to propagate changes
-# MAGIC 3. Open the app: `https://solvency2-qrt-ai-7474659673789953.aws.databricksapps.com`
+# MAGIC 3. Open the app: `https://solvency2-workbench-7474659673789953.aws.databricksapps.com`
 # MAGIC
 # MAGIC ### Hidden Issues the AI Will Find
 # MAGIC
@@ -246,7 +246,7 @@ for pattern, reason in forbidden:
 # MAGIC %md
 # MAGIC ## 5. Live Demo in the App
 # MAGIC
-# MAGIC **App URL:** `https://solvency2-qrt-ai-7474659673789953.aws.databricksapps.com`
+# MAGIC **App URL:** `https://solvency2-workbench-7474659673789953.aws.databricksapps.com`
 # MAGIC
 # MAGIC | Step | Where | What to do | What to say |
 # MAGIC |------|-------|-----------|------------|

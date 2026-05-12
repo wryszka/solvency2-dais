@@ -17,7 +17,7 @@
 
 dbutils.widgets.text("catalog_name", "main")
 catalog = dbutils.widgets.get("catalog_name")
-schema = "solvency2demo_agentic"
+schema = "solvency2_workbench"
 
 print(f"Registering agents in: {catalog}.{schema}")
 

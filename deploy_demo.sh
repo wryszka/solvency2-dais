@@ -5,7 +5,7 @@
 # Single-command flow. Idempotent — safe to re-run for healing.
 #
 # Usage:
-#   bash deploy_demo.sh                                   # uses dev_v2 target defaults
+#   bash deploy_demo.sh                                   # uses dev target defaults
 #   bash deploy_demo.sh --target prod                     # different target
 #   bash deploy_demo.sh --catalog X --schema Y \
 #                        --warehouse Z --profile P        # override per-flag
@@ -24,7 +24,7 @@
 set -euo pipefail
 
 # ── Args ──
-TARGET="${BUNDLE_TARGET:-dev_v2}"
+TARGET="${BUNDLE_TARGET:-dev}"
 CATALOG=""
 SCHEMA=""
 WAREHOUSE=""
@@ -73,6 +73,39 @@ command -v databricks >/dev/null || { echo "  databricks CLI not found"; exit 1;
 databricks current-user me --profile "$PROFILE" >/dev/null \
     || { echo "  Profile $PROFILE not authenticated. Run: databricks auth login --profile $PROFILE"; exit 1; }
 echo "    ✓ CLI authenticated"
+
+# Verify the catalog exists — the bundle creates schemas/tables/MVs inside,
+# but the catalog itself is a workspace-governance decision and must exist
+# beforehand. Fail loud with a copy-paste resolution.
+if ! databricks api post /api/2.0/sql/statements --profile "$PROFILE" --json "{
+    \"warehouse_id\": \"$WAREHOUSE\",
+    \"statement\": \"DESCRIBE CATALOG \\\`$CATALOG\\\`\",
+    \"wait_timeout\": \"15s\"
+}" >/dev/null 2>&1; then
+    echo
+    echo "    ✗ Catalog '$CATALOG' not accessible."
+    echo "      Either it does not exist, or you lack USE CATALOG."
+    echo
+    echo "      To create the catalog (if you have CREATE CATALOG):"
+    echo "        databricks catalogs create --name $CATALOG --profile $PROFILE"
+    echo
+    echo "      To grant USE CATALOG to yourself:"
+    echo "        databricks api post /api/2.1/unity-catalog/permissions/catalog/$CATALOG \\"
+    echo "          --profile $PROFILE --json '{\"changes\":[{\"principal\":\"<you>\",\"add\":[\"USE CATALOG\"]}]}'"
+    echo
+    exit 1
+fi
+echo "    ✓ Catalog '$CATALOG' accessible"
+
+# Schema gets auto-created by the first bundle resource that needs it, but
+# verify the user has CREATE SCHEMA up-front to fail fast otherwise.
+databricks api post /api/2.0/sql/statements --profile "$PROFILE" --json "{
+    \"warehouse_id\": \"$WAREHOUSE\",
+    \"statement\": \"CREATE SCHEMA IF NOT EXISTS \\\`$CATALOG\\\`.\\\`$SCHEMA\\\`\",
+    \"wait_timeout\": \"15s\"
+}" >/dev/null 2>&1 \
+    && echo "    ✓ Schema '$SCHEMA' present (or created)" \
+    || { echo "    ✗ Cannot create schema '$SCHEMA' in catalog '$CATALOG' — check CREATE SCHEMA grant"; exit 1; }
 
 # ── 2. Bundle deploy ──
 echo "==> 2/9  Bundle deploy ($TARGET)…"

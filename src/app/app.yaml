@@ -18,5 +18,7 @@ env:
     value: ${var.pricing_app_url}
   - name: AI_GATEWAY_ENDPOINT
     value: ""
+  - name: FM_MODEL_ENDPOINTS
+    value: ${var.fm_model_endpoints}
   - name: MLFLOW_TRACKING_URI
     value: "databricks"

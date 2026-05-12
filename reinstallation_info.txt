@@ -29,16 +29,30 @@ reference; the README is the marketing surface, this is the operator manual.
 ------------------------
 - Unity Catalog enabled (mandatory — every table lives in UC).
 - Serverless SQL + serverless jobs enabled (all jobs run on serverless).
-- Foundation Model API access with at least ONE of:
-    databricks-claude-sonnet-4         (preferred)
+- Foundation Model API access with at least ONE serving endpoint READY.
+  The app tries endpoints in this preference order (configurable):
+    databricks-claude-sonnet-4         (preferred — standard workspaces)
     databricks-claude-3-7-sonnet       (fallback 1)
     databricks-meta-llama-3-3-70b-instruct (fallback 2)
-  Verify:
+    databricks-gpt-oss-120b            (free-edition default)
+
+  Verify at least one is READY:
   $ databricks serving-endpoints get databricks-claude-sonnet-4 --profile DEV
+
+  Configuring the FM endpoint preference:
+    - Standard workspace: leave `fm_model_endpoints` empty in databricks.yml
+      (the app uses the Claude/Llama trio).
+    - Free-edition Databricks: set
+        fm_model_endpoints: "databricks-gpt-oss-120b"
+      in your target's variables block. This is the GPT-OSS-120B OpenAI
+      model that ships with the free tier as `databricks-gpt-oss-120b`.
+    - Self-hosted endpoint: set the full endpoint name in fm_model_endpoints.
+    - Multiple, in order: comma-separated list. First READY wins.
+
   All AI agents (ORSA narrative · SFCR drafts · AFR drafts · cat agent ·
   Senior Reserving Actuary · Regulator Q&A · Workbench Assistant · supervisor
-  follow-up · what-if second opinion) fail at runtime if none of these are
-  available. Preflight does NOT detect this — see GAP-4 below.
+  follow-up · what-if second opinion) fail at runtime if NO endpoint is
+  available. Preflight now checks this automatically (see §7.2).
 - Databricks Apps service enabled in the workspace.
 - Genie space creation permission (optional — degrades gracefully if not).
 - Lakeview dashboards permission (optional — degrades gracefully).
@@ -67,7 +81,7 @@ deploy_demo.sh grants these in step 7.
 ================================================================================
 
 All deployment knobs live in `databricks.yml` under `variables:`. The
-defaults target the `dev_v2` workspace; override per-target or pass `--var`.
+defaults target the `dev` workspace; override per-target or pass `--var`.
 
 | Variable               | Purpose                                              |
 |------------------------|------------------------------------------------------|
@@ -95,10 +109,9 @@ For a fresh workspace, the minimum you must override:
 - workspace_host
 - databricks_profile
 
-Add a new target to `databricks.yml` `targets:` rather than editing `dev_v2`.
+Add a new target to `databricks.yml` `targets:` rather than editing `dev`.
 Existing targets:
-- `dev`     — original FE serverless workspace (frozen)
-- `dev_v2`  — active demo target (the one you'd clone from)
+- `dev`     — active development target (the one you'd clone from)
 - `prod`    — empty stub for promotion
 
 
@@ -108,7 +121,7 @@ Existing targets:
 
 After cloning + configuring the CLI profile:
 
-    $ bash deploy_demo.sh --target dev_v2 --profile DEV
+    $ bash deploy_demo.sh --target dev --profile DEV
 
 That script does, in order:
 
@@ -142,12 +155,12 @@ That script does, in order:
 After Step 3 succeeds, the raw data exists but the GOLD QRT tables are
 EMPTY because the QRT DLT pipelines have not run. You must run them:
 
-    $ databricks bundle run qrt_s2501 -t dev_v2 --profile DEV
-    $ databricks bundle run qrt_s2606 -t dev_v2 --profile DEV
-    $ databricks bundle run qrt_s0501 -t dev_v2 --profile DEV
-    $ databricks bundle run qrt_s0602 -t dev_v2 --profile DEV
-    $ databricks bundle run qrt_s1201 -t dev_v2 --profile DEV
-    $ databricks bundle run qrt_life_uw_risk -t dev_v2 --profile DEV
+    $ databricks bundle run qrt_s2501 -t dev --profile DEV
+    $ databricks bundle run qrt_s2606 -t dev --profile DEV
+    $ databricks bundle run qrt_s0501 -t dev --profile DEV
+    $ databricks bundle run qrt_s0602 -t dev --profile DEV
+    $ databricks bundle run qrt_s1201 -t dev --profile DEV
+    $ databricks bundle run qrt_life_uw_risk -t dev --profile DEV
 
 These take 2-5 minutes each. They can run in parallel except: qrt_s2606
 depends on qrt_s2501 having populated `2_stg_scr_results`, so run s2501
@@ -157,10 +170,10 @@ SCR (gold reconciliation now reads from s2501; if absent, s2606 falls back).
 Then deploy the app code:
 
     $ databricks apps deploy <app_name> \
-        --source-code-path /Workspace/Users/<you>/.bundle/solvency-ii-qrt-demo/dev_v2/files/src/app \
+        --source-code-path /Workspace/Users/<you>/.bundle/solvency2_workbench/dev/files/src/app \
         --profile DEV
 
-Or use `make deploy-dev` for the dev_v2 shortcut.
+Or use `make deploy-dev` for the dev shortcut.
 
 
 ================================================================================
@@ -336,25 +349,22 @@ GAP-3 🟡 — App SP grants race condition.
   Workaround: add a `sleep 60` before step 7, OR re-run `deploy_demo.sh`
   after the App finishes provisioning (it's idempotent).
 
-GAP-4 🔴 — Foundation Model API endpoint not validated in preflight.
-  `scripts/preflight_check.sh` runs 38 probes but does NOT verify that any
-  of the Claude/Llama serving endpoints are available. If your workspace
-  doesn't have Foundation Model API access, every AI agent (ORSA narrative,
-  SFCR draft, cat agent, Senior Reserving Actuary, etc.) will return 500
-  errors at runtime, and the demo's central reveal moments don't work.
-  Mitigation: before running preflight, manually verify:
-      $ databricks serving-endpoints get databricks-claude-sonnet-4 --profile DEV
-  Adding this check to preflight is a 5-line fix:
-      probe_endpoint "claude-sonnet-4 endpoint" \
-        "$HOST/api/2.0/serving-endpoints/databricks-claude-sonnet-4"
+GAP-4 ✅ RESOLVED — Foundation Model endpoint validation in preflight.
+  `scripts/preflight_check.sh` now runs an "FM endpoint availability" probe
+  before any other check. It iterates the FM_MODEL_ENDPOINTS env (or the
+  default Claude/Llama/GPT-OSS-120B list) and PASSes on the first READY
+  endpoint. FAIL if none are READY, with a clear hint about setting
+  fm_model_endpoints for free-edition Databricks.
+  Configuring the endpoint preference is one place: databricks.yml var
+  `fm_model_endpoints` → app.yaml `FM_MODEL_ENDPOINTS` env → ai.py reads it.
 
-GAP-5 🔴 — Schema/Catalog must exist before first deploy.
-  `databricks bundle deploy` requires the catalog AND schema to exist with
-  CREATE TABLE permission. Create them out of band:
-      USE CATALOG <your_catalog>;
-      CREATE SCHEMA IF NOT EXISTS <your_schema>;
-  The bundle does not create the catalog (correctly — that's a workspace
-  governance decision); it creates tables/MVs inside.
+GAP-5 ✅ RESOLVED — Catalog/schema existence checked up-front.
+  `deploy_demo.sh` step 1 now runs a `DESCRIBE CATALOG` probe before
+  anything else. If it fails, the script prints a clear remediation:
+      databricks catalogs create --name <CATALOG> --profile <PROFILE>
+  followed by the USE CATALOG grant command. Step 1 also runs
+  `CREATE SCHEMA IF NOT EXISTS` so the schema is present before any
+  bundle resource needs it.
 
 GAP-6 🟡 — Multi-jurisdiction / group reporting requires data extension.
   The `/pillar-3` hub shows S.32-S.37 group templates as "group only —
@@ -366,7 +376,7 @@ GAP-6 🟡 — Multi-jurisdiction / group reporting requires data extension.
       - Update the QRT inventory in `src/app/frontend/src/pages/Pillar3Overview.tsx`
   This is intentionally out of scope.
 
-GAP-7 🟡 — Pricing tile URL is dev_v2-specific in databricks.yml.
+GAP-7 🟡 — Pricing tile URL is dev-specific in databricks.yml.
   `pricing_app_url` defaults to the FE-DEV pricing-workbench app. On a
   fresh workspace you should either:
       - Set this in your target's `variables:` block to an empty string
@@ -445,7 +455,7 @@ After deploy:
 
 7.2 Automated preflight
 -----------------------
-    $ make preflight                # uses dev_v2 defaults
+    $ make preflight                # uses dev defaults
     $ ./scripts/preflight_check.sh --catalog X --schema Y --warehouse Z --app A
 Expects all 38 probes to pass. Any FAIL is a real issue.
 
@@ -479,9 +489,9 @@ ERROR: "App with name ... does not exist or is deleted"
     The bundle creates the App resource but `databricks apps deploy` is a
     separate imperative step. Run:
         $ databricks apps deploy <app_name> \
-            --source-code-path /Workspace/Users/<you>/.bundle/solvency-ii-qrt-demo/<target>/files/src/app \
+            --source-code-path /Workspace/Users/<you>/.bundle/solvency2_workbench/<target>/files/src/app \
             --profile DEV
-    Or use `make deploy-dev` (dev_v2 only).
+    Or use `make deploy-dev` (dev only).
 
 ERROR: "RuntimeError: No serving endpoint found among ..."
     Foundation Model API not enabled on this workspace, or the named
@@ -497,11 +507,11 @@ ERROR: "PERMISSION_DENIED: User does not have USE CATALOG"
 
 WARNING: "Cannot REFRESH a Materialized View created from DLT"
     Run the corresponding DLT pipeline to refresh the MV:
-        $ databricks bundle run qrt_s2501 -t dev_v2 --profile DEV
+        $ databricks bundle run qrt_s2501 -t dev --profile DEV
 
 ERROR: Process tab on Control Tower is empty
     The `gold_submissions_archive` table was not seeded. Run:
-        $ databricks bundle run governance_setup -t dev_v2 --profile DEV
+        $ databricks bundle run governance_setup -t dev --profile DEV
     Specifically the `seed_phase5_demo` task. Alternatively the legacy
     laptop path: `python3 scripts/seed_phase5.py`.
 
@@ -513,8 +523,8 @@ ERROR: SCR report shows 333% instead of 210%
 
 ERROR: NL UW SCR differs between s2501 (385M) and s2606 (523M)
     The s2606 pipeline is using the old SQL. Run:
-        $ databricks bundle deploy -t dev_v2 --profile DEV
-        $ databricks bundle run qrt_s2606 -t dev_v2 --profile DEV
+        $ databricks bundle deploy -t dev --profile DEV
+        $ databricks bundle run qrt_s2606 -t dev --profile DEV
     Verifies the updated gold_s2606_nl_uw_risk.sql is what runs.
 
 ERROR: Frontend shows old version after deploy
@@ -570,16 +580,16 @@ After `git pull`:
 
 2. If any DLT SQL changed (e.g. `gold_s2501_summary.sql` MCR formula fix),
    re-run the affected pipeline:
-       $ databricks bundle run qrt_s2501 -t dev_v2 --profile DEV
+       $ databricks bundle run qrt_s2501 -t dev --profile DEV
 
 3. If `generate_data.py` changed (e.g. own-funds rebalance):
-       $ databricks bundle run governance_setup -t dev_v2 --profile DEV
+       $ databricks bundle run governance_setup -t dev --profile DEV
    This re-generates all bronze data and re-seeds governance.
 
 4. If app code changed:
        $ cd src/app/frontend && npm run build          # only if frontend changed
        $ databricks apps deploy <app_name> \
-           --source-code-path /Workspace/Users/<you>/.bundle/solvency-ii-qrt-demo/<target>/files/src/app \
+           --source-code-path /Workspace/Users/<you>/.bundle/solvency2_workbench/<target>/files/src/app \
            --profile DEV
 
 5. Hard-reload the browser.
@@ -601,7 +611,7 @@ To add a new QRT (say S.07.01 Structured Products):
    "where this changes the conversation" panel.
 5. Update `src/app/frontend/src/pages/ReportingCycle.tsx` to add the
    deliverable row in the appropriate pillar column.
-6. Run the new pipeline: `databricks bundle run qrt_s0701 -t dev_v2`.
+6. Run the new pipeline: `databricks bundle run qrt_s0701 -t dev`.
 
 To add a new pillar tile or hub section, see `docs/ADDING_WORKBENCH_TILE.md`.
 

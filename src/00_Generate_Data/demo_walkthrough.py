@@ -14,7 +14,7 @@
 # MAGIC | **App** | [solvency2-qrt](https://solvency2-qrt-7474659673789953.aws.databricksapps.com) |
 # MAGIC | **Dashboard** | [Lakeview Dashboard](https://fevm-lr-serverless-aws-us.cloud.databricks.com/dashboardsv3/01f1270282cd14fe8c155d26361eec82) |
 # MAGIC | **Genie** | [Ask Genie](https://fevm-lr-serverless-aws-us.cloud.databricks.com/genie/rooms/01f12703e70110e5b4aeec0e5f7ee98c) |
-# MAGIC | **Model Registry** | [standard_formula](https://fevm-lr-serverless-aws-us.cloud.databricks.com/explore/data/models/lr_serverless_aws_us_catalog/solvency2demo_ai/standard_formula) |
+# MAGIC | **Model Registry** | [standard_formula](https://fevm-lr-serverless-aws-us.cloud.databricks.com/explore/data/models/lr_serverless_aws_us_catalog/solvency2_workbench/standard_formula) |
 # MAGIC
 # MAGIC ---
 # MAGIC
@@ -121,7 +121,7 @@
 # COMMAND ----------
 
 CATALOG = "main"
-SCHEMA = "solvency2demo_ai"
+SCHEMA = "solvency2_workbench"
 
 spark.sql(f"USE CATALOG {CATALOG}")
 spark.sql(f"USE SCHEMA {SCHEMA}")
@@ -577,7 +577,7 @@ for t in sorted(tables):
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC LIST '/Volumes/lr_serverless_aws_us_catalog/solvency2demo_ai/regulatory_exports/'
+# MAGIC LIST '/Volumes/lr_serverless_aws_us_catalog/solvency2_workbench/regulatory_exports/'
 
 # COMMAND ----------
 
@@ -587,7 +587,7 @@ for t in sorted(tables):
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC LIST '/Volumes/lr_serverless_aws_us_catalog/solvency2demo_ai/igloo_exchange/'
+# MAGIC LIST '/Volumes/lr_serverless_aws_us_catalog/solvency2_workbench/igloo_exchange/'
 
 # COMMAND ----------
 

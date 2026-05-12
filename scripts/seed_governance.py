@@ -24,11 +24,11 @@ import uuid
 from datetime import datetime, timezone, timedelta
 
 # All workspace-specific values must come from env. deploy_demo.sh exports
-# these from databricks.yml. Defaults match dev_v2 so an interactive run
+# these from databricks.yml. Defaults match dev so an interactive run
 # with the DEV profile works; deploy_demo.sh overrides everything.
 PROFILE = os.environ.get("DATABRICKS_PROFILE", "DEV")
 CATALOG = os.environ.get("CATALOG", "lr_dev_aws_us_catalog")
-SCHEMA = os.environ.get("SCHEMA", "solvency2demo_v2")
+SCHEMA = os.environ.get("SCHEMA", "solvency2_workbench")
 WAREHOUSE_ID = os.environ.get("WAREHOUSE_ID", "a3b61648ea4809e3")
 YEAR = int(os.environ.get("REPORTING_YEAR", os.environ.get("YEAR", "2025")))
 

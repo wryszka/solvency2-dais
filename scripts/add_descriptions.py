@@ -5,10 +5,11 @@ import subprocess
 import json
 import sys
 
-CATALOG = "main"
-SCHEMA = "solvency2demo_ai"
-WAREHOUSE_ID = "c80acfa212bf1166"
-PROFILE = "DEFAULT"
+import os
+CATALOG = os.environ.get("CATALOG", "lr_dev_aws_us_catalog")
+SCHEMA = os.environ.get("SCHEMA", "solvency2_workbench")
+WAREHOUSE_ID = os.environ.get("WAREHOUSE_ID", "a3b61648ea4809e3")
+PROFILE = os.environ.get("DATABRICKS_PROFILE", "DEV")
 FQN = f"{CATALOG}.{SCHEMA}"
 
 

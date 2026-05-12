@@ -28,7 +28,7 @@
 # MAGIC
 # MAGIC 1. Run the `inject_demo_gotchas` notebook (in `00_Generate_Data/`)
 # MAGIC 2. Re-trigger S.05.01 and S.26.06 pipelines
-# MAGIC 3. Open app: `https://solvency2-qrt-ai-7474659673789953.aws.databricksapps.com`
+# MAGIC 3. Open app: `https://solvency2-workbench-7474659673789953.aws.databricksapps.com`
 
 # COMMAND ----------
 
@@ -268,7 +268,7 @@ display(spark.sql(f"""
 # MAGIC %md
 # MAGIC ## Demo It Live
 # MAGIC
-# MAGIC **App:** `https://solvency2-qrt-ai-7474659673789953.aws.databricksapps.com`
+# MAGIC **App:** `https://solvency2-workbench-7474659673789953.aws.databricksapps.com`
 # MAGIC
 # MAGIC | Step | Where | What to click | What to say |
 # MAGIC |------|-------|--------------|------------|

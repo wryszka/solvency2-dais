@@ -7,19 +7,14 @@
 # Usage:
 #   ./scripts/preflight_check.sh                   # default DEV / Q4 2025
 #   ./scripts/preflight_check.sh --period 2025-Q4
-#   ./scripts/preflight_check.sh --profile DEV --catalog lr_dev_aws_us_catalog --schema solvency2demo_v2 --warehouse a3b61648ea4809e3 --app solvency2-qrt-ai-dev
+#   ./scripts/preflight_check.sh --profile DEV --catalog lr_dev_aws_us_catalog --schema solvency2_workbench --warehouse a3b61648ea4809e3 --app solvency2-workbench
 
 set -uo pipefail
 
-# Defaults are dev_v2-shaped. deploy_demo.sh exports overrides via env.
-# Pass --catalog / --schema / --warehouse / --app / --period to override
-# explicitly. Any env var (CATALOG, SCHEMA, etc.) takes precedence over
-# the bare defaults below.
-PROFILE="${DATABRICKS_PROFILE:-DEV}"
-CATALOG="${CATALOG:-lr_dev_aws_us_catalog}"
-SCHEMA="${SCHEMA:-solvency2demo_v2}"
-WAREHOUSE_ID="${WAREHOUSE_ID:-a3b61648ea4809e3}"
-APP_NAME="${APP_NAME:-solvency2-qrt-ai-dev}"
+# Resolve CATALOG / SCHEMA / WAREHOUSE_ID / APP_NAME / DATABRICKS_PROFILE from
+# databricks.yml (single source of truth). CLI flags below override.
+source "$(dirname "$0")/_load_defaults.sh" "${TARGET:-dev}"
+PROFILE="$DATABRICKS_PROFILE"
 PERIOD="${PERIOD:-2025-Q4}"
 
 while [[ $# -gt 0 ]]; do
@@ -111,6 +106,29 @@ echo "  App:        $APP_NAME"
 echo "  Period:     $PERIOD"
 echo
 
+echo "── Foundation Model endpoint availability ─────────────────────────────"
+# Probe each candidate FM endpoint until one is READY. Standard workspaces ship
+# the Claude/Llama trio; free-edition workspaces ship databricks-gpt-oss-120b.
+# If FM_MODEL_ENDPOINTS env is set, use that list; else try the standard trio
+# plus the free-edition fallback.
+FM_ENDPOINTS="${FM_MODEL_ENDPOINTS:-databricks-claude-sonnet-4,databricks-claude-3-7-sonnet,databricks-meta-llama-3-3-70b-instruct,databricks-gpt-oss-120b}"
+fm_found=0
+for ep in $(echo "$FM_ENDPOINTS" | tr ',' '\n' | sed 's/^[ \t]*//;s/[ \t]*$//' | grep -v '^$'); do
+    state=$(databricks serving-endpoints get "$ep" --profile "$PROFILE" -o json 2>/dev/null \
+        | python3 -c "import sys,json; d=json.load(sys.stdin); print((d.get('state') or {}).get('ready',''))" 2>/dev/null || echo "")
+    if [[ "$state" == "READY" ]]; then
+        log_pass "FM endpoint $ep is READY"
+        fm_found=1
+        break
+    fi
+done
+if [[ "$fm_found" -eq 0 ]]; then
+    log_fail "No FM endpoint READY — tried: $FM_ENDPOINTS"
+    log_warn "All AI agents (ORSA narrative, SFCR draft, cat agent, etc.) will 500 at runtime"
+    log_warn "For free-edition Databricks, set var.fm_model_endpoints=databricks-gpt-oss-120b in databricks.yml"
+fi
+
+echo
 echo "── Scene 1: Control Tower & feeds ──────────────────────────────────────"
 probe_sql "5_mon_pipeline_sla_status has $PERIOD" \
     "SELECT 1 FROM \`$CATALOG\`.\`$SCHEMA\`.\`5_mon_pipeline_sla_status\` WHERE reporting_period = '$PERIOD' LIMIT 1"

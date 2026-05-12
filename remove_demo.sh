@@ -12,11 +12,10 @@
 
 set -euo pipefail
 
-PROFILE="${DATABRICKS_PROFILE:-DEV}"
-CATALOG=""
-SCHEMA="solvency2demo_v2"
+# Resolve from databricks.yml (single source of truth).
+source "$(dirname "$0")/scripts/_load_defaults.sh" "${TARGET:-dev}" || true
+PROFILE="$DATABRICKS_PROFILE"
 WORKSPACE_DIR=""
-WAREHOUSE_ID=""
 SKIP_CONFIRM=""
 
 while [[ $# -gt 0 ]]; do
@@ -41,7 +40,7 @@ fi
 if [[ -z "$WORKSPACE_DIR" ]]; then
     USERNAME=$(databricks current-user me --profile "$PROFILE" -o json 2>/dev/null \
         | python3 -c "import sys,json; print(json.load(sys.stdin)['userName'])" 2>/dev/null || echo "unknown")
-    WORKSPACE_DIR="/Workspace/Users/${USERNAME}/solvency-ii-qrt-demo-agentic"
+    WORKSPACE_DIR="/Workspace/Users/${USERNAME}/.bundle/solvency2_workbench"
 fi
 
 echo "============================================================================"
@@ -50,7 +49,7 @@ echo "==========================================================================
 echo ""
 echo "  Schema:    $CATALOG.$SCHEMA (all tables)"
 echo "  Folder:    $WORKSPACE_DIR"
-echo "  App:       solvency2-qrt-ai"
+echo "  App:       solvency2-workbench"
 echo "  Pipelines: All [dev *] QRT pipelines"
 echo "  Jobs:      All [dev *] QRT jobs"
 echo "  Bundle:    .databricks/ local state"
@@ -81,7 +80,7 @@ databricks workspace delete "$WORKSPACE_DIR" --recursive --profile "$PROFILE" 2>
 
 # 3. Delete the app
 echo ">> Deleting app..."
-databricks apps delete solvency2-qrt-ai --profile "$PROFILE" 2>/dev/null \
+databricks apps delete solvency2-workbench --profile "$PROFILE" 2>/dev/null \
     && echo "   App deleted." || echo "   App not found."
 
 # 4. Destroy DAB bundle (removes pipelines and jobs)
