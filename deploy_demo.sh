@@ -127,6 +127,34 @@ for vol in regulatory_exports "4_eng_stochastic_exchange" "4_eng_life_exchange";
         || echo "    (warn: failed to ensure $vol — continuing)"
 done
 
+# ── 2c. Resolve app.yaml templates ──
+#
+# Databricks Apps does NOT interpret ${var.X} in app.yaml env values — it's
+# bundle templating, and the bundle only substitutes for declared `apps:`
+# resources (which we don't have yet — Apps resource support in DABs is
+# still maturing). Without this step, the deployed app's env vars contain
+# literal "${var.warehouse_id}" strings and every SQL call fails with
+# `InvalidParameterValue: ${var.warehouse_id} is not a valid endpoint id`.
+echo "==> 2c/9  Resolving app.yaml templates and uploading resolved copy…"
+USERNAME_FROM_PROFILE=$(databricks current-user me --profile "$PROFILE" -o json | python3 -c "import sys,json; print(json.load(sys.stdin).get('userName',''))")
+BUNDLE_NAME=$(echo "$RESOLVED" | python3 -c "import sys,json; print(json.load(sys.stdin).get('bundle',{}).get('name',''))" 2>/dev/null || echo "solvency2_workbench")
+APP_YAML_PATH="/Workspace/Users/$USERNAME_FROM_PROFILE/.bundle/$BUNDLE_NAME/$TARGET/files/src/app/app.yaml"
+RESOLVED_APP_YAML=$(mktemp)
+sed \
+  -e "s|\${var.catalog_name}|$CATALOG|g" \
+  -e "s|\${var.schema_name}|$SCHEMA|g" \
+  -e "s|\${var.warehouse_id}|$WAREHOUSE|g" \
+  -e "s|\${var.app_display_name}|Actuarial Workbench|g" \
+  -e "s|\${var.dashboard_id}||g" \
+  -e "s|\${var.genie_space_id}||g" \
+  -e "s|\${var.backstage_notebook_path}||g" \
+  -e "s|\${var.pricing_app_url}||g" \
+  -e "s|\${var.fm_model_endpoints}||g" \
+  src/app/app.yaml > "$RESOLVED_APP_YAML"
+databricks workspace import "$APP_YAML_PATH" --format AUTO --file "$RESOLVED_APP_YAML" --overwrite --profile "$PROFILE" 2>&1 | tail -1
+rm -f "$RESOLVED_APP_YAML"
+echo "    ✓ app.yaml resolved at $APP_YAML_PATH"
+
 # ── 3. Bundle run: governance + seed (idempotent — register notebooks skip if already registered) ──
 echo "==> 3/8  Running governance_setup job (registers MLflow models, seeds governance + Phase 5 tables)…"
 databricks bundle run governance_setup -t "$TARGET" --profile "$PROFILE" 2>&1 | tail -3

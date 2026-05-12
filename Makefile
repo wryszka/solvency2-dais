@@ -25,6 +25,25 @@ bake-cache:
 
 deploy-dev:
 	databricks bundle deploy -t dev --profile DEV
+	@# Resolve app.yaml template variables — Databricks Apps does not
+	@# interpret $${var.X} in app.yaml env values; we substitute before
+	@# `apps deploy` so the running app has actual catalog/schema/warehouse.
+	@TMPYAML=$$(mktemp); \
+	  sed \
+	    -e 's|$${var.catalog_name}|lr_dev_aws_us_catalog|g' \
+	    -e 's|$${var.schema_name}|solvency2_workbench|g' \
+	    -e 's|$${var.warehouse_id}|a3b61648ea4809e3|g' \
+	    -e 's|$${var.app_display_name}|Actuarial Workbench|g' \
+	    -e 's|$${var.dashboard_id}||g' \
+	    -e 's|$${var.genie_space_id}||g' \
+	    -e 's|$${var.backstage_notebook_path}||g' \
+	    -e 's|$${var.pricing_app_url}|https://pricing-workbench-7474656169654171.aws.databricksapps.com/|g' \
+	    -e 's|$${var.fm_model_endpoints}||g' \
+	    src/app/app.yaml > $$TMPYAML; \
+	  databricks workspace import \
+	    "/Workspace/Users/$$USER@databricks.com/.bundle/solvency2_workbench/dev/files/src/app/app.yaml" \
+	    --format AUTO --file $$TMPYAML --overwrite --profile DEV; \
+	  rm -f $$TMPYAML
 	databricks apps deploy solvency2-workbench \
 	    --source-code-path "/Workspace/Users/$$USER@databricks.com/.bundle/solvency2_workbench/dev/files/src/app" \
 	    --profile DEV
