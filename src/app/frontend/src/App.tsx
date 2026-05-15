@@ -74,6 +74,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/lab',                icon: Beaker,        label: 'Models' },
       { to: '/model-development',  icon: BookOpen,      label: 'Model Development' },
       { to: '/overlays',           icon: Layers,        label: 'Overlays Register' },
+      { to: '/whatif',             icon: CircleHelp,    label: 'What-if scenarios' },
     ],
   },
   {
@@ -88,12 +89,6 @@ const NAV_SECTIONS: NavSection[] = [
     entries: [
       { to: '/ingestion',          icon: Workflow,      label: 'Ingestion' },
       { to: '/data-quality',       icon: ShieldCheck,   label: 'Data quality' },
-    ],
-  },
-  {
-    heading: 'Workbench',
-    entries: [
-      { to: '/whatif',             icon: CircleHelp,            label: 'What-if scenarios' },
     ],
   },
 ];
