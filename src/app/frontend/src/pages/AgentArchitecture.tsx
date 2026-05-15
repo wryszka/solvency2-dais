@@ -1,13 +1,24 @@
 /**
- * Agent Architecture — supervisor + specialists + lit-path for recent routings.
+ * Ask Workbench — primary AI destination.
  *
- * Static catalogue is fetched from /api/supervisor/specialists once; the recent
- * routing history is fetched from /api/supervisor/recent and polled every 5s
- * so the lit path tracks new questions live.
+ * Top:    inline chat with the supervisor (replaces the floating button on
+ *         this page; the supervisor proxies to the workbench-supervisor
+ *         Model Serving endpoint when wired, else in-app routing).
+ * Middle: WHAT WORKBENCH AI FRONTS — supervisor badge + grid of specialist
+ *         cards in the Pricing-AI-page style (agent + tools + endpoint).
+ * Bottom: recent routing decisions + specialists catalogue.
+ *
+ * Every card carries clickable links to the Databricks workspace artefacts
+ * (UC pyfunc, UC function, serving endpoint).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Brain, Sparkles, RefreshCw, ExternalLink, Cpu } from 'lucide-react';
+import {
+  ArrowLeft, Brain, Sparkles, RefreshCw, ExternalLink, Bot, Send,
+  Loader2, MessageSquareCode, Shield, Scale, Beaker, Workflow,
+  Database, FileSearch, GitCompare,
+} from 'lucide-react';
+import { renderMarkdownSafe } from '../lib/markdown';
 
 interface UcArtefact {
   uc_path: string | null;
@@ -55,26 +66,45 @@ interface RoutingRow {
   created_by: string;
 }
 
-const CX = 500;
-const CY = 260;
-const R_SPECIALIST = 200;
+interface ChatTurn {
+  role: 'user' | 'assistant';
+  text: string;
+  specialist_key?: string;
+  specialist_name?: string;
+  data_sources?: string[];
+  cached?: boolean;
+  baked?: boolean;
+}
 
-// Tailwind color class lookup keyed by the registry's `color` field.
-const COLOR_MAP: Record<string, { stroke: string; fill: string; text: string; hex: string }> = {
-  amber:   { stroke: 'stroke-amber-500',   fill: 'fill-amber-100',   text: 'fill-amber-900',   hex: '#f59e0b' },
-  violet:  { stroke: 'stroke-violet-500',  fill: 'fill-violet-100',  text: 'fill-violet-900',  hex: '#8b5cf6' },
-  emerald: { stroke: 'stroke-emerald-500', fill: 'fill-emerald-100', text: 'fill-emerald-900', hex: '#10b981' },
-  rose:    { stroke: 'stroke-rose-500',    fill: 'fill-rose-100',    text: 'fill-rose-900',    hex: '#f43f5e' },
-  blue:    { stroke: 'stroke-blue-500',    fill: 'fill-blue-100',    text: 'fill-blue-900',    hex: '#3b82f6' },
-  orange:  { stroke: 'stroke-orange-500',  fill: 'fill-orange-100',  text: 'fill-orange-900',  hex: '#f97316' },
-  cyan:    { stroke: 'stroke-cyan-500',    fill: 'fill-cyan-100',    text: 'fill-cyan-900',    hex: '#06b6d4' },
-  slate:   { stroke: 'stroke-slate-500',   fill: 'fill-slate-100',   text: 'fill-slate-900',   hex: '#64748b' },
+/* ── Card-grid colour tokens ───────────────────────────────────────────────── */
+type CardTone = 'amber' | 'violet' | 'emerald' | 'rose' | 'blue' | 'orange' | 'cyan' | 'slate';
+
+const CARD_PALETTE: Record<CardTone, { border: string; bg: string; chipBg: string; chipText: string; head: string; icon: string }> = {
+  amber:   { border: 'border-amber-300',   bg: 'bg-amber-50/60',   chipBg: 'bg-amber-100',   chipText: 'text-amber-900',   head: 'text-amber-900',   icon: 'text-amber-700' },
+  violet:  { border: 'border-violet-300',  bg: 'bg-violet-50/60',  chipBg: 'bg-violet-100',  chipText: 'text-violet-900',  head: 'text-violet-900',  icon: 'text-violet-700' },
+  emerald: { border: 'border-emerald-300', bg: 'bg-emerald-50/60', chipBg: 'bg-emerald-100', chipText: 'text-emerald-900', head: 'text-emerald-900', icon: 'text-emerald-700' },
+  rose:    { border: 'border-rose-300',    bg: 'bg-rose-50/60',    chipBg: 'bg-rose-100',    chipText: 'text-rose-900',    head: 'text-rose-900',    icon: 'text-rose-700' },
+  blue:    { border: 'border-blue-300',    bg: 'bg-blue-50/60',    chipBg: 'bg-blue-100',    chipText: 'text-blue-900',    head: 'text-blue-900',    icon: 'text-blue-700' },
+  orange:  { border: 'border-orange-300',  bg: 'bg-orange-50/60',  chipBg: 'bg-orange-100',  chipText: 'text-orange-900',  head: 'text-orange-900',  icon: 'text-orange-700' },
+  cyan:    { border: 'border-cyan-300',    bg: 'bg-cyan-50/60',    chipBg: 'bg-cyan-100',    chipText: 'text-cyan-900',    head: 'text-cyan-900',    icon: 'text-cyan-700' },
+  slate:   { border: 'border-slate-300',   bg: 'bg-slate-50/60',   chipBg: 'bg-slate-100',   chipText: 'text-slate-900',   head: 'text-slate-900',   icon: 'text-slate-700' },
 };
 
-function relTime(iso: string): string {
+const SPECIALIST_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  cat:             Shield,
+  orsa:            GitCompare,
+  reserving:       Beaker,
+  second_opinion:  Scale,
+  recon:           GitCompare,
+  dq:              FileSearch,
+  genie:           Database,
+  general:         Workflow,
+};
+
+function relTime(iso: string | undefined | null): string {
   if (!iso) return '';
   try {
-    const t = new Date(iso.replace(' ', 'T') + 'Z').getTime();
+    const t = new Date(String(iso).replace(' ', 'T') + (String(iso).endsWith('Z') ? '' : 'Z')).getTime();
     const ageSec = Math.max(0, (Date.now() - t) / 1000);
     if (ageSec < 90) return 'just now';
     if (ageSec < 3600) return `${Math.round(ageSec / 60)}m ago`;
@@ -83,17 +113,10 @@ function relTime(iso: string): string {
   } catch { return ''; }
 }
 
-function pos(angle: number, r = R_SPECIALIST) {
-  const rad = ((angle - 90) * Math.PI) / 180;
-  return { x: CX + r * Math.cos(rad), y: CY + r * Math.sin(rad) };
-}
-
 export default function AgentArchitecture() {
   const [specialists, setSpecialists] = useState<Specialist[]>([]);
   const [supervisor, setSupervisor] = useState<SupervisorMeta | null>(null);
   const [recent, setRecent] = useState<RoutingRow[]>([]);
-  const [selectedTrace, setSelectedTrace] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch('/api/supervisor/specialists')
@@ -102,8 +125,7 @@ export default function AgentArchitecture() {
         setSpecialists(d.specialists || []);
         setSupervisor(d.supervisor || null);
       })
-      .catch(() => setSpecialists([]))
-      .finally(() => setLoading(false));
+      .catch(() => { setSpecialists([]); setSupervisor(null); });
   }, []);
 
   useEffect(() => {
@@ -120,147 +142,56 @@ export default function AgentArchitecture() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
-  const litTrace = recent.find((r) => r.trace_id === selectedTrace) ?? recent[0];
-  const litKey = litTrace?.specialist_key;
-
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-5">
+    <div className="max-w-6xl mx-auto p-6 space-y-6">
       <Link to="/" className="text-xs text-gray-500 hover:text-gray-800 inline-flex items-center gap-1">
         <ArrowLeft className="w-3.5 h-3.5" /> Back to Workbench
       </Link>
 
-      <header className="pb-4 border-b border-gray-200">
-        <div className="text-[11px] uppercase tracking-widest text-violet-700 font-bold">Agent Architecture</div>
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight mt-1">How Ask Workbench routes a question</h1>
+      <header className="pb-2">
+        <div className="text-[11px] uppercase tracking-widest text-violet-700 font-bold">Ask Workbench</div>
+        <h1 className="text-3xl font-bold text-gray-900 tracking-tight mt-1">One supervisor. Eight specialists. Every call audited.</h1>
         <p className="text-sm text-gray-600 mt-1.5 leading-relaxed max-w-3xl">
-          One supervisor agent. Eight specialists. The supervisor classifies each question via the
-          Foundation Model API and invokes the specialist best positioned to answer. Every node
-          below is a real Databricks artefact — click any of them to open it in the workspace.
+          Type a question — the supervisor classifies it, dispatches to the right specialist, and writes a routing trace.
+          Architecture diagram below; every node clicks through to the actual Databricks artefact.
         </p>
       </header>
 
-      {supervisor && (
-        <section className="bg-violet-50/60 border border-violet-200 rounded-lg p-4 flex flex-wrap items-center gap-3 text-xs">
-          <Cpu className="w-4 h-4 text-violet-700 shrink-0" />
-          <span className="font-semibold text-violet-900">Supervisor:</span>
-          <a href={supervisor.workspace_url} target="_blank" rel="noopener noreferrer"
-            className="font-mono text-violet-800 hover:underline inline-flex items-center gap-1">
-            {supervisor.uc_path} <ExternalLink className="w-3 h-3" />
-          </a>
-          {supervisor.serving_endpoint ? (
-            <>
-              <span className="text-gray-400">·</span>
-              <span className="text-gray-600">Endpoint:</span>
-              <a href={supervisor.serving_endpoint_url ?? '#'} target="_blank" rel="noopener noreferrer"
-                className="font-mono text-violet-800 hover:underline inline-flex items-center gap-1">
-                {supervisor.serving_endpoint} <ExternalLink className="w-3 h-3" />
-              </a>
-              <span className="text-emerald-700 font-semibold">· live traffic via endpoint</span>
-            </>
-          ) : (
-            <span className="text-amber-700 font-mono">
-              · endpoint not configured — set SUPERVISOR_ENDPOINT_NAME after running ai_agents_setup
-            </span>
-          )}
-        </section>
-      )}
+      {/* Inline chat */}
+      <InlineChat />
 
-      {/* Architecture diagram */}
-      <section className="bg-gradient-to-br from-slate-50 to-white border border-gray-200 rounded-xl overflow-hidden">
-        {loading ? (
-          <div className="text-sm text-gray-500 p-8 text-center">Loading specialists…</div>
-        ) : (
-          <svg viewBox="0 0 1000 540" className="w-full h-auto">
-            <defs>
-              <radialGradient id="supGlow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="#8b5cf6" stopOpacity="0.35" />
-                <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
-              </radialGradient>
-            </defs>
+      {/* Architecture — Pricing AI style card grid */}
+      <section>
+        <h2 className="text-[11px] uppercase tracking-widest text-gray-500 font-bold mb-1">What Workbench AI fronts</h2>
+        <p className="text-sm text-gray-600 mb-4 max-w-3xl leading-relaxed">
+          Eight specialised brains, one address. Each is a Unity Catalog-registered MLflow pyfunc with
+          MLflow tracing — independently deployable, independently auditable. The supervisor classifies the
+          question and dispatches.
+        </p>
 
-            {/* Lit edges (supervisor → specialist) */}
-            {specialists.map((s, i) => {
-              const p = pos((i * 360) / specialists.length);
-              const lit = s.key === litKey;
-              return (
-                <line key={`edge-${s.key}`} x1={CX} y1={CY} x2={p.x} y2={p.y}
-                  stroke={lit ? COLOR_MAP[s.color]?.hex ?? '#8b5cf6' : '#cbd5e1'}
-                  strokeWidth={lit ? 3 : 1}
-                  strokeOpacity={lit ? 0.9 : 0.4}
-                  strokeDasharray={lit ? '0' : '4 6'} />
-              );
-            })}
+        {supervisor && <SupervisorCard sup={supervisor} />}
 
-            {/* Supervisor centre */}
-            <circle cx={CX} cy={CY} r={120} fill="url(#supGlow)" />
-            <circle cx={CX} cy={CY} r={62} fill="#1e293b" stroke="#8b5cf6" strokeWidth={2} />
-            <text x={CX} y={CY - 5} textAnchor="middle" fill="white" fontSize={16} fontWeight={700}
-              fontFamily="ui-sans-serif, system-ui">Supervisor</text>
-            <text x={CX} y={CY + 15} textAnchor="middle" fill="#c4b5fd" fontSize={11}
-              fontFamily="ui-monospace, monospace">classify · route</text>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-5">
+          {specialists.map((s) => (
+            <SpecialistCard key={s.key} s={s} endpointName={supervisor?.serving_endpoint ?? null} />
+          ))}
+        </div>
 
-            {/* Specialist nodes */}
-            {specialists.map((s, i) => {
-              const p = pos((i * 360) / specialists.length);
-              const lit = s.key === litKey;
-              const c = COLOR_MAP[s.color] ?? COLOR_MAP.slate;
-              return (
-                <g key={s.key}>
-                  <circle cx={p.x} cy={p.y} r={lit ? 60 : 50}
-                    className={`${c.fill} ${c.stroke}`}
-                    strokeWidth={lit ? 3 : 1.5}
-                    style={lit ? { filter: 'drop-shadow(0 0 14px ' + c.hex + ')' } : undefined} />
-                  <text x={p.x} y={p.y - 5} textAnchor="middle" className={c.text}
-                    fontSize={11} fontWeight={700}>
-                    {wrapLabel(s.name, 14)[0]}
-                  </text>
-                  <text x={p.x} y={p.y + 8} textAnchor="middle" className={c.text}
-                    fontSize={10} fontWeight={600}>
-                    {wrapLabel(s.name, 14)[1] ?? ''}
-                  </text>
-                  <text x={p.x} y={p.y + 22} textAnchor="middle" fill="#475569"
-                    fontSize={9} fontFamily="ui-monospace, monospace">
-                    {s.key}
-                  </text>
-                </g>
-              );
-            })}
-
-            {/* Data-source strip at bottom — only those touched by the lit specialist */}
-            {litTrace && litTrace.data_sources && (
-              <g>
-                <text x={CX} y={490} textAnchor="middle" fill="#64748b" fontSize={10}
-                  fontFamily="ui-monospace, monospace" letterSpacing={1}>
-                  DATA TOUCHED ON THE LAST CALL
-                </text>
-                {litTrace.data_sources.slice(0, 5).map((ds, i, arr) => {
-                  const totalW = Math.min(arr.length, 5) * 180;
-                  const startX = CX - totalW / 2 + 90;
-                  const x = startX + i * 180;
-                  return (
-                    <g key={ds}>
-                      <rect x={x - 80} y={500} width={160} height={28} rx={6}
-                        fill="white" stroke="#cbd5e1" strokeWidth={1} />
-                      <text x={x} y={518} textAnchor="middle" fill="#0f172a"
-                        fontSize={11} fontFamily="ui-monospace, monospace">
-                        {truncate(ds, 18)}
-                      </text>
-                    </g>
-                  );
-                })}
-              </g>
-            )}
-          </svg>
-        )}
+        <p className="text-[11px] text-gray-500 italic mt-4 leading-relaxed">
+          Specialists are independently registered Mosaic AI pyfunc agents (UC); the supervisor is a Model Serving
+          endpoint. The supervisor's classifier uses a single Foundation Model call — sub-second, low cost. Every
+          routing decision lands in <code className="font-mono bg-gray-100 px-1 rounded">6_ai_routing_trace</code> with
+          chosen route, classifier confidence, model used, token usage, and the data sources touched.
+        </p>
       </section>
 
-      {/* Recent routing history */}
+      {/* Recent routing decisions */}
       <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <header className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-violet-700" />
             <h2 className="text-sm font-bold text-gray-900">Recent routing decisions</h2>
-            <span className="text-[11px] text-gray-500">refreshes every 5s</span>
+            <span className="text-[11px] text-gray-500">live · refreshes every 5s</span>
           </div>
           <button onClick={() => window.location.reload()}
             className="text-[11px] text-gray-500 hover:text-gray-800 inline-flex items-center gap-1">
@@ -268,111 +199,251 @@ export default function AgentArchitecture() {
           </button>
         </header>
         {recent.length === 0 ? (
-          <div className="p-6 text-sm text-gray-500">
-            No routing decisions yet. Open the Ask Workbench overlay (violet button, bottom-right) and try a question.
-          </div>
+          <div className="p-6 text-sm text-gray-500">No routing decisions yet. Ask a question above.</div>
         ) : (
           <ul>
-            {recent.map((r) => {
-              const c = COLOR_MAP[(specialists.find((s) => s.key === r.specialist_key)?.color) || 'slate'];
-              const selected = r.trace_id === (selectedTrace ?? recent[0]?.trace_id);
-              return (
-                <li key={r.trace_id}
-                  onClick={() => setSelectedTrace(r.trace_id)}
-                  className={`flex items-start gap-3 px-5 py-3 border-b border-gray-100 cursor-pointer hover:bg-violet-50/50 transition-colors ${selected ? 'bg-violet-50/50' : ''}`}>
-                  <span className="w-2 h-2 rounded-full mt-2 shrink-0" style={{ backgroundColor: c.hex }} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-gray-900">{r.question}</div>
-                    <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                      <span className="font-mono">{relTime(r.created_at)}</span>
-                      <span>·</span>
-                      <span className="font-semibold" style={{ color: c.hex }}>{r.specialist_name}</span>
-                      {r.was_cached && (
-                        <>
-                          <span>·</span>
-                          <span className="text-emerald-700">cached {r.baked ? '· baked' : '· session'}</span>
-                        </>
-                      )}
-                      <span>·</span>
-                      <span className="font-mono text-gray-400">
-                        {(r.data_sources || []).slice(0, 3).join(' · ')}
-                        {r.data_sources && r.data_sources.length > 3 && ` +${r.data_sources.length - 3}`}
-                      </span>
-                    </div>
+            {recent.map((r) => (
+              <li key={r.trace_id} className="flex items-start gap-3 px-5 py-3 border-b border-gray-100 hover:bg-violet-50/30">
+                <span className="w-2 h-2 rounded-full mt-2 shrink-0 bg-violet-500" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-gray-900">{r.question}</div>
+                  <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                    <span className="font-mono">{relTime(r.created_at)}</span>
+                    <span>·</span>
+                    <span className="font-semibold text-violet-700">{r.specialist_name}</span>
+                    {r.was_cached && (<><span>·</span><span className="text-emerald-700">cached {r.baked ? '· baked' : '· session'}</span></>)}
+                    <span>·</span>
+                    <span className="font-mono text-gray-400">{(r.data_sources || []).slice(0, 3).join(' · ')}</span>
                   </div>
-                  <Brain className="w-3.5 h-3.5 text-gray-300 mt-1.5" />
-                </li>
-              );
-            })}
+                </div>
+                <Brain className="w-3.5 h-3.5 text-gray-300 mt-1.5" />
+              </li>
+            ))}
           </ul>
         )}
-      </section>
-
-      {/* Specialists catalogue */}
-      <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <header className="px-5 py-3 border-b border-gray-200 bg-gray-50">
-          <h2 className="text-sm font-bold text-gray-900">Specialist catalogue</h2>
-          <p className="text-[11px] text-gray-500 mt-0.5">
-            Static. The supervisor picks one of these per question; you can't bypass it.
-          </p>
-        </header>
-        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
-          {specialists.map((s) => {
-            const c = COLOR_MAP[s.color] ?? COLOR_MAP.slate;
-            const a = s.uc_artefact;
-            return (
-              <div key={s.key} className="p-4 border-b border-gray-100">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.hex }} />
-                  <h3 className="text-sm font-bold text-gray-900">{s.name}</h3>
-                  <span className="ml-auto text-[10px] font-mono text-gray-400">{s.key}</span>
-                </div>
-                <p className="text-xs text-gray-600 leading-relaxed">{s.scope}</p>
-                {a && a.workspace_url && (
-                  <a href={a.workspace_url} target="_blank" rel="noopener noreferrer"
-                    className="text-[11px] font-mono text-violet-700 hover:underline inline-flex items-center gap-1 mt-1.5">
-                    {a.uc_path} <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
-                <p className="text-[11px] text-gray-500 mt-1.5">
-                  <span className="font-semibold uppercase tracking-wide text-[9px] text-gray-400 mr-1">triggers</span>
-                  {s.triggers}
-                </p>
-                {s.tools && s.tools.length > 0 && (
-                  <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-0.5">
-                    <span className="font-semibold uppercase tracking-wide text-[9px] text-gray-400">tools</span>
-                    {s.tools.map((t) => (
-                      t.workspace_url ? (
-                        <a key={t.name} href={t.workspace_url} target="_blank" rel="noopener noreferrer"
-                          className="text-[10px] font-mono text-blue-700 hover:underline">
-                          {t.name}
-                        </a>
-                      ) : (
-                        <span key={t.name} className="text-[10px] font-mono text-gray-500">{t.name}</span>
-                      )
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
       </section>
     </div>
   );
 }
 
-function wrapLabel(label: string, maxLen: number): string[] {
-  if (label.length <= maxLen) return [label];
-  const words = label.split(' ');
-  let line1 = '', line2 = '';
-  for (const w of words) {
-    if ((line1 + ' ' + w).trim().length <= maxLen) line1 = (line1 + ' ' + w).trim();
-    else line2 = (line2 + ' ' + w).trim();
-  }
-  return [line1, line2];
+/* ────────────────────────────────────────────────────────────────────────── */
+/*  Supervisor card — top of architecture                                    */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function SupervisorCard({ sup }: { sup: SupervisorMeta }) {
+  return (
+    <div className="bg-gradient-to-br from-violet-100 to-white border-2 border-violet-300 rounded-xl p-5 max-w-md mx-auto">
+      <div className="text-[10px] uppercase tracking-widest text-violet-700 font-bold text-center">Workbench AI</div>
+      <h3 className="text-2xl font-bold text-violet-900 text-center mt-1">Supervisor</h3>
+      <p className="text-sm text-violet-800 text-center mt-1 font-mono">
+        classifies → dispatches → audit-logs
+      </p>
+      <div className="mt-3 pt-3 border-t border-violet-200 text-[11px] text-violet-800 text-center space-y-1">
+        <a href={sup.workspace_url} target="_blank" rel="noopener noreferrer"
+          className="font-mono hover:underline inline-flex items-center gap-1">
+          {sup.uc_path} <ExternalLink className="w-3 h-3" />
+        </a>
+        {sup.serving_endpoint ? (
+          <div>
+            Endpoint:{' '}
+            <a href={sup.serving_endpoint_url ?? '#'} target="_blank" rel="noopener noreferrer"
+              className="font-mono text-violet-900 hover:underline">
+              {sup.serving_endpoint}
+            </a>
+          </div>
+        ) : (
+          <div className="text-amber-700 italic">in-app fallback (endpoint not configured)</div>
+        )}
+      </div>
+    </div>
+  );
 }
 
-function truncate(s: string, n: number): string {
-  return s.length > n ? s.slice(0, n - 1) + '…' : s;
+/* ────────────────────────────────────────────────────────────────────────── */
+/*  Specialist card — Pricing-AI style                                       */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function SpecialistCard({ s, endpointName }: { s: Specialist; endpointName: string | null }) {
+  const tone: CardTone = (s.color as CardTone) in CARD_PALETTE ? (s.color as CardTone) : 'slate';
+  const p = CARD_PALETTE[tone];
+  const Icon = SPECIALIST_ICON[s.key] ?? Bot;
+  const isGenie = s.key === 'genie';
+  const isFallback = s.key === 'general';
+  const badge = isGenie ? 'GENIE' : isFallback ? 'FALLBACK' : 'AGENT';
+  return (
+    <article className={`${p.bg} border-2 ${p.border} rounded-xl p-4 flex flex-col gap-2`}>
+      <header className="flex items-start gap-2">
+        <Icon className={`w-5 h-5 ${p.icon} mt-0.5 shrink-0`} />
+        <h3 className={`text-base font-bold ${p.head} flex-1 leading-tight`}>{s.name}</h3>
+        <span className={`text-[9px] uppercase tracking-widest font-bold px-1.5 py-0.5 rounded border bg-white/60 ${p.head}`}>
+          {badge}
+        </span>
+      </header>
+      <p className={`text-xs ${p.head}/90 leading-snug`}>{s.scope}</p>
+
+      <div>
+        <div className="text-[9px] uppercase tracking-widest font-bold text-gray-500 mb-1">Tools</div>
+        <div className="flex flex-wrap gap-1">
+          {(s.tools ?? []).slice(0, 6).map((t) => (
+            t.workspace_url ? (
+              <a key={t.name} href={t.workspace_url} target="_blank" rel="noopener noreferrer"
+                className={`text-[10px] font-mono ${p.chipBg} ${p.chipText} px-1.5 py-0.5 rounded hover:underline`}>
+                {t.name}
+              </a>
+            ) : (
+              <span key={t.name} className={`text-[10px] font-mono ${p.chipBg} ${p.chipText} px-1.5 py-0.5 rounded`}>
+                {t.name}
+              </span>
+            )
+          ))}
+        </div>
+      </div>
+
+      <footer className="text-[10px] text-gray-600 pt-1 border-t border-gray-200/70">
+        {s.uc_artefact?.workspace_url ? (
+          <>
+            <span className="font-semibold">Endpoint:</span>{' '}
+            <span className="font-mono">{endpointName ?? 'in-app'}</span>
+            {' · '}
+            <a href={s.uc_artefact.workspace_url} target="_blank" rel="noopener noreferrer"
+              className="font-mono hover:underline inline-flex items-center gap-0.5">
+              agent: {s.key} <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+          </>
+        ) : (
+          <>
+            <span className="font-semibold">Endpoint:</span>{' '}
+            <span className="font-mono">{isGenie ? 'ai_bi_genie' : 'in-app fallback'}</span>
+          </>
+        )}
+      </footer>
+    </article>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*  Inline chat — mirrors the floating Ask-Workbench overlay, full panel     */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+const SUGGESTIONS = [
+  "What's outstanding for Q4 close?",
+  "Why did property reserves move?",
+  "What did the cat agent say about Igloo output?",
+  "Explain the cross-QRT recon gap",
+];
+
+function InlineChat() {
+  const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [turns, busy]);
+
+  async function ask(question: string) {
+    if (!question.trim() || busy) return;
+    setTurns((t) => [...t, { role: 'user', text: question }]);
+    setInput('');
+    setBusy(true);
+    try {
+      const res = await fetch('/api/supervisor/route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, period: '2025-Q4' }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const json = await res.json();
+      setTurns((t) => [...t, {
+        role: 'assistant',
+        text: json.answer,
+        specialist_key: json.specialist_key,
+        specialist_name: json.specialist_name,
+        data_sources: json.data_sources,
+        cached: !!json.cached,
+        baked: !!json.baked,
+      }]);
+    } catch (e) {
+      setTurns((t) => [...t, { role: 'assistant', text: `Error: ${String(e)}` }]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+      <header className="px-5 py-3 border-b border-gray-200 bg-violet-50/60 flex items-center gap-2">
+        <Bot className="w-4 h-4 text-violet-700" />
+        <h3 className="text-sm font-semibold text-violet-900">Ask the supervisor</h3>
+        <span className="ml-auto text-[10px] text-violet-700 uppercase tracking-wide font-semibold">read-only</span>
+      </header>
+
+      <div ref={scrollRef} className="p-4 space-y-3 max-h-[420px] overflow-y-auto">
+        {turns.length === 0 && (
+          <div>
+            <p className="text-sm text-gray-700 mb-2">
+              The supervisor classifies your question and dispatches to the specialist best positioned to answer.
+              Try one:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+              {SUGGESTIONS.map((s) => (
+                <button key={s} onClick={() => ask(s)}
+                  className="text-left text-xs px-2.5 py-1.5 rounded border border-gray-200 hover:bg-violet-50 hover:border-violet-300 text-gray-700">
+                  <MessageSquareCode className="w-3 h-3 inline mr-1.5 text-violet-700" />
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {turns.map((t, i) => (
+          <div key={i} className={t.role === 'user' ? 'flex justify-end' : ''}>
+            {t.role === 'user' ? (
+              <div className="bg-violet-700 text-white text-sm rounded-lg rounded-br-sm px-3 py-2 max-w-[85%]">
+                {t.text}
+              </div>
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg rounded-bl-sm px-3 py-2 text-sm text-gray-800 max-w-[95%]">
+                {t.specialist_name && (
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide font-semibold mb-1 flex items-center gap-1.5 flex-wrap">
+                    <span>routed to: {t.specialist_name}</span>
+                    {t.cached && (
+                      <span className="text-emerald-700 normal-case tracking-normal font-medium">
+                        · cached{t.baked ? ' · baked' : ' · session'}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="prose prose-sm max-w-none text-sm leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: renderMarkdownSafe(t.text) }} />
+                {t.data_sources && t.data_sources.length > 0 && (
+                  <div className="text-[10px] text-gray-400 font-mono mt-2 pt-2 border-t border-gray-100">
+                    sources: {t.data_sources.join(' · ')}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {busy && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 inline-flex items-center gap-2 text-xs text-gray-500">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /> classifying + dispatching…
+          </div>
+        )}
+      </div>
+
+      <form onSubmit={(e) => { e.preventDefault(); ask(input); }}
+        className="p-3 border-t border-gray-200 flex gap-2">
+        <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask the supervisor anything…"
+          className="flex-1 border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-200"
+          disabled={busy} />
+        <button type="submit" disabled={busy || !input.trim()}
+          className="px-3 py-1.5 bg-violet-700 text-white rounded text-xs font-semibold disabled:opacity-50 hover:bg-violet-800 inline-flex items-center gap-1">
+          <Send className="w-3.5 h-3.5" /> Send
+        </button>
+      </form>
+    </section>
+  );
 }

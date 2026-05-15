@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react
 import {
   Building2, FileText, Activity, ShieldCheck, Code2,
   Layers, Beaker, GraduationCap, BookOpen, CircleHelp, Workflow, MessageCircleQuestion,
-  Scale, Compass,
+  Scale,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Landing from './pages/Landing';
@@ -79,8 +79,8 @@ const NAV_SECTIONS: NavSection[] = [
   {
     heading: 'Governance',
     entries: [
-      { to: '/governance',         icon: Scale,         label: 'Governance' },
-      { to: '/agents',             icon: Compass,       label: 'Agent architecture' },
+      { to: '/governance',         icon: Scale,                 label: 'Governance' },
+      { to: '/agents',             icon: MessageCircleQuestion, label: 'Ask Workbench' },
     ],
   },
   {
@@ -94,7 +94,6 @@ const NAV_SECTIONS: NavSection[] = [
     heading: 'Workbench',
     entries: [
       { to: '/whatif',             icon: CircleHelp,            label: 'What-if scenarios' },
-      { to: '/genie',              icon: MessageCircleQuestion, label: 'Ask AI (Genie)' },
     ],
   },
 ];
