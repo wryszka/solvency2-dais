@@ -59,12 +59,14 @@ interface DoorLink {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   tagline: string;
-  accent: 'amber' | 'blue';
+  accent: 'amber' | 'blue' | 'violet' | 'emerald';
 }
 
 const DOORS: DoorLink[] = [
-  { to: '/today',           icon: Activity, label: 'Control Tower',   tagline: 'Where are we now?', accent: 'amber' },
-  { to: '/reporting-cycle', icon: Layers,   label: 'Reporting Cycle', tagline: 'Three pillars.',    accent: 'blue' },
+  { to: '/today',           icon: Activity, label: 'Control Tower',   tagline: 'Where are we now?',         accent: 'amber' },
+  { to: '/reporting-cycle', icon: Layers,   label: 'Reporting Cycle', tagline: 'Three pillars.',            accent: 'blue' },
+  { to: '/governance',      icon: Scale,    label: 'Governance',      tagline: 'Audit, approvals, AI activity.', accent: 'violet' },
+  { to: '/agents',          icon: MessageCircleQuestion, label: 'Ask Workbench', tagline: 'Supervisor + 8 specialists.', accent: 'emerald' },
 ];
 
 const NAV_SECTIONS: NavSection[] = [
@@ -75,13 +77,6 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/model-development',  icon: BookOpen,      label: 'Model Development' },
       { to: '/overlays',           icon: Layers,        label: 'Overlays Register' },
       { to: '/whatif',             icon: CircleHelp,    label: 'What-if scenarios' },
-    ],
-  },
-  {
-    heading: 'Governance',
-    entries: [
-      { to: '/governance',         icon: Scale,                 label: 'Governance' },
-      { to: '/agents',             icon: MessageCircleQuestion, label: 'Ask Workbench' },
     ],
   },
   {
@@ -124,8 +119,10 @@ function DoorRow({ door }: { door: DoorLink }) {
   const { pathname } = useLocation();
   const active = pathname.startsWith(door.to);
   const cls = {
-    amber: { dot: 'bg-amber-400', text: active ? 'text-amber-300' : 'text-amber-300/70' },
-    blue:  { dot: 'bg-blue-400',  text: active ? 'text-blue-300'  : 'text-blue-300/70' },
+    amber:   { dot: 'bg-amber-400',   text: active ? 'text-amber-300'   : 'text-amber-300/70' },
+    blue:    { dot: 'bg-blue-400',    text: active ? 'text-blue-300'    : 'text-blue-300/70' },
+    violet:  { dot: 'bg-violet-400',  text: active ? 'text-violet-300'  : 'text-violet-300/70' },
+    emerald: { dot: 'bg-emerald-400', text: active ? 'text-emerald-300' : 'text-emerald-300/70' },
   }[door.accent];
   const Icon = door.icon;
   return (
