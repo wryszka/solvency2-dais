@@ -34,9 +34,9 @@ This is a starting point, not gospel. Read the room and swap.
 |---|---|---|---|---|
 | **Forum / mixed** (default) | Control Tower | Reserving agent + overlay | Audit panel | ORSA stress |
 | **Chief Actuary 1:1** | Actuarial Lab + dev/prod | Reserving agent + overlay | Overlays Register lifecycle | Cross-QRT recon catch (Pain G) |
-| **CFO / CRO 1:1** | Control Tower | ORSA stress | Audit panel | Adjacencies preview |
+| **CFO / CRO 1:1** | Control Tower | ORSA stress | Audit panel | Workbench landing |
 | **Big4 implementation lead** | Lab + dev/prod | Audit panel | SFCR drafting | Regulator Q&A |
-| **CTO / data lead** | Lab + dev/prod | Lineage tab in audit panel | Workbench Assistant | Adjacencies |
+| **CTO / data lead** | Lab + dev/prod | Lineage tab in audit panel | Ask Workbench | Workbench landing |
 | **Regulator** | Audit panel | Overlays Register | Cross-QRT recon | Internal Controls |
 
 ---
@@ -174,34 +174,34 @@ Both must pass. If preflight fails on a scene used in your selected matrix row, 
 
 ---
 
-## 6. Workbench horizon · 20:00–22:30
+## 6. Actuarial Workbench landing · 20:00–22:30
 
-**Click:** sidebar → Adjacencies (`/adjacencies`) → click "Workbench horizon" (`/horizon`) for the closing visual.
+**Click:** sidebar brand → "Actuarial Workbench" (`/`) for the closing surface.
 
-**Don't enumerate all six adjacencies.** Pick two or three based on the audience. The horizon visual carries the rest.
+**Don't enumerate every tile.** Pick two or three based on the audience. The grid carries the rest.
 
 ### Audience-specific picks
 
-| Audience | Open these cards |
+| Audience | Highlight these tiles |
 |---|---|
-| **CFO / CRO** | Pricing · Capital allocation · IFRS 17 |
-| **Chief Actuary** | Pricing · IFRS 17 · Reinsurance optimisation |
-| **Big4 / consultancy** | All six — they're the implementation channel |
-| **CTO / data lead** | Pattern reusability + governance consistency across all six |
-| **Mixed forum** | Pricing + IFRS 17 + Reinsurance — the three with broadest audience pull |
+| **CFO / CRO** | Solvency II (live) · Pricing (live) · IFRS 17 (roadmap) |
+| **Chief Actuary** | Solvency II · Reserving deep dive · SAS migration (in progress) |
+| **Big4 / consultancy** | All eight — they're the implementation channel |
+| **CTO / data lead** | Pattern reusability + governance consistency across all tiles |
+| **Mixed forum** | Solvency II · Pricing · IFRS 17 · SAS migration |
 
 ### Operator notes
 
-1. Land on `/adjacencies`. *"Solvency II is what we showed today. Now look at this."*
-2. Read the lead paragraph aloud: *"Same data, same governance, same AI, same audit. Solvency II proves the model. Each of these extends from the platform you've already paid for."*
-3. Pick the audience-specific cards above. For each, hit just two beats:
-   - *"This is adjacent because [the why-line on the card]."*
+1. Land on `/`. *"Solvency II is what we showed today. Now look at this."*
+2. *"Same data, same governance, same AI, same audit. Each tile extends from the platform you've already paid for."*
+3. Pick the audience-specific tiles above. For each, hit two beats:
+   - *"This is adjacent because [the description on the tile]."*
    - *"Same Lab interface, same overlays register, same audit panel. The work moves to where the data already lives."*
-4. **Click "Workbench horizon"** to land on `/horizon`. Workbench at the centre, Solvency II highlighted, the other domains orbit outward.
-5. Pause for two beats. Don't talk over the visual.
+4. Hover over the in-progress tiles (SAS, Excel migration) — *"Two worked examples being built right now. Reserving + capital procedures, line by line, with parity tests."*
+5. Pause for two beats. Don't talk over the grid.
 6. **Closing line:** *"You didn't buy a Solvency II solution. You bought a workbench that does Solvency II beautifully today, IFRS 17 next year, pricing the year after. Same data. Same governance. Same AI. Same audit. The next workflow you're under pressure on extends from here."*
 
-**[15-min cut]** — skip the per-card walk; go straight to `/horizon`, deliver the closing line over the visual, then move to Close.
+**[15-min cut]** — open the Workbench landing, deliver the closing line over the grid, then move to Close.
 
 ---
 
@@ -236,8 +236,20 @@ Both must pass. If preflight fails on a scene used in your selected matrix row, 
 If someone asks something off-script, don't fight it. Use the **Workbench Assistant** (the floating violet button) for anything operational, or navigate to one of the affordances below.
 
 ### Q: "How would I model reserving in Databricks?"
-**Open:** `src/examples/reserving_chain_ladder.py` (or the workspace path).
+**Open:** Model Development → Worked Examples → `reserving_chain_ladder.py`. Or open the notebook directly via the "Open in workspace" button.
 **Say:** *"Worked example. Illustrative methodology — your actuaries or your consultants would build the production version. The platform around it is what you saw in the demo."*
+
+### Q: "Show me Q1 2025's audit."
+**Click:** Governance → Audit Trails → filter period = 2025-Q1 → click any QRT row.
+**Say:** *"Every QRT carries its audit panel — data, code, models, approvals, lineage. Filtered library here, drill down to any one."*
+
+### Q: "How do you govern AI agents?"
+**Click:** Governance → AI Governance tab. Then the *View agent architecture* link.
+**Say:** *"Every agent is a UC-registered MLflow model with a serving endpoint. Every routing decision is traced. The tools they call are UC Functions. Same governance interface as any other model."*
+
+### Q: "How would we integrate our existing cat model / capital engine?"
+**Click:** Model Development → External Engines → Igloo card.
+**Say:** *"This is the pattern: export to a UC Volume, run the engine, ingest the result, validate. Five steps, all notebook code, all visible."*
 
 ### Q: "What's the status of [some specific operational thing] right now?"
 **Click:** floating Workbench Assistant button (bottom right).
@@ -249,8 +261,8 @@ Type the question. The agent queries the governance tables, summarises with cita
 **Say:** *"Delta time travel. The full Q1 audit, with Q1's overlays and Q1's model versions. Same affordance for any quarter, going back as far as your retention policy."*
 
 ### Q: "What about IFRS 17 / matching adjustment / group reporting?"
-**Navigate:** Adjacencies (when shipped) — or just reference verbally.
-**Say:** *"On the roadmap — same architectural pattern. The workbench thesis doesn't change. Data lives in UC, models live in MLflow with aliases, agents are read-only, audit travels with the artefact."*
+**Navigate:** Workbench landing (`/`) → click the IFRS 17 roadmap tile.
+**Say:** *"On the roadmap — same architectural pattern. Data lives in UC, models live in MLflow with aliases, agents are read-only, audit travels with the artefact. The thesis doesn't change."*
 
 ### Q: "Are you replacing ResQ / Igloo / Prophet?"
 **Click:** Actuarial Lab (`/lab`) — show that Igloo and Prophet are peer rows alongside native UC models.
@@ -284,10 +296,10 @@ Type the question. The agent queries the governance tables, summarises with cita
 | 6:30 | Reserving Lab page open | "Most important scene." |
 | 11:00 | S.05.01 Audit tab open | "Every QRT carries this." |
 | 15:00 | ORSA page open | "Six weeks → an afternoon." |
-| 20:00 | Adjacencies / horizon | "Workbench, not tool." |
+| 20:00 | Workbench landing | "Workbench, not tool." |
 | 22:30 | Close — verbatim | Land understated. |
 
-If you're behind at 15:00, cut the Audit-tab walk to Data + Lineage only. If behind at 20:00, skip the Adjacencies walk — just verbalise the horizon line.
+If you're behind at 15:00, cut the Audit-tab walk to Data + Lineage only. If behind at 20:00, skip the per-tile walk — just open the landing and verbalise the closing line.
 
 ---
 

@@ -89,6 +89,8 @@ app.include_router(governance.router)
 app.include_router(audit.router)
 app.include_router(agents.router)
 app.include_router(demo.router)
+from server.routes import model_development as _model_development
+app.include_router(_model_development.router)
 
 
 @app.middleware("http")

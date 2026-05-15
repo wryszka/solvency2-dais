@@ -1,0 +1,71 @@
+# AI agents bootstrap — UC functions + agent registration + supervisor endpoint
+# deploy. One-shot serverless job, idempotent.
+#
+# Task DAG:
+#
+#   apply_uc_functions ─→ register_agents ─→ deploy_supervisor_endpoint
+#
+# Run once after `databricks bundle deploy -t dev --profile DEV` (and after the
+# governance_setup job has run, since some UC Functions reference gold tables
+# that governance_setup creates).
+#
+# `apply_uc_functions`     — creates fn_* in UC under {catalog}.{schema}
+# `register_agents`        — logs + registers agent_* pyfuncs in UC
+# `deploy_supervisor_endpoint` — provisions the workbench-supervisor serving endpoint
+
+resources:
+  jobs:
+    ai_agents_setup:
+      name: "AI Agents Setup — UC Functions + Agent Registration + Serving Endpoint"
+      parameters:
+        - name: catalog_name
+          default: ${var.catalog_name}
+        - name: schema_name
+          default: ${var.schema_name}
+        - name: warehouse_id
+          default: ${var.warehouse_id}
+
+      tasks:
+        - task_key: apply_uc_functions
+          notebook_task:
+            notebook_path: ../src/07_AI_Agents/apply_uc_functions.py
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name:  ${var.schema_name}
+          environment_key: default
+
+        - task_key: register_agents
+          depends_on:
+            - task_key: apply_uc_functions
+          notebook_task:
+            notebook_path: ../src/07_AI_Agents/register_agents.py
+            base_parameters:
+              catalog_name: ${var.catalog_name}
+              schema_name:  ${var.schema_name}
+              fm_endpoint:  databricks-claude-sonnet-4
+              warehouse_id: ${var.warehouse_id}
+          environment_key: default
+
+        - task_key: deploy_supervisor_endpoint
+          depends_on:
+            - task_key: register_agents
+          notebook_task:
+            notebook_path: ../src/07_AI_Agents/deploy_supervisor_endpoint.py
+            base_parameters:
+              catalog_name:        ${var.catalog_name}
+              schema_name:         ${var.schema_name}
+              endpoint_name:       workbench-supervisor
+              workload_size:       Small
+              fm_endpoint:         databricks-claude-sonnet-4
+              warehouse_http_path: /sql/1.0/warehouses/${var.warehouse_id}
+          environment_key: default
+
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+            dependencies:
+              - mlflow>=2.16
+              - databricks-sdk
+              - databricks-sql-connector
+              - pandas

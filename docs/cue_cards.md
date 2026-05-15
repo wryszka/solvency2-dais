@@ -163,15 +163,17 @@ If FM API is misbehaving:
 
 ---
 
-## Card 6 — Workbench horizon [20:00 → 22:30]
+## Card 6 — Actuarial Workbench landing [20:00 → 22:30]
 
-**Click:** sidebar → Adjacencies (`/adjacencies` — Phase 4).
+**Click:** sidebar brand → `/` (Actuarial Workbench landing).
 
-**One sentence per card:**
-- Pricing → *"Same data, same governance, different regime."*
+**One sentence per tile:**
+- Solvency II → *"What we showed today — live."*
+- Pricing → *"Same data, same governance, different regime — also live."*
 - IFRS 17 → *"Different reporting framework, same workbench shape."*
 - Claims analytics → *"Same lineage, applied to a different question."*
-- Reinsurance optimisation → *"Same engines, optimisation problem on top."*
+- Reinsurance → *"Same engines, optimisation problem on top."*
+- SAS / Excel migration → *"The two worked examples being built right now."*
 
 **Closing line:**
 > *"You didn't buy a Solvency II solution. You bought a workbench that does Solvency II beautifully today, IFRS 17 next year, pricing the year after."*
@@ -210,7 +212,7 @@ If FM API is misbehaving:
 | "How would I model X in Databricks?" | Open `src/examples/` notebook |
 | "What's the status of Y right now?" | Floating Workbench Assistant button |
 | "Show me Q1 2025." | QRT page → date selector |
-| "IFRS 17 / matching adjustment / group?" | Adjacencies page (or verbal: "same pattern") |
+| "IFRS 17 / matching adjustment / group?" | Workbench landing (or verbal: "same pattern") |
 | "Replacing ResQ / Igloo / Prophet?" | Lab page → "they're peers, customer choice" |
 | "Hallucinated numbers?" | AFR/SFCR draft → citation chips inline |
 | "Multi-entity group?" | Verbal: "catalog per entity, group consolidation as DLT" |

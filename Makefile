@@ -47,6 +47,7 @@ deploy-dev:
 	    -e 's|$${var.backstage_notebook_path}||g' \
 	    -e 's|$${var.pricing_app_url}|https://pricing-workbench-7474656169654171.aws.databricksapps.com/|g' \
 	    -e 's|$${var.fm_model_endpoints}||g' \
+	    -e 's|$${var.supervisor_endpoint_name}|workbench-supervisor|g' \
 	    src/app/app.yaml > $$TMPYAML; \
 	  databricks workspace import \
 	    "/Workspace/Users/$$USER@databricks.com/.bundle/solvency2_workbench/dev/files/src/app/app.yaml" \

@@ -6,7 +6,7 @@
  * pushbacks. The pre-tested scenario is "double cyber book over 12 months".
  */
 import { useEffect, useState } from 'react';
-import { Sparkles, Loader2, AlertTriangle, ShieldAlert, Play, RefreshCw, CircleHelp } from 'lucide-react';
+import { Sparkles, Loader2, AlertTriangle, ShieldAlert, Play, RefreshCw, CircleHelp, ExternalLink } from 'lucide-react';
 import { renderMarkdownSafe } from '../lib/markdown';
 import { useStreamedText } from '../lib/hooks/useStreamedText';
 import { runWhatif, fetchCyberBook, formatEur, type Row } from '../lib/api';
@@ -124,6 +124,7 @@ export default function Whatif() {
               <Sparkles className="w-4 h-4 text-blue-700" />
               <h3 className="text-sm font-bold text-gray-900">Projected impact</h3>
               <span className="ml-auto text-[10px] uppercase tracking-widest text-gray-400 font-bold">computed live</span>
+              <ViewCalculationLink scenarioLabel={result.scenario_label} />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
               {result.result.projected_gwp_eur != null && (
@@ -177,5 +178,28 @@ function Stat({ label, value, highlight, delta }: { label: string; value: string
       <div className="text-base font-bold text-gray-900 font-mono">{value}</div>
       {delta && <div className="text-[11px] font-mono text-rose-700 font-semibold">{delta}</div>}
     </div>
+  );
+}
+
+function ViewCalculationLink({ scenarioLabel }: { scenarioLabel: string }) {
+  const label = scenarioLabel.toLowerCase();
+  const slug = label.includes('cyber') && (label.includes('double') || label.includes('doubling'))
+    ? 'cyber_doubling'
+    : null;
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!slug) { setUrl(null); return; }
+    fetch(`/api/demo/whatif/notebook-url?scenario=${slug}`)
+      .then((r) => r.json())
+      .then((d) => setUrl(d.url || null))
+      .catch(() => setUrl(null));
+  }, [slug]);
+  if (!url) return null;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer"
+      className="text-[11px] font-semibold text-blue-700 hover:text-blue-900 inline-flex items-center gap-1 ml-2">
+      <ExternalLink className="w-3 h-3" />
+      View calculation
+    </a>
   );
 }

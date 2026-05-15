@@ -63,7 +63,6 @@ export default function Workbench() {
           <p className="text-[11px] text-gray-500">
             Demo assets: <Link to="/architecture" className="text-blue-600 hover:underline">architecture diagram</Link>
             {' '}· <Link to="/learn" className="text-blue-600 hover:underline">regime walk-through</Link>
-            {' '}· <Link to="/horizon" className="text-blue-600 hover:underline">workbench horizon</Link>
           </p>
         </div>
       </details>

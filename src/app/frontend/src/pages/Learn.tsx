@@ -348,8 +348,8 @@ export default function Learn() {
           <p className="text-sm text-slate-300 mt-2 leading-relaxed">
             Now look at it running. Open the <Link to="/today" className="text-violet-300 underline hover:text-white">Control Tower</Link> for
             operational state, the <Link to="/reporting-cycle" className="text-violet-300 underline hover:text-white">Reporting Cycle</Link> for
-            every artefact organised by pillar, or <Link to="/horizon" className="text-violet-300 underline hover:text-white">Workbench Horizon</Link> for
-            where this extends next.
+            every artefact organised by pillar, or the <Link to="/" className="text-violet-300 underline hover:text-white">Actuarial Workbench</Link> for
+            the other regimes that share this same platform.
           </p>
         </section>
       </main>

@@ -80,6 +80,12 @@ variables:
       Databricks (no Claude available), set this to "databricks-gpt-oss-120b" (the GPT-OSS-120B
       OpenAI model that ships with the free tier). For self-hosted, point at your own endpoint.
     default: ""
+  supervisor_endpoint_name:
+    description: |
+      Mosaic AI Model Serving endpoint hosting agent_workbench_supervisor. When set, the app
+      proxies Ask-Workbench questions to this endpoint instead of using in-app routing. Run
+      the ai_agents_setup job to provision the endpoint, then set this variable.
+    default: ""
 
   # — Workspace / auth —
   workspace_host:
@@ -119,6 +125,7 @@ targets:
       databricks_profile: DEV
       entity_type: composite
       pricing_app_url: https://pricing-workbench-7474656169654171.aws.databricksapps.com/
+      supervisor_endpoint_name: workbench-supervisor
       # fm_model_endpoints: ""   # empty = use Claude/Llama trio (standard workspace)
       # For free-edition Databricks (no Claude available), uncomment:
       # fm_model_endpoints: "databricks-gpt-oss-120b"

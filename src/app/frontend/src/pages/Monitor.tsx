@@ -9,6 +9,7 @@ import Q4PainCallouts from '../components/Q4PainCallouts';
 import ControlTowerHero, { type HealthLevel } from '../components/ControlTowerHero';
 import ReadinessPanel from '../components/ReadinessPanel';
 import PipelinePanel from '../components/PipelinePanel';
+import TodayMCRTile from '../components/TodayMCRTile';
 import { fetchSlaStatus, fetchDqSummary, fetchReconciliation, generateCrossQrtReview, fetchFeedDetail, investigateRecon, fetchOverlays, fetchPeriodState, formatEur, type Row, type CrossQrtReviewResponse, type FeedDetail, type ReconInvestigation, type PeriodState } from '../lib/api';
 import { renderMarkdownSafe } from '../lib/markdown';
 import { ProcessOverview, DataInventory } from './Governance';
@@ -126,9 +127,11 @@ export default function Monitor({ initialTab = 'overview' }: { initialTab?: Moni
           <Q4PainCallouts />
 
           {/* KPIs moved into the hero strip above. The overview tab now shows
-              the per-QRT readiness panel + reporting pipeline panel. */}
+              the per-QRT readiness panel + reporting pipeline panel + MCR
+              coverage as quarterly reference material. */}
           <ReadinessPanel />
           <PipelinePanel />
+          <TodayMCRTile />
         </div>
       )}
 

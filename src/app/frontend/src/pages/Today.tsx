@@ -15,7 +15,7 @@ import { Layers, Clock, ChevronRight, Zap, Sparkles, Activity } from 'lucide-rea
 import Monitor from './Monitor';
 import TodaySolvencyTile from '../components/TodaySolvencyTile';
 import TodayOrsaTile from '../components/TodayOrsaTile';
-import TodayMCRTile from '../components/TodayMCRTile';
+import TodayPendingDecisionsTile from '../components/TodayPendingDecisionsTile';
 import {
   fetchOverlays, fetchLabModels, formatEur,
   type Overlay, type LabModelRow,
@@ -36,12 +36,13 @@ export default function Today() {
         </div>
       </header>
 
-      {/* Headline tiles — three always-on readings: solvency today (SCR) ·
-          MCR coverage (Art. 138 floor) · solvency under stress (ORSA) */}
+      {/* Headline tiles — three operational reads: today's solvency, worst-stress
+          posture, and what's awaiting human sign-off. MCR coverage lives in the
+          Overview tab below as quarterly reference material. */}
       <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-4 pb-2">
         <TodaySolvencyTile />
-        <TodayMCRTile />
         <TodayOrsaTile />
+        <TodayPendingDecisionsTile />
       </div>
 
       {/* Monitor (existing Control Tower) is the heart of the page.

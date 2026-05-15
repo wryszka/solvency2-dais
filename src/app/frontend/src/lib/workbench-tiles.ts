@@ -30,7 +30,7 @@ export const TILES: Tile[] = [
   {
     slug: 'solvency-2',
     label: 'Solvency II',
-    description: 'Capital, governance, disclosure, ORSA — full reporting cycle, agents, audit panel, time travel.',
+    description: 'Capital, governance, disclosure, ORSA — full cycle with native model development and end-to-end audit trail.',
     status: 'live',
     icon: Shield,
     to: '/solvency-2',

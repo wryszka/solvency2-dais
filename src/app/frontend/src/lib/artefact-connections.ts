@@ -77,8 +77,7 @@ export const ARTEFACT_CONNECTIONS: Record<string, ArtefactConfig> = {
       { label: "Worked example — SF walkthrough (notebook)", to: "/lab", kind: "example" },
     ],
     adjacent: [
-      { label: "Adjacencies — Capital allocation",  to: "/adjacencies", kind: "adjacent" },
-      { label: "Adjacencies — IFRS 17",              to: "/roadmap/ifrs-17", kind: "adjacent" },
+      { label: "Roadmap — IFRS 17",              to: "/roadmap/ifrs-17", kind: "adjacent" },
     ],
     primary_lab_link: { model_id: "standard_formula", label: "Standard Formula in the Lab" },
     overlay_cell_prefix: "s2501.",
@@ -106,8 +105,8 @@ export const ARTEFACT_CONNECTIONS: Record<string, ArtefactConfig> = {
     adjacent: [
       { label: "Senior Reserving Actuary agent",     to: "/lab/reserving_pnc", kind: "agent" },
       { label: "Overlays Register",                  to: "/overlays", kind: "overlay" },
-      { label: "Adjacencies — Claims analytics",      to: "/roadmap/claims-analytics", kind: "adjacent" },
-      { label: "Adjacencies — Reserving deep dive",   to: "/roadmap/reserving-deep-dive", kind: "adjacent" },
+      { label: "Roadmap — Claims analytics",      to: "/roadmap/claims-analytics", kind: "adjacent" },
+      { label: "Roadmap — Reserving deep dive",   to: "/roadmap/reserving-deep-dive", kind: "adjacent" },
     ],
     primary_lab_link: { model_id: "reserving_pnc", label: "Reserving (P&C) in the Lab" },
     overlay_cell_prefix: "s0501.",
@@ -128,7 +127,6 @@ export const ARTEFACT_CONNECTIONS: Record<string, ArtefactConfig> = {
     examples: [],
     adjacent: [
       { label: "Custodian feed status (ABN AMRO · Janusz Kowalski)", to: "/feeds/custodian_holdings_abn", kind: "doc" },
-      { label: "Adjacencies — Capital allocation",                    to: "/adjacencies", kind: "adjacent" },
     ],
   },
 
@@ -154,7 +152,7 @@ export const ARTEFACT_CONNECTIONS: Record<string, ArtefactConfig> = {
     adjacent: [
       { label: "Cat Modelling Agent",                 to: "/lab/igloo_cat",       kind: "agent" },
       { label: "External event log",                  to: "/lab/igloo_cat",       kind: "doc" },
-      { label: "Adjacencies — Reinsurance optimisation", to: "/roadmap/reinsurance", kind: "adjacent" },
+      { label: "Roadmap — Reinsurance optimisation", to: "/roadmap/reinsurance", kind: "adjacent" },
     ],
     primary_lab_link: { model_id: "igloo_cat", label: "Igloo cat engine in the Lab" },
     overlay_cell_prefix: "s2606.",
@@ -180,7 +178,7 @@ export const ARTEFACT_CONNECTIONS: Record<string, ArtefactConfig> = {
     ],
     examples: [],
     adjacent: [
-      { label: "Adjacencies — IFRS 17 (CSM / fulfilment cashflows)", to: "/roadmap/ifrs-17", kind: "adjacent" },
+      { label: "Roadmap — IFRS 17 (CSM / fulfilment cashflows)", to: "/roadmap/ifrs-17", kind: "adjacent" },
       { label: "Senior Reserving Actuary (life path)",                to: "/lab/reserving_life", kind: "agent" },
     ],
     primary_lab_link: { model_id: "prophet_life", label: "Prophet engine in the Lab" },
@@ -207,7 +205,7 @@ export const ARTEFACT_CONNECTIONS: Record<string, ArtefactConfig> = {
     ],
     examples: [],
     adjacent: [
-      { label: "Adjacencies — IFRS 17",          to: "/roadmap/ifrs-17", kind: "adjacent" },
+      { label: "Roadmap — IFRS 17",          to: "/roadmap/ifrs-17", kind: "adjacent" },
       { label: "Senior Reserving Actuary agent",  to: "/lab/reserving_life", kind: "agent" },
     ],
     primary_lab_link: { model_id: "reserving_life", label: "Reserving (Life) in the Lab" },
@@ -234,7 +232,7 @@ export const ARTEFACT_CONNECTIONS: Record<string, ArtefactConfig> = {
     examples: [],
     adjacent: [
       { label: "Prophet in the Lab",                              to: "/lab/prophet_life",       kind: "agent" },
-      { label: "Adjacencies — IFRS 17 (sensitivity overlap)",      to: "/roadmap/ifrs-17",        kind: "adjacent" },
+      { label: "Roadmap — IFRS 17 (sensitivity overlap)",      to: "/roadmap/ifrs-17",        kind: "adjacent" },
     ],
     primary_lab_link: { model_id: "prophet_life", label: "Prophet engine in the Lab" },
   },

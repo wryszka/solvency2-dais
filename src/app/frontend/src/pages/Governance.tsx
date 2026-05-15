@@ -1,50 +1,684 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Scale, BarChart3, Database, ShieldCheck, FileSearch,
   GitCompare, FlaskConical, Bot, Workflow, History, ScrollText,
-  CheckCircle2, XCircle, Clock, TrendingUp, AlertTriangle,
+  CheckCircle2, XCircle, Clock, TrendingUp, AlertTriangle, UserCheck,
+  Cpu, Wrench, ExternalLink, Sparkles, ArrowRight, Layers,
 } from 'lucide-react';
-import { fetchProcessMetrics, type ProcessMetrics } from '../lib/api';
+import {
+  fetchProcessMetrics, fetchOverlays, fetchSubmissions,
+  type ProcessMetrics, type Overlay,
+} from '../lib/api';
 import { Skeleton } from '../components/Skeleton';
 
-type TabId = 'overview' | 'inventory';
+type TabId =
+  | 'overview' | 'audit-trails' | 'approvals' | 'ai-governance'
+  | 'controls' | 'model-history';
+
+interface LandingKpis {
+  pending_total: number;
+  most_urgent: { label: string; owner?: string; type?: string } | null;
+  controls_active: number;
+  controls_last_verified: string | null;
+  ai_24h_total: number;
+  ai_24h_cached_pct: number;
+  ai_top_specialist: string | null;
+  audit_coverage_pct: number;
+}
+
+interface LandingEvent {
+  kind: string;
+  label: string;
+  actor: string | null;
+  status: string | null;
+  ts: string;
+}
+
+interface LandingResponse {
+  period: string;
+  kpis: LandingKpis;
+  recent_events: LandingEvent[];
+  pending_overlays: Array<Record<string, unknown>>;
+  pending_promotions: Array<Record<string, unknown>>;
+}
 
 export default function Governance() {
   const [tab, setTab] = useState<TabId>('overview');
+  const [landing, setLanding] = useState<LandingResponse | null>(null);
+
+  useEffect(() => {
+    fetch('/api/governance/landing')
+      .then((r) => r.json())
+      .then((d) => setLanding(d))
+      .catch(() => setLanding(null));
+  }, []);
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-4">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Scale className="w-6 h-6 text-violet-600" />
-          Governance
-        </h2>
-        <p className="text-sm text-gray-500 mt-1">
-          Process health and an inventory of everything the platform records along the way
+      <header>
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-lg bg-violet-100 flex items-center justify-center">
+            <Scale className="w-5 h-5 text-violet-700" />
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-widest text-violet-700 font-bold">Governance</div>
+            <h2 className="text-2xl font-bold text-gray-900">All approvals, audit, AI activity, controls — one place</h2>
+          </div>
+        </div>
+        <p className="text-sm text-gray-500 mt-1.5 leading-relaxed max-w-3xl">
+          Operational home for the audit trail. Pillar 2 deliverables live here alongside model-change
+          history, agent activity, and the internal-controls register. Cross-pillar by design.
         </p>
+      </header>
+
+      <div className="flex flex-wrap gap-1 border-b border-gray-200">
+        <TabButton active={tab === 'overview'}      onClick={() => setTab('overview')}      icon={BarChart3}    label="Overview" />
+        <TabButton active={tab === 'audit-trails'}  onClick={() => setTab('audit-trails')}  icon={FileSearch}   label="Audit Trails" />
+        <TabButton active={tab === 'approvals'}     onClick={() => setTab('approvals')}     icon={Workflow}     label="Approvals & Workflow" />
+        <TabButton active={tab === 'ai-governance'} onClick={() => setTab('ai-governance')} icon={Bot}          label="AI Governance" />
+        <TabButton active={tab === 'controls'}      onClick={() => setTab('controls')}      icon={ShieldCheck}  label="Controls & Validation" />
+        <TabButton active={tab === 'model-history'} onClick={() => setTab('model-history')} icon={History}      label="Model Change History" />
       </div>
 
-      {/* Tab strip */}
-      <div className="flex gap-1 border-b border-gray-200">
-        <TabButton
-          active={tab === 'overview'}
-          onClick={() => setTab('overview')}
-          icon={BarChart3}
-          label="Process Overview"
-          hint="KPIs and trends a process manager wants on a single screen"
-        />
-        <TabButton
-          active={tab === 'inventory'}
-          onClick={() => setTab('inventory')}
-          icon={Database}
-          label="Data Collected & Uses"
-          hint="What we record across the process — and how it can be used"
-        />
-      </div>
-
-      {tab === 'overview' && <ProcessOverview />}
-      {tab === 'inventory' && <DataInventory />}
+      {tab === 'overview'      && <OverviewTab landing={landing} />}
+      {tab === 'audit-trails'  && <AuditTrailsTab />}
+      {tab === 'approvals'     && <ApprovalsTab landing={landing} />}
+      {tab === 'ai-governance' && <AiGovernanceTab />}
+      {tab === 'controls'      && <ControlsValidationTab />}
+      {tab === 'model-history' && <ModelChangeHistoryTab />}
     </div>
+  );
+}
+
+/* ═══════════════════════ Overview tab ═══════════════════════ */
+
+function OverviewTab({ landing }: { landing: LandingResponse | null }) {
+  if (!landing) return <Skeleton className="h-32 w-full" />;
+  const k = landing.kpis;
+  return (
+    <section className="space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <OverviewKpi
+          icon={UserCheck} label="Pending governance actions"
+          value={String(k.pending_total)}
+          hint={k.most_urgent ? `Most urgent: ${k.most_urgent.label}` : 'Nothing waiting on a human signature.'}
+          tone={k.pending_total > 0 ? 'amber' : 'good'}
+          link={{ to: '#approvals', label: 'Open queue', onClick: () => undefined }}
+        />
+        <OverviewKpi
+          icon={ShieldCheck} label="Active controls"
+          value={String(k.controls_active)}
+          hint={k.controls_last_verified ? `Last verified ${relTime(k.controls_last_verified)}` : 'No verification recorded'}
+          tone="good"
+        />
+        <OverviewKpi
+          icon={Bot} label="AI activity (24h)"
+          value={String(k.ai_24h_total)}
+          hint={`${k.ai_24h_cached_pct.toFixed(0)}% cached${k.ai_top_specialist ? ` · top: ${k.ai_top_specialist}` : ''}`}
+          tone={k.ai_24h_total > 0 ? 'good' : 'neutral'}
+        />
+        <OverviewKpi
+          icon={FileSearch} label="Audit coverage"
+          value={`${k.audit_coverage_pct.toFixed(0)}%`}
+          hint={`Submissions archived for ${landing.period}`}
+          tone={k.audit_coverage_pct >= 80 ? 'good' : k.audit_coverage_pct >= 50 ? 'amber' : 'neutral'}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="md:col-span-2 bg-white border border-gray-200 rounded-lg p-4">
+          <header className="flex items-center gap-2 mb-3">
+            <Clock className="w-4 h-4 text-violet-700" />
+            <h3 className="text-sm font-bold text-gray-900">Recent governance events</h3>
+            <span className="text-[11px] text-gray-500">last 20</span>
+          </header>
+          {landing.recent_events.length === 0 ? (
+            <p className="text-xs text-gray-500">No events recorded.</p>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {landing.recent_events.map((e, i) => (
+                <li key={i} className="py-2 flex items-center gap-2.5">
+                  <EventDot kind={e.kind} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-gray-900 truncate">{e.label}</div>
+                    <div className="text-[11px] text-gray-500">
+                      {e.kind.replace('_', ' ')} · {e.actor ?? '—'}
+                      {e.status && ` · ${e.status}`}
+                    </div>
+                  </div>
+                  <span className="text-[11px] text-gray-400 font-mono whitespace-nowrap">{relTime(e.ts)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <header className="flex items-center gap-2 mb-3">
+            <Layers className="w-4 h-4 text-violet-700" />
+            <h3 className="text-sm font-bold text-gray-900">Open items</h3>
+          </header>
+          <ul className="space-y-1.5 text-sm">
+            <BreakdownRow label="Overlay approvals"     value={landing.pending_overlays.length} />
+            <BreakdownRow label="Model promotions"      value={landing.pending_promotions.length} />
+          </ul>
+          <div className="mt-4 pt-3 border-t border-gray-100 space-y-1.5">
+            <h4 className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Jump to</h4>
+            <Link to="/agents" className="text-xs text-violet-700 hover:underline inline-flex items-center gap-1">
+              <Sparkles className="w-3 h-3" /> Agent architecture
+            </Link>
+            <br />
+            <Link to="/internal-controls" className="text-xs text-violet-700 hover:underline inline-flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" /> Internal controls
+            </Link>
+            <br />
+            <Link to="/model-governance" className="text-xs text-violet-700 hover:underline inline-flex items-center gap-1">
+              <FlaskConical className="w-3 h-3" /> Model governance
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      <details className="bg-white rounded-lg border border-gray-200 p-4 text-sm">
+        <summary className="cursor-pointer font-semibold text-gray-800">Process Overview (cycle KPIs)</summary>
+        <div className="mt-3">
+          <ProcessOverview />
+        </div>
+      </details>
+    </section>
+  );
+}
+
+function OverviewKpi({ icon: Icon, label, value, hint, tone }: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string; value: string; hint: string;
+  tone: 'good' | 'amber' | 'red' | 'neutral';
+  link?: { to: string; label: string; onClick?: () => void };
+}) {
+  const toneCls = {
+    good: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+    amber: 'text-amber-800 bg-amber-50 border-amber-200',
+    red: 'text-rose-800 bg-rose-50 border-rose-200',
+    neutral: 'text-gray-700 bg-white border-gray-200',
+  }[tone];
+  return (
+    <div className={`rounded-lg border p-3 ${toneCls}`}>
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold opacity-80">
+        <Icon className="w-3.5 h-3.5" />
+        {label}
+      </div>
+      <div className="text-2xl font-bold tabular-nums mt-1">{value}</div>
+      <div className="text-[11px] opacity-90 mt-0.5">{hint}</div>
+    </div>
+  );
+}
+
+function BreakdownRow({ label, value }: { label: string; value: number }) {
+  return (
+    <li className="flex items-center justify-between text-sm">
+      <span className="text-gray-700">{label}</span>
+      <span className="font-mono font-semibold text-gray-900 tabular-nums">{value}</span>
+    </li>
+  );
+}
+
+function EventDot({ kind }: { kind: string }) {
+  const color = kind === 'model_promotion' ? 'bg-blue-500' :
+                kind === 'overlay'         ? 'bg-violet-500' :
+                kind === 'agent_failure'   ? 'bg-rose-500' :
+                                             'bg-gray-400';
+  return <span className={`w-2 h-2 rounded-full shrink-0 ${color}`} />;
+}
+
+function relTime(iso: string | undefined | null): string {
+  if (!iso) return '—';
+  try {
+    const t = new Date(String(iso).replace(' ', 'T') + (String(iso).endsWith('Z') ? '' : 'Z')).getTime();
+    const ageSec = Math.max(0, (Date.now() - t) / 1000);
+    if (ageSec < 90) return 'just now';
+    if (ageSec < 3600) return `${Math.round(ageSec / 60)}m ago`;
+    if (ageSec < 86400) return `${Math.round(ageSec / 3600)}h ago`;
+    return `${Math.round(ageSec / 86400)}d ago`;
+  } catch { return String(iso).slice(0, 10); }
+}
+
+/* ═══════════════════════ Audit Trails tab ═══════════════════════ */
+
+interface ArchiveRow {
+  qrt_id: string; qrt_name?: string; qrt_title?: string;
+  reporting_period?: string; period?: string;
+  status: string; submitted_at?: string | null; reviewed_at?: string | null;
+  submitted_by?: string | null; reviewed_by?: string | null;
+}
+
+function AuditTrailsTab() {
+  const [rows, setRows] = useState<ArchiveRow[]>([]);
+  const [period, setPeriod] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    fetchSubmissions()
+      .then((r) => setRows(((r as unknown as { data: ArchiveRow[] }).data) ?? []))
+      .catch(() => setRows([]));
+  }, []);
+  const periods = Array.from(new Set(rows.map((r) => r.period ?? r.reporting_period).filter(Boolean))) as string[];
+  const filtered = rows.filter((r) => {
+    const p = r.period ?? r.reporting_period ?? '';
+    if (period !== 'all' && p !== period) return false;
+    if (search && !`${r.qrt_id} ${r.qrt_name ?? ''} ${r.qrt_title ?? ''}`.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3 bg-white border border-gray-200 rounded-lg p-3">
+        <span className="text-[11px] uppercase tracking-widest text-gray-500 font-bold">Filter</span>
+        <select value={period} onChange={(e) => setPeriod(e.target.value)}
+          className="text-sm border border-gray-300 rounded px-2 py-1">
+          <option value="all">All periods</option>
+          {periods.sort().map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <input type="text" placeholder="Search QRT name or id…" value={search} onChange={(e) => setSearch(e.target.value)}
+          className="flex-1 min-w-[200px] text-sm border border-gray-300 rounded px-2.5 py-1" />
+        <span className="text-xs text-gray-500">{filtered.length} of {rows.length}</span>
+      </div>
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-[11px] uppercase tracking-wider text-gray-600">
+            <tr>
+              <th className="px-3 py-2 text-left">QRT</th>
+              <th className="px-3 py-2 text-left">Period</th>
+              <th className="px-3 py-2 text-left">Status</th>
+              <th className="px-3 py-2 text-left">Submitted</th>
+              <th className="px-3 py-2 text-left">Reviewed</th>
+              <th className="px-3 py-2 text-left">Audit</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {filtered.length === 0 && (
+              <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">No matches.</td></tr>
+            )}
+            {filtered.map((r, i) => {
+              const qrt = r.qrt_id?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
+              return (
+                <tr key={i} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 font-mono text-gray-900">{r.qrt_id} <span className="text-gray-500">{r.qrt_title ?? r.qrt_name ?? ''}</span></td>
+                  <td className="px-3 py-2 font-mono">{r.period ?? r.reporting_period ?? '—'}</td>
+                  <td className="px-3 py-2"><span className="text-[10px] uppercase font-semibold text-gray-700">{r.status}</span></td>
+                  <td className="px-3 py-2 text-xs text-gray-700">{r.submitted_by ?? '—'} <span className="text-gray-400 font-mono">{relTime(r.submitted_at ?? null)}</span></td>
+                  <td className="px-3 py-2 text-xs text-gray-700">{r.reviewed_by ?? '—'} <span className="text-gray-400 font-mono">{relTime(r.reviewed_at ?? null)}</span></td>
+                  <td className="px-3 py-2">
+                    <Link to={`/report/${qrt}`} className="text-xs text-violet-700 hover:underline inline-flex items-center gap-1">
+                      Open audit panel <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+/* ═══════════════════════ Approvals & Workflow tab ═══════════════════════ */
+
+function ApprovalsTab({ landing }: { landing: LandingResponse | null }) {
+  const [overlays, setOverlays] = useState<Overlay[]>([]);
+  useEffect(() => {
+    fetchOverlays({ quarter: '2025-Q4' }).then((r) => setOverlays(r.overlays || [])).catch(() => undefined);
+  }, []);
+  const pending = overlays.filter((o) => o.status === 'pending_approval');
+  const approvedHistory = overlays.filter((o) => o.status === 'approved').slice(0, 20);
+  return (
+    <section className="space-y-5">
+      <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <header className="flex items-center gap-2 mb-3">
+          <Workflow className="w-4 h-4 text-amber-700" />
+          <h3 className="text-sm font-bold text-gray-900">Pending approvals</h3>
+          <span className="ml-auto text-xs text-gray-500">{pending.length + (landing?.pending_promotions.length ?? 0)} items</span>
+        </header>
+        {pending.length === 0 && (landing?.pending_promotions.length ?? 0) === 0 ? (
+          <p className="text-sm text-gray-500 italic">Nothing waiting on a human signature.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {pending.map((o, i) => (
+              <li key={`o${i}`} className="py-2.5 flex items-center gap-3 text-sm">
+                <span className="w-2 h-2 rounded-full bg-violet-500" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-gray-900">{o.line_of_business} overlay · EUR {(Math.abs(Number(o.magnitude_eur || 0)) / 1e6).toFixed(1)}M</div>
+                  <div className="text-[11px] text-gray-500">submitted by {o.author ?? '—'}</div>
+                </div>
+                <Link to="/overlays" className="text-xs text-violet-700 hover:underline">Review →</Link>
+              </li>
+            ))}
+            {(landing?.pending_promotions ?? []).map((p, i) => (
+              <li key={`p${i}`} className="py-2.5 flex items-center gap-3 text-sm">
+                <span className="w-2 h-2 rounded-full bg-blue-500" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-gray-900">{(p as { model_name?: string }).model_name} → {(p as { to_version?: string }).to_version}</div>
+                  <div className="text-[11px] text-gray-500">awaiting {(p as { approver?: string }).approver ?? '—'}</div>
+                </div>
+                <Link to="/model-governance" className="text-xs text-violet-700 hover:underline">Review →</Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <header className="flex items-center gap-2 mb-3">
+          <History className="w-4 h-4 text-emerald-700" />
+          <h3 className="text-sm font-bold text-gray-900">Approval history (recent)</h3>
+        </header>
+        {approvedHistory.length === 0 ? (
+          <p className="text-sm text-gray-500 italic">No approved items in the last window.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {approvedHistory.map((o, i) => (
+              <li key={i} className="py-2 flex items-center gap-3 text-sm">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-gray-900 truncate">{o.line_of_business} · EUR {(Math.abs(Number(o.magnitude_eur || 0)) / 1e6).toFixed(1)}M</div>
+                  <div className="text-[11px] text-gray-500">
+                    {o.author ?? '—'} → {o.approver ?? '—'}
+                  </div>
+                </div>
+                <span className="text-[11px] text-gray-400 font-mono">{relTime(o.approved_at ?? o.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/* ═══════════════════════ AI Governance tab ═══════════════════════ */
+
+interface RoutingRow {
+  trace_id: string; question: string;
+  specialist_key: string; specialist_name: string;
+  data_sources: string[]; model_used: string;
+  was_cached: boolean; baked: boolean; period: string;
+  created_at: string; created_by: string;
+}
+
+interface SpecialistsResponse {
+  specialists: Array<{
+    key: string; name: string; scope: string; color: string;
+    data_sources: string[];
+    uc_artefact?: { uc_path: string | null; workspace_url: string | null; kind: string };
+    tools?: Array<{ name: string; kind: string; workspace_url: string | null }>;
+  }>;
+  supervisor: {
+    uc_path: string; workspace_url: string;
+    serving_endpoint: string | null; serving_endpoint_url: string | null;
+  };
+}
+
+function AiGovernanceTab() {
+  const [recent, setRecent] = useState<RoutingRow[]>([]);
+  const [catalogue, setCatalogue] = useState<SpecialistsResponse | null>(null);
+  useEffect(() => {
+    fetch('/api/supervisor/recent?limit=20').then((r) => r.json()).then((d) => setRecent(d.recent || [])).catch(() => setRecent([]));
+    fetch('/api/supervisor/specialists').then((r) => r.json()).then((d) => setCatalogue(d)).catch(() => setCatalogue(null));
+  }, []);
+  return (
+    <section className="space-y-5">
+      <div className="flex items-center gap-3 bg-violet-50/60 border border-violet-200 rounded-lg p-3 text-xs">
+        <Bot className="w-4 h-4 text-violet-700 shrink-0" />
+        <span>Phase 8 — supervisor + 6 specialists deployed as Mosaic AI artefacts. Every call traced to MLflow.</span>
+        <Link to="/agents" className="ml-auto font-semibold text-violet-700 hover:underline inline-flex items-center gap-1">
+          View agent architecture <ArrowRight className="w-3 h-3" />
+        </Link>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <header className="flex items-center gap-2 mb-3">
+          <Clock className="w-4 h-4 text-violet-700" />
+          <h3 className="text-sm font-bold text-gray-900">Agent activity log</h3>
+          <span className="text-[11px] text-gray-500">last 20 routing decisions</span>
+        </header>
+        {recent.length === 0 ? (
+          <p className="text-sm text-gray-500 italic">No routing decisions recorded yet.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100 text-sm">
+            {recent.map((r) => (
+              <li key={r.trace_id} className="py-2 flex items-start gap-3">
+                <span className="w-2 h-2 rounded-full bg-violet-500 mt-2 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-gray-900 truncate">{r.question}</div>
+                  <div className="text-[11px] text-gray-500 flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-violet-800">{r.specialist_name}</span>
+                    {r.was_cached && <span className="text-emerald-700">cached{r.baked ? ' · baked' : ''}</span>}
+                    <span className="font-mono text-gray-400">{(r.data_sources ?? []).slice(0, 3).join(' · ')}</span>
+                    <span className="text-gray-400">·</span>
+                    <span className="font-mono text-gray-400 truncate" title={r.trace_id}>trace {r.trace_id.slice(0, 8)}</span>
+                  </div>
+                </div>
+                <span className="text-[11px] text-gray-400 font-mono whitespace-nowrap">{relTime(r.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <header className="flex items-center gap-2 mb-3">
+            <Cpu className="w-4 h-4 text-violet-700" />
+            <h3 className="text-sm font-bold text-gray-900">Agent inventory</h3>
+          </header>
+          {!catalogue ? <Skeleton className="h-20 w-full" /> : (
+            <ul className="space-y-2 text-sm">
+              {catalogue.supervisor && (
+                <li className="border border-violet-200 bg-violet-50/50 rounded p-2">
+                  <a href={catalogue.supervisor.workspace_url} target="_blank" rel="noopener noreferrer"
+                    className="font-mono text-violet-800 hover:underline inline-flex items-center gap-1">
+                    {catalogue.supervisor.uc_path} <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <div className="text-[11px] text-gray-600 mt-0.5">
+                    Supervisor · {catalogue.supervisor.serving_endpoint
+                      ? <a href={catalogue.supervisor.serving_endpoint_url ?? '#'} target="_blank" rel="noopener noreferrer"
+                          className="text-violet-700 hover:underline">endpoint: {catalogue.supervisor.serving_endpoint}</a>
+                      : <span className="text-amber-700">no serving endpoint configured</span>}
+                  </div>
+                </li>
+              )}
+              {catalogue.specialists.map((s) => (
+                <li key={s.key} className="text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-gray-400" />
+                    <span className="text-gray-900 font-semibold">{s.name}</span>
+                    <span className="text-gray-400 font-mono ml-auto">{s.key}</span>
+                  </div>
+                  {s.uc_artefact?.workspace_url && (
+                    <a href={s.uc_artefact.workspace_url} target="_blank" rel="noopener noreferrer"
+                      className="font-mono text-[10px] text-violet-700 hover:underline inline-flex items-center gap-1 ml-3">
+                      {s.uc_artefact.uc_path} <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <header className="flex items-center gap-2 mb-3">
+            <Wrench className="w-4 h-4 text-blue-700" />
+            <h3 className="text-sm font-bold text-gray-900">Tool inventory</h3>
+          </header>
+          {!catalogue ? <Skeleton className="h-20 w-full" /> : (() => {
+            const seen = new Set<string>();
+            const tools: Array<{ name: string; workspace_url: string | null; usedBy: string[] }> = [];
+            for (const s of catalogue.specialists) {
+              for (const t of (s.tools ?? [])) {
+                if (!seen.has(t.name)) {
+                  seen.add(t.name);
+                  tools.push({ name: t.name, workspace_url: t.workspace_url, usedBy: [s.name] });
+                } else {
+                  tools.find((tt) => tt.name === t.name)!.usedBy.push(s.name);
+                }
+              }
+            }
+            return (
+              <ul className="space-y-1 text-xs">
+                {tools.map((t) => (
+                  <li key={t.name} className="flex items-start gap-2">
+                    <Wrench className="w-3 h-3 text-blue-500 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      {t.workspace_url ? (
+                        <a href={t.workspace_url} target="_blank" rel="noopener noreferrer"
+                          className="font-mono text-blue-700 hover:underline inline-flex items-center gap-1">
+                          {t.name} <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      ) : <span className="font-mono text-gray-700">{t.name}</span>}
+                      <div className="text-[10px] text-gray-500 truncate">used by {t.usedBy.join(', ')}</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ═══════════════════════ Controls & Validation tab ═══════════════════════ */
+
+interface ControlRow {
+  control_id: string; name: string; layer?: string;
+  status: string; last_verified_at?: string | null;
+  description?: string;
+}
+
+function ControlsValidationTab() {
+  const [controls, setControls] = useState<ControlRow[]>([]);
+  useEffect(() => {
+    fetch('/api/internal-controls/matrix').then((r) => r.json())
+      .then((d) => setControls(d.controls || d || []))
+      .catch(() => setControls([]));
+  }, []);
+  return (
+    <section className="space-y-5">
+      <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <header className="flex items-center gap-2 mb-3">
+          <ShieldCheck className="w-4 h-4 text-emerald-700" />
+          <h3 className="text-sm font-bold text-gray-900">Internal controls</h3>
+          <span className="ml-auto text-xs text-gray-500">{controls.length} controls</span>
+        </header>
+        {controls.length === 0 ? (
+          <p className="text-sm text-gray-500 italic">No controls returned by /api/internal-controls/matrix.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {controls.map((c) => (
+              <li key={c.control_id} className="py-2 flex items-center gap-3 text-sm">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-gray-900">{c.name ?? c.control_id}</div>
+                  <div className="text-[11px] text-gray-500">{c.layer ?? '—'} · last verified {relTime(c.last_verified_at ?? null)}</div>
+                </div>
+                <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5">{c.status}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <Link to="/internal-controls" className="text-xs text-violet-700 hover:underline inline-flex items-center gap-1">
+            Open the full Internal Controls page <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <header className="flex items-center gap-2 mb-3">
+          <FlaskConical className="w-4 h-4 text-amber-700" />
+          <h3 className="text-sm font-bold text-gray-900">Model validation evidence</h3>
+        </header>
+        <p className="text-xs text-gray-500 mb-3">
+          Independent validation reports per model. Where evidence isn't attached, the row carries
+          an honest empty-state badge — not faked.
+        </p>
+        <ul className="space-y-2 text-sm">
+          {['reserving_pnc', 'reserving_life', 'standard_formula', 'igloo_cat', 'prophet_life'].map((m) => (
+            <li key={m} className="border border-gray-100 rounded p-3 flex items-center gap-3">
+              <FlaskConical className="w-3.5 h-3.5 text-gray-400" />
+              <div className="flex-1 min-w-0">
+                <div className="text-gray-900 font-mono text-xs">{m}</div>
+                <div className="text-[11px] text-gray-500">Independent validation · methodology change history</div>
+              </div>
+              <span className="text-[10px] uppercase tracking-wider font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">Evidence not attached</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+/* ═══════════════════════ Model Change History tab ═══════════════════════ */
+
+interface PromotionRow {
+  promotion_id?: string;
+  model_name: string;
+  from_version?: string | null;
+  to_version: string;
+  status: string;
+  approver?: string | null;
+  approved_at?: string | null;
+  promoted_at?: string | null;
+  quarter?: string;
+  business_reason?: string | null;
+}
+
+function ModelChangeHistoryTab() {
+  const [rows, setRows] = useState<PromotionRow[]>([]);
+  useEffect(() => {
+    fetch('/api/model-governance/registry')
+      .then((r) => r.json())
+      .then((d) => setRows(d.promotions || d.registry || []))
+      .catch(() => setRows([]));
+  }, []);
+  return (
+    <section className="space-y-4">
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-[11px] uppercase tracking-wider text-gray-600">
+            <tr>
+              <th className="px-3 py-2 text-left">Model</th>
+              <th className="px-3 py-2 text-left">Version</th>
+              <th className="px-3 py-2 text-left">Status</th>
+              <th className="px-3 py-2 text-left">Approver</th>
+              <th className="px-3 py-2 text-left">Approved</th>
+              <th className="px-3 py-2 text-left">Quarter</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.length === 0 && (
+              <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500 italic">No promotion history available.</td></tr>
+            )}
+            {rows.map((r, i) => (
+              <tr key={i} className="hover:bg-gray-50">
+                <td className="px-3 py-2 font-mono text-gray-900">{r.model_name}</td>
+                <td className="px-3 py-2 font-mono text-xs">{r.from_version ?? '—'} → {r.to_version}</td>
+                <td className="px-3 py-2"><span className="text-[10px] uppercase font-semibold">{r.status}</span></td>
+                <td className="px-3 py-2 text-xs text-gray-700">{r.approver ?? '—'}</td>
+                <td className="px-3 py-2 text-xs text-gray-500 font-mono">{relTime(r.approved_at ?? r.promoted_at ?? null)}</td>
+                <td className="px-3 py-2 font-mono text-xs">{r.quarter ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-gray-500">
+        Driven from <code className="font-mono bg-gray-100 px-1 rounded">6_gov_promotions</code> + UC MLflow registry.
+        Each row resolves which model version produced the QRT output for the given quarter.
+      </p>
+    </section>
   );
 }
 
@@ -55,7 +689,7 @@ function TabButton({
   onClick: () => void;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  hint: string;
+  hint?: string;
 }) {
   return (
     <button

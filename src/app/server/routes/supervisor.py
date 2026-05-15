@@ -1,456 +1,992 @@
-"""Supervisor agent — orchestrates all sub-agents and tools.
+"""Supervisor — classifies and routes Ask-Workbench questions to specialists.
 
-The supervisor is the public face of "Regulatory AI". It receives a question,
-decides which underlying tool(s) to call, executes them, and synthesises
-a final answer. Reasoning is streamed back to the UI as Server-Sent Events.
+The supervisor is NOT a tool-calling LLM. It is a classifier that picks one of
+eight specialists (cat, ORSA narrative, reserving, second opinion, recon, DQ,
+Genie, general workbench) and invokes that specialist's prompt + data shape.
+
+Architecture:
+    Question → cache lookup (fuzzy) → classify → specialist invoke → trace → response
+
+Specialists are defined as a flat registry inside this file so the architecture
+view can render them as a static catalogue. Each specialist has:
+  - name, scope, color (UI metadata)
+  - data_sources (list of UC tables it reads)
+  - system_prompt
+  - async fetch(period) returning the data block
+  - async invoke(question, period) returning SpecialistResult
+
+Routing trace lives in `6_ai_routing_trace` — read by the /agents architecture
+view to show the last N routing decisions and the lit path.
 """
+from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
-from typing import AsyncIterator
+import re
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any, Awaitable, Callable
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from databricks.sdk.service.sql import StatementParameterListItem
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from server.config import fqn, get_request_user
-from server.sql import execute_query, execute_query_cached
-from server.ai import call_with_tools, generate_review
+from server.sql import execute_query
+from server.ai import generate_review
+from server.cache import ensure_cache_table, cache_lookup, cache_persist, make_cache_key
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/supervisor", tags=["supervisor"])
 
 
-# ── Tool definitions exposed to the LLM ───────────────────────────────────────
+# ── Specialist result type ───────────────────────────────────────────────────
 
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "pipeline_status",
-            "description": (
-                "Get the current pipeline / SLA / data quality status across all 4 QRTs "
-                "(S.06.02, S.05.01, S.25.01, S.26.06) for the latest reporting period. "
-                "Returns: feed arrival times vs SLA deadlines, DQ pass rates, any failing "
-                "expectations and what they mean. Use this to answer questions about whether "
-                "we are on track, what is delayed, and why."
-            ),
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "approval_status",
-            "description": (
-                "Get the approval workflow state for all 4 QRTs. Shows which are submitted, "
-                "approved, rejected, or not yet submitted. Use this for status / readiness questions."
-            ),
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "qrt_summary",
-            "description": (
-                "Read the gold-layer summary for a specific QRT. Returns key metrics: "
-                "for S.06.02 (assets) — CIC allocation, total SII; for S.05.01 (P&L) — combined ratios "
-                "by LoB; for S.25.01 (SCR) — solvency ratio, SCR breakdown; for S.26.06 (NL UW Risk) — "
-                "premium/reserve/cat risk. Use when the question is specifically about one QRT's content."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "qrt_id": {
-                        "type": "string",
-                        "enum": ["s0602", "s0501", "s2501", "s2606"],
-                        "description": "Which QRT — s0602 (assets), s0501 (P&L), s2501 (SCR), s2606 (NL UW risk).",
-                    }
-                },
-                "required": ["qrt_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "cross_qrt_reconciliation",
-            "description": (
-                "Get the cross-QRT reconciliation checks (e.g., assets in S.06.02 vs market risk in "
-                "S.25.01, GWP in S.05.01 vs volume measures in S.26.06). Returns each check's "
-                "source value, target value, difference, and MATCH/MISMATCH status."
-            ),
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "estimate_cycle_time",
-            "description": (
-                "Estimate how long it would take to fully refresh all QRTs from raw data, based on "
-                "recent pipeline run history. Returns minutes. Use when the user asks about deadline risk."
-            ),
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "ask_genie",
-            "description": (
-                "Ask AI/BI Genie a natural-language data question. Genie translates it to SQL "
-                "against the curated QRT tables and returns numeric results / tables. Use for "
-                "specific quantitative questions like 'what was Q3 GWP for motor liability'."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "question": {"type": "string", "description": "Natural-language data question."}
-                },
-                "required": ["question"],
-            },
-        },
-    },
-]
+@dataclass
+class SpecialistResult:
+    text: str
+    data_sources: list[str]
+    data_used: dict[str, Any] = field(default_factory=dict)
+    model_used: str = "unknown"
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
-# ── Tool implementations ─────────────────────────────────────────────────────
+# ── Specialist 1: Cat Modelling Agent ────────────────────────────────────────
 
-async def _tool_pipeline_status() -> str:
-    """Read SLA + DQ status across all pipelines (queries run in parallel, cached 15s)."""
-    sla_q = f"""
-        SELECT feed_name, source_system, status, dq_pass_rate, notes, sla_deadline, actual_arrival
-        FROM {fqn('5_mon_pipeline_sla_status')}
-        WHERE reporting_period = (SELECT MAX(reporting_period) FROM {fqn('5_mon_pipeline_sla_status')})
-        ORDER BY status DESC, feed_name
-    """
-    dq_q = f"""
-        SELECT pipeline_name,
-               SUM(passing_records) AS passing,
-               SUM(failing_records) AS failing,
-               COUNT(*) AS expectations,
-               SUM(CASE WHEN failing_records > 0 THEN 1 ELSE 0 END) AS failing_checks
-        FROM {fqn('5_mon_dq_expectation_results')}
-        WHERE reporting_period = (SELECT MAX(reporting_period) FROM {fqn('5_mon_dq_expectation_results')})
-        GROUP BY pipeline_name
-        ORDER BY pipeline_name
-    """
-    failing_q = f"""
-        SELECT pipeline_name, table_name, expectation_name, total_records, failing_records, action
-        FROM {fqn('5_mon_dq_expectation_results')}
-        WHERE failing_records > 0
-        AND reporting_period = (SELECT MAX(reporting_period) FROM {fqn('5_mon_dq_expectation_results')})
-    """
-    sla, dq, failing_details = await asyncio.gather(
-        execute_query_cached(sla_q, ttl_seconds=15),
-        execute_query_cached(dq_q, ttl_seconds=15),
-        execute_query_cached(failing_q, ttl_seconds=15),
+CAT_AGENT_SYSTEM = """You are the Cat Modelling Agent. You review the stochastic
+catastrophe output from the Igloo engine against the external event log and quote
+specific events that drove the modelled loss.
+
+Output: 4-6 short paragraphs, no headings. Cite events by name + dates + intensity.
+Compare modelled loss vs comparator. End with a recommendation:
+Accept / Re-run with adjusted assumption / Escalate."""
+
+async def _cat_fetch(period: str) -> dict[str, Any]:
+    igloo = await execute_query(
+        f"SELECT lob_name, AVG(modelled_aal_eur) AS aal "
+        f"FROM {fqn('2_stg_cat_risk_by_lob')} GROUP BY lob_name LIMIT 5"
     )
-    return json.dumps({
-        "sla_status": sla,
-        "dq_summary": dq,
-        "failing_dq_checks": failing_details,
-    }, default=str, indent=2)
+    events = await execute_query(
+        f"SELECT event_id, event_name, start_date, end_date, region, "
+        f"  peak_intensity, peak_intensity_unit, modelled_aal_eur_m, notes "
+        f"FROM {fqn('6_demo_event_log')} ORDER BY start_date DESC LIMIT 6"
+    )
+    storm_claims = await execute_query(
+        f"SELECT COUNT(*) AS n, ROUND(SUM(CAST(gross_incurred AS DOUBLE))/1e6, 1) AS incurred_meur "
+        f"FROM {fqn('1_raw_claims')} WHERE event_id = 'storm_dec_2025' AND reporting_period = :p",
+        parameters=[StatementParameterListItem(name="p", value=period)],
+    )
+    return {"igloo_by_lob": igloo, "events": events, "storm_claims": storm_claims}
 
 
-async def _tool_approval_status() -> str:
-    try:
-        rows = await execute_query(f"""
-            SELECT qrt_id, reporting_period, status, submitted_by, submitted_at,
-                   reviewed_by, reviewed_at, comments
-            FROM {fqn('6_ai_approvals')}
-            WHERE reporting_period = (SELECT MAX(reporting_period) FROM {fqn('5_mon_pipeline_sla_status')})
-            ORDER BY qrt_id
-        """)
-    except Exception:
-        rows = []
-    return json.dumps({"approvals": rows, "note": "Empty approvals means not yet submitted."}, default=str, indent=2)
+async def _cat_invoke(question: str, period: str) -> SpecialistResult:
+    data = await _cat_fetch(period)
+    user_prompt = f"""Question: {question}
+
+Quarter under review: {period}
+
+Igloo cat output by LoB:
+{json.dumps(data['igloo_by_lob'], default=str, indent=2)[:1500]}
+
+External event log:
+{json.dumps(data['events'], default=str, indent=2)[:2500]}
+
+Storm-tagged claims (storm_dec_2025):
+{json.dumps(data['storm_claims'], default=str, indent=2)}
+
+Apply your review structure. Cite events by name + dates + intensity."""
+    r = await generate_review(CAT_AGENT_SYSTEM, user_prompt, agent_name="cat_agent")
+    return SpecialistResult(
+        text=r.text,
+        data_sources=["2_stg_cat_risk_by_lob", "6_demo_event_log", "1_raw_claims"],
+        data_used={"events_count": len(data["events"]), "storm_claims": data["storm_claims"]},
+        model_used=r.model_used, input_tokens=r.input_tokens, output_tokens=r.output_tokens,
+    )
 
 
-async def _tool_qrt_summary(qrt_id: str) -> str:
-    summary_table_map = {
-        "s0602": "3_qrt_s0602_summary",
-        "s0501": "3_qrt_s0501_summary",
-        "s2501": "3_qrt_s2501_summary",
-        "s2606": "3_qrt_s2606_summary",
-    }
-    if qrt_id not in summary_table_map:
-        return json.dumps({"error": f"Unknown qrt_id: {qrt_id}"})
-    rows = await execute_query(f"""
-        SELECT * FROM {fqn(summary_table_map[qrt_id])}
-        ORDER BY reporting_period DESC LIMIT 2
-    """)
-    return json.dumps({"qrt": qrt_id, "summary": rows}, default=str, indent=2)
+# ── Specialist 2: ORSA Narrative Agent ───────────────────────────────────────
+
+ORSA_NARRATIVE_SYSTEM = """You are the ORSA Narrative Agent. You draft commentary
+for ORSA scenarios — board-paper grade. Tone: precise, factual, conservative.
+Cite the actual numbers from the data block. Do not recommend regulatory filings.
+Length: 200-300 words."""
+
+async def _orsa_fetch(period: str) -> dict[str, Any]:
+    runs = await execute_query(
+        f"SELECT scenario_id, scenario_name, base_period, MAX(run_timestamp) AS last_run "
+        f"FROM {fqn('gold_orsa_results')} WHERE base_period = :p "
+        f"GROUP BY scenario_id, scenario_name, base_period "
+        f"ORDER BY last_run DESC LIMIT 5",
+        parameters=[StatementParameterListItem(name="p", value=period)],
+    )
+    latest_results = await execute_query(
+        f"SELECT scenario_name, year_offset, projection_year, scr_eur, solvency_ratio_pct, is_base "
+        f"FROM {fqn('gold_orsa_results')} WHERE base_period = :p "
+        f"ORDER BY scenario_name, year_offset LIMIT 60",
+        parameters=[StatementParameterListItem(name="p", value=period)],
+    )
+    return {"runs": runs, "results": latest_results}
 
 
-async def _tool_cross_qrt_reconciliation() -> str:
-    rows = await execute_query(f"""
-        SELECT * FROM {fqn('5_mon_cross_qrt_reconciliation')}
-        WHERE reporting_period = (SELECT MAX(reporting_period) FROM {fqn('5_mon_cross_qrt_reconciliation')})
-    """)
-    return json.dumps({"reconciliation_checks": rows}, default=str, indent=2)
+async def _orsa_invoke(question: str, period: str) -> SpecialistResult:
+    data = await _orsa_fetch(period)
+    user_prompt = f"""Question: {question}
+
+Reporting period: {period}
+
+Recent ORSA scenario runs:
+{json.dumps(data['runs'], default=str, indent=2)}
+
+Latest results (per scenario, year 0-3, base vs stressed):
+{json.dumps(data['results'], default=str, indent=2)[:3000]}
+
+Draft a brief commentary answering the question. Cite specific scenarios + numbers."""
+    r = await generate_review(ORSA_NARRATIVE_SYSTEM, user_prompt, agent_name="orsa_narrative")
+    return SpecialistResult(
+        text=r.text,
+        data_sources=["gold_orsa_results", "gold_orsa_narratives"],
+        data_used={"scenarios": [r["scenario_id"] for r in data["runs"]]},
+        model_used=r.model_used, input_tokens=r.input_tokens, output_tokens=r.output_tokens,
+    )
 
 
-async def _tool_estimate_cycle_time() -> str:
-    return json.dumps({
-        "regeneration_minutes": 4,
-        "details": (
-            "Recent S.05.01 pipeline runs averaged 90s; S.06.02 averaged 60s; "
-            "S.25.01 with model run averaged 120s; S.26.06 with stochastic engine averaged 180s. "
-            "Pipelines run in parallel — total wall-clock is ~3-4 minutes for a full refresh "
-            "from corrected raw data."
-        ),
-    }, indent=2)
+# ── Specialist 3: Senior Reserving Actuary ───────────────────────────────────
+
+RESERVING_SYSTEM = """You are the Senior Reserving Actuary. You surface reserving
+anomalies between quarters and propose overlays for the human actuary to consider.
+You do NOT create overlays — only the Overlays Register UI does that.
+
+For the user's question, identify the 1-3 most material LoB movements with cited
+numbers, propose a candidate overlay (model, LoB, magnitude EUR, direction,
+category, rationale) and end with: "This decision is yours."""
+
+async def _reserving_fetch(period: str) -> dict[str, Any]:
+    # Q-over-Q claims movement
+    prior = _prior_period(period)
+    rows = await execute_query(
+        f"SELECT reporting_period, lob_name, "
+        f"  SUM(CAST(gross_incurred AS DOUBLE)) AS incurred, COUNT(*) AS claim_count "
+        f"FROM {fqn('1_raw_claims')} WHERE reporting_period IN (:p1, :p2) "
+        f"GROUP BY reporting_period, lob_name",
+        parameters=[
+            StatementParameterListItem(name="p1", value=prior),
+            StatementParameterListItem(name="p2", value=period),
+        ],
+    )
+    movements = _shape_lob_movements(rows, prior, period)
+    overlays = await execute_query(
+        f"SELECT line_of_business, magnitude_eur, category, status "
+        f"FROM {fqn('6_gov_overlays')} WHERE quarter = :p",
+        parameters=[StatementParameterListItem(name="p", value=period)],
+    )
+    return {"movements": movements, "existing_overlays": overlays, "prior": prior}
 
 
-async def _tool_ask_genie(question: str) -> str:
-    """Delegate to Genie via the existing route logic."""
+async def _reserving_invoke(question: str, period: str) -> SpecialistResult:
+    data = await _reserving_fetch(period)
+    user_prompt = f"""Question: {question}
+
+Quarter under review: {period} (vs prior {data['prior']})
+
+LoB-level movement (incurred claims):
+{json.dumps(data['movements'], default=str, indent=2)}
+
+Already-recorded overlays for {period} (do not duplicate):
+{json.dumps(data['existing_overlays'], default=str, indent=2)}
+
+Identify the most material movements addressing the user's question. For each:
+1. Observation with numbers cited.
+2. Most likely driver.
+3. Proposed overlay (JSON code block) if appropriate.
+End with: "This decision is yours."""
+    r = await generate_review(RESERVING_SYSTEM, user_prompt, agent_name="senior_reserving")
+    return SpecialistResult(
+        text=r.text,
+        data_sources=["1_raw_claims", "6_gov_overlays"],
+        data_used={"movements_count": len(data["movements"])},
+        model_used=r.model_used, input_tokens=r.input_tokens, output_tokens=r.output_tokens,
+    )
+
+
+# ── Specialist 4: Second Opinion (Contrarian) ────────────────────────────────
+
+SECOND_OPINION_SYSTEM = """You are the Contrarian Capital Reviewer. You pressure-test
+scenario assumptions before they reach a board paper. Be specific, evidence-based.
+Each pushback cites a data source. End with one constructive recommendation."""
+
+async def _second_opinion_fetch(period: str) -> dict[str, Any]:
+    runs = await execute_query(
+        f"SELECT scenario_label, result_json, ran_at "
+        f"FROM {fqn('6_demo_whatif_runs')} ORDER BY ran_at DESC LIMIT 3"
+    )
+    return {"recent_whatif_runs": runs}
+
+
+async def _second_opinion_invoke(question: str, period: str) -> SpecialistResult:
+    data = await _second_opinion_fetch(period)
+    user_prompt = f"""Question: {question}
+
+Recent what-if scenario runs:
+{json.dumps(data['recent_whatif_runs'], default=str, indent=2)[:2500]}
+
+Surface 2-4 specific pushbacks against the assumptions implied by the question.
+Each pushback: question + evidence + what to test. End with a constructive recommendation."""
+    r = await generate_review(SECOND_OPINION_SYSTEM, user_prompt, agent_name="second_opinion")
+    return SpecialistResult(
+        text=r.text,
+        data_sources=["6_demo_whatif_runs"],
+        data_used={"whatif_runs_seen": len(data["recent_whatif_runs"])},
+        model_used=r.model_used, input_tokens=r.input_tokens, output_tokens=r.output_tokens,
+    )
+
+
+# ── Specialist 5: Recon Investigator (new) ───────────────────────────────────
+
+RECON_SYSTEM = """You are the Recon Investigator. You explain cross-QRT
+reconciliation breaks. For each break: the source QRT cell, the target QRT cell,
+the magnitude, the most likely cause (timing, classification, unit, methodology),
+and the resolution step. Be concrete. No platitudes."""
+
+async def _recon_fetch(period: str) -> dict[str, Any]:
+    checks = await execute_query(
+        f"SELECT * FROM {fqn('5_mon_cross_qrt_reconciliation')} WHERE reporting_period = :p",
+        parameters=[StatementParameterListItem(name="p", value=period)],
+    )
+    return {"checks": checks}
+
+
+async def _recon_invoke(question: str, period: str) -> SpecialistResult:
+    data = await _recon_fetch(period)
+    user_prompt = f"""Question: {question}
+
+Cross-QRT reconciliation checks for {period}:
+{json.dumps(data['checks'], default=str, indent=2)[:3500]}
+
+For each MISMATCH, give: cells, magnitude, likely cause, resolution step.
+If all MATCH, say so plainly with the count."""
+    r = await generate_review(RECON_SYSTEM, user_prompt, agent_name="recon_investigator")
+    return SpecialistResult(
+        text=r.text,
+        data_sources=["5_mon_cross_qrt_reconciliation"],
+        data_used={"checks_count": len(data["checks"])},
+        model_used=r.model_used, input_tokens=r.input_tokens, output_tokens=r.output_tokens,
+    )
+
+
+# ── Specialist 6: DQ Investigator (new) ──────────────────────────────────────
+
+DQ_SYSTEM = """You are the DQ Investigator. You explain data quality failures
+across the ingestion pipelines: which feed, which expectation, what's broken,
+why it's likely broken, who owns the source, and what the next step is. Cite
+specific feeds + expectation names. No generic answers."""
+
+async def _dq_fetch(period: str) -> dict[str, Any]:
+    sla = await execute_query(
+        f"SELECT feed_name, source_system, status, dq_pass_rate, notes, "
+        f"  sla_deadline, actual_arrival "
+        f"FROM {fqn('5_mon_pipeline_sla_status')} WHERE reporting_period = :p",
+        parameters=[StatementParameterListItem(name="p", value=period)],
+    )
+    failing = await execute_query(
+        f"SELECT pipeline_name, table_name, expectation_name, "
+        f"  total_records, failing_records, action "
+        f"FROM {fqn('5_mon_dq_expectation_results')} "
+        f"WHERE reporting_period = :p AND failing_records > 0",
+        parameters=[StatementParameterListItem(name="p", value=period)],
+    )
+    return {"sla": sla, "failing_dq": failing}
+
+
+async def _dq_invoke(question: str, period: str) -> SpecialistResult:
+    data = await _dq_fetch(period)
+    user_prompt = f"""Question: {question}
+
+Pipeline SLA status for {period}:
+{json.dumps(data['sla'], default=str, indent=2)[:2500]}
+
+Failing DQ expectations:
+{json.dumps(data['failing_dq'], default=str, indent=2)[:2000]}
+
+Explain the failures. Cite feeds + expectations. Who owns it; what's next?"""
+    r = await generate_review(DQ_SYSTEM, user_prompt, agent_name="dq_investigator")
+    return SpecialistResult(
+        text=r.text,
+        data_sources=["5_mon_pipeline_sla_status", "5_mon_dq_expectation_results"],
+        data_used={"late_feeds": sum(1 for f in data["sla"] if f.get("status") not in ("on_time", "MATCH"))},
+        model_used=r.model_used, input_tokens=r.input_tokens, output_tokens=r.output_tokens,
+    )
+
+
+# ── Specialist 7: Genie ──────────────────────────────────────────────────────
+
+async def _genie_invoke(question: str, period: str) -> SpecialistResult:
     try:
         from server.routes.genie import _query_genie_sync
-        result = await asyncio.to_thread(_query_genie_sync, question)
-        # Return only the most useful bits
-        compact = {
-            "answer": result.get("answer", ""),
-            "sql": result.get("sql"),
-            "columns": result.get("columns", []),
-            "row_count": len(result.get("rows", [])),
-            "first_rows": result.get("rows", [])[:10],
-        }
-        return json.dumps(compact, default=str, indent=2)
-    except Exception as e:
-        return json.dumps({"error": f"Genie query failed: {e}"})
+        res = await asyncio.to_thread(_query_genie_sync, question)
+        text = res.get("answer", "") or "(Genie returned no answer)"
+        if res.get("sql"):
+            text += f"\n\n**SQL:**\n```sql\n{res['sql']}\n```"
+        return SpecialistResult(
+            text=text,
+            data_sources=["Unity Catalog (Genie space)"],
+            data_used={"sql": res.get("sql"), "row_count": len(res.get("rows", []))},
+            model_used="genie",
+        )
+    except Exception as exc:
+        logger.exception("Genie invoke failed")
+        return SpecialistResult(
+            text=f"Genie unavailable: {exc}",
+            data_sources=["Unity Catalog (Genie space)"],
+            model_used="genie",
+        )
 
 
-TOOL_IMPLS = {
-    "pipeline_status": lambda args: _tool_pipeline_status(),
-    "approval_status": lambda args: _tool_approval_status(),
-    "qrt_summary": lambda args: _tool_qrt_summary(args.get("qrt_id", "")),
-    "cross_qrt_reconciliation": lambda args: _tool_cross_qrt_reconciliation(),
-    "estimate_cycle_time": lambda args: _tool_estimate_cycle_time(),
-    "ask_genie": lambda args: _tool_ask_genie(args.get("question", "")),
+# ── Specialist 8: General Workbench ──────────────────────────────────────────
+
+GENERAL_SYSTEM = """You are the General Workbench agent. You answer operational
+"where are we?" questions about Q4 close — feeds, model promotions, overlays,
+approvals, recon flags. Cite the source table for every fact. Keep under
+200 words. Use markdown."""
+
+async def _general_fetch(period: str) -> dict[str, Any]:
+    feeds = await execute_query(
+        f"SELECT feed_name, status, sla_deadline, feed_received_timestamp "
+        f"FROM {fqn('5_mon_pipeline_sla_status')} WHERE reporting_period = :p",
+        parameters=[StatementParameterListItem(name="p", value=period)],
+    )
+    promos = await execute_query(
+        f"SELECT model_name, status, to_version FROM {fqn('6_gov_promotions')} "
+        f"WHERE quarter = :p ORDER BY model_name",
+        parameters=[StatementParameterListItem(name="p", value=period)],
+    )
+    overlays = await execute_query(
+        f"SELECT line_of_business, magnitude_eur, category, status, author "
+        f"FROM {fqn('6_gov_overlays')} "
+        f"WHERE quarter = :p AND status IN ('pending_approval', 'draft')",
+        parameters=[StatementParameterListItem(name="p", value=period)],
+    )
+    return {"feeds": feeds, "promotions": promos, "pending_overlays": overlays}
+
+
+async def _general_invoke(question: str, period: str) -> SpecialistResult:
+    data = await _general_fetch(period)
+    user_prompt = f"""Question: {question}
+
+Reporting period: {period}
+
+Current operational state:
+```json
+{json.dumps(data, default=str, indent=2)[:5000]}
+```
+
+Answer concisely with citations like `[source: 6_gov_promotions]` per fact. <200 words."""
+    r = await generate_review(GENERAL_SYSTEM, user_prompt, agent_name="general_workbench")
+    return SpecialistResult(
+        text=r.text,
+        data_sources=["5_mon_pipeline_sla_status", "6_gov_promotions", "6_gov_overlays"],
+        data_used={"feeds": len(data["feeds"]), "pending_overlays": len(data["pending_overlays"])},
+        model_used=r.model_used, input_tokens=r.input_tokens, output_tokens=r.output_tokens,
+    )
+
+
+# ── Specialist registry ──────────────────────────────────────────────────────
+
+SPECIALISTS: dict[str, dict[str, Any]] = {
+    "cat": {
+        "name": "Cat Modelling Agent",
+        "scope": "Stochastic cat output review, event log cross-reference.",
+        "triggers": "Igloo, cat losses, storm impact, AAL, VaR, TVaR, S.26.06",
+        "color": "amber",
+        "data_sources": ["2_stg_cat_risk_by_lob", "6_demo_event_log", "1_raw_claims"],
+        "invoke": _cat_invoke,
+    },
+    "orsa": {
+        "name": "ORSA Narrative Agent",
+        "scope": "Stress commentary, board narrative, scenario interpretation.",
+        "triggers": "ORSA, stress, scenario, board paper, capital path, worst stress, reverse stress",
+        "color": "violet",
+        "data_sources": ["gold_orsa_results", "gold_orsa_narratives"],
+        "invoke": _orsa_invoke,
+    },
+    "reserving": {
+        "name": "Senior Reserving Actuary",
+        "scope": "Reserving anomaly detection, overlay proposals.",
+        "triggers": "reserves, reserving, triangle, LoB movement, ultimate, IBNR, property reserves",
+        "color": "emerald",
+        "data_sources": ["1_raw_claims", "6_gov_overlays"],
+        "invoke": _reserving_invoke,
+    },
+    "second_opinion": {
+        "name": "Contrarian Capital Reviewer",
+        "scope": "Pressure-tests strategic what-if assumptions.",
+        "triggers": "what-if, scenario assumption, doubling, growth scenario, expansion, strategic test",
+        "color": "rose",
+        "data_sources": ["6_demo_whatif_runs"],
+        "invoke": _second_opinion_invoke,
+    },
+    "recon": {
+        "name": "Recon Investigator",
+        "scope": "Cross-QRT reconciliation gap explanation.",
+        "triggers": "reconciliation, recon, mismatch, breaks, cross-QRT, S.06.02 vs S.25.01",
+        "color": "blue",
+        "data_sources": ["5_mon_cross_qrt_reconciliation"],
+        "invoke": _recon_invoke,
+    },
+    "dq": {
+        "name": "DQ Investigator",
+        "scope": "Data quality root cause: failing expectations, late feeds, schema drift.",
+        "triggers": "DQ, data quality, late feed, quarantined, expectation, ABN AMRO, custodian feed",
+        "color": "orange",
+        "data_sources": ["5_mon_pipeline_sla_status", "5_mon_dq_expectation_results"],
+        "invoke": _dq_invoke,
+    },
+    "genie": {
+        "name": "Genie",
+        "scope": "Free-form SQL over governed UC tables. Numeric exploration.",
+        "triggers": "show me, what was, list, count, sum, group by, by line of business, by quarter",
+        "color": "cyan",
+        "data_sources": ["Unity Catalog (Genie space)"],
+        "invoke": _genie_invoke,
+    },
+    "general": {
+        "name": "General Workbench",
+        "scope": "Operational state — feeds, promotions, overlays, approvals.",
+        "triggers": "outstanding, status, pending, what's left, where are we, close",
+        "color": "slate",
+        "data_sources": ["5_mon_pipeline_sla_status", "6_gov_promotions", "6_gov_overlays"],
+        "invoke": _general_invoke,
+    },
 }
 
 
-# ── Supervisor system prompt ──────────────────────────────────────────────────
+# ── Classifier ───────────────────────────────────────────────────────────────
 
-SUPERVISOR_PROMPT = """[Pillar context — Cross-pillar orchestrator]
-You serve all three Solvency II pillars by routing each question to the right tool. When you
-quote numbers, mention which pillar they support (Pillar 1 Capital, Pillar 2 Governance,
-Pillar 3 Disclosure) and the cross-pillar handoff if relevant (e.g. "this ORSA result feeds
-the SFCR Risk Profile section under Pillar 3").
+CLASSIFIER_SYSTEM = """You are a routing classifier. Given a user question about
+a Solvency II reporting cycle, pick ONE specialist from the catalogue who is best
+positioned to answer.
 
-You are the Regulatory AI Supervisor at a European composite (P&C + Life) insurer.
-You orchestrate specialised sub-tools to answer regulatory and operational questions about the
-Solvency II QRT reporting cycle.
+Reply with ONLY a JSON object on a single line, no prose, no markdown fences:
+{"specialist_key": "<key>", "confidence": <0-1>, "reason": "<one short sentence>"}
 
-Your tools:
-- pipeline_status — pipeline / SLA / data quality status across all 4 QRTs
-- approval_status — approval workflow state per QRT
-- qrt_summary — gold-layer summary for a specific QRT
-- cross_qrt_reconciliation — cross-template consistency checks
-- estimate_cycle_time — how long a full pipeline refresh takes
-- ask_genie — natural-language data query (Genie returns SQL + tables)
+If no specialist is a strong match, pick "general". If the question is purely a
+numeric data query ("show me", "what was the Q3 ..."), pick "genie".
+Confidence is your subjective fit (0=poor, 1=ideal)."""
 
-How to work:
-1. Decide which tool(s) you need based on the user's question.
-2. Call them in parallel when independent, sequentially when one depends on another.
-3. Synthesise the results into a clear, plain-English answer.
-4. Use Solvency II terminology correctly (SCR, MCR, BSCR, Own Funds, technical provisions, LoB).
-5. Be specific with numbers. Reference cell codes (e.g., S.25.01 R0100) when useful.
-6. If the question is about deadline risk, always check pipeline_status AND estimate_cycle_time.
-7. Distinguish facts (from tools) from interpretations (your analysis).
 
-You must NEVER:
-- Approve, submit, or claim authority to sign off on a QRT.
-- Impersonate the appointed actuary, CFO, or CRO.
-- Invent numbers — if a tool didn't return it, say so.
+def _classifier_user_prompt(question: str) -> str:
+    catalogue = "\n".join(
+        f'- {k}: {s["name"]} — {s["scope"]} Triggers: {s["triggers"]}'
+        for k, s in SPECIALISTS.items()
+    )
+    return f"Available specialists:\n{catalogue}\n\nUser question:\n{question}\n\nReturn the JSON object."
 
-The reporting deadline is Friday end-of-week. The entity is Bricksurance SE (LEI 5493001KJTIIGC8Y1R12).
-"""
 
+@dataclass
+class Classification:
+    specialist_key: str
+    confidence: float
+    reason: str
+    classifier_model: str = "unknown"
+
+
+async def _classify(question: str) -> Classification:
+    """LLM-driven classification. Falls back to 'general' on any parse error."""
+    try:
+        r = await generate_review(
+            CLASSIFIER_SYSTEM, _classifier_user_prompt(question),
+            agent_name="supervisor_classifier",
+        )
+        text = r.text.strip()
+        m = re.search(r"\{[^{}]+\}", text)
+        if not m:
+            raise ValueError(f"No JSON object in classifier reply: {text[:200]}")
+        obj = json.loads(m.group(0))
+        key = obj.get("specialist_key", "general")
+        if key not in SPECIALISTS:
+            key = "general"
+        return Classification(
+            specialist_key=key,
+            confidence=float(obj.get("confidence", 0.5)),
+            reason=str(obj.get("reason", ""))[:240],
+            classifier_model=r.model_used,
+        )
+    except Exception as exc:
+        logger.warning("Classifier failed, defaulting to 'general': %s", exc)
+        return Classification(
+            specialist_key="general", confidence=0.0,
+            reason=f"classifier-failed-fallback ({type(exc).__name__})",
+        )
+
+
+# ── Cache: fuzzy hash for question-level lookups ─────────────────────────────
+
+_PUNCT_RE = re.compile(r"[^\w\s]")
+_WS_RE = re.compile(r"\s+")
+
+
+def _normalize(question: str) -> str:
+    """Lowercase, strip punctuation, collapse whitespace. Fuzzy enough for demo."""
+    s = _PUNCT_RE.sub(" ", question.lower())
+    return _WS_RE.sub(" ", s).strip()
+
+
+def _route_cache_key(question: str, period: str) -> str:
+    norm = _normalize(question)
+    h = hashlib.sha256(f"route|{norm}|{period}".encode()).hexdigest()
+    return h[:24]
+
+
+# ── Routing trace table ──────────────────────────────────────────────────────
+
+TRACE_TABLE = "6_ai_routing_trace"
+
+
+async def _ensure_trace_table() -> None:
+    await execute_query(
+        f"CREATE TABLE IF NOT EXISTS {fqn(TRACE_TABLE)} ("
+        " trace_id STRING, question STRING, normalised_question STRING,"
+        " specialist_key STRING, specialist_name STRING, confidence DOUBLE,"
+        " classifier_reason STRING, classifier_model STRING,"
+        " data_sources_json STRING, answer_text STRING, model_used STRING,"
+        " input_tokens INT, output_tokens INT, was_cached BOOLEAN,"
+        " baked BOOLEAN, period STRING, created_at TIMESTAMP, created_by STRING)"
+    )
+
+
+async def _record_trace(
+    *, question: str, period: str, cls: Classification, result: SpecialistResult,
+    was_cached: bool, baked: bool, user: str,
+) -> str:
+    await _ensure_trace_table()
+    trace_id = str(uuid.uuid4())
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    await execute_query(
+        f"INSERT INTO {fqn(TRACE_TABLE)} "
+        "(trace_id, question, normalised_question, specialist_key, specialist_name,"
+        " confidence, classifier_reason, classifier_model, data_sources_json,"
+        " answer_text, model_used, input_tokens, output_tokens, was_cached, baked,"
+        " period, created_at, created_by) "
+        "VALUES (:tid, :q, :nq, :sk, :sn, :c, :cr, :cm, :ds, :a, :m, :it, :ot, "
+        " :wc, :bk, :p, CAST(:t AS TIMESTAMP), :u)",
+        parameters=[
+            StatementParameterListItem(name="tid", value=trace_id),
+            StatementParameterListItem(name="q",   value=question[:2000]),
+            StatementParameterListItem(name="nq",  value=_normalize(question)[:2000]),
+            StatementParameterListItem(name="sk",  value=cls.specialist_key),
+            StatementParameterListItem(name="sn",  value=SPECIALISTS[cls.specialist_key]["name"]),
+            StatementParameterListItem(name="c",   value=str(cls.confidence), type="DOUBLE"),
+            StatementParameterListItem(name="cr",  value=cls.reason),
+            StatementParameterListItem(name="cm",  value=cls.classifier_model),
+            StatementParameterListItem(name="ds",  value=json.dumps(result.data_sources)),
+            StatementParameterListItem(name="a",   value=result.text[:6000]),
+            StatementParameterListItem(name="m",   value=result.model_used),
+            StatementParameterListItem(name="it",  value=str(result.input_tokens), type="INT"),
+            StatementParameterListItem(name="ot",  value=str(result.output_tokens), type="INT"),
+            StatementParameterListItem(name="wc",  value="true" if was_cached else "false", type="BOOLEAN"),
+            StatementParameterListItem(name="bk",  value="true" if baked else "false", type="BOOLEAN"),
+            StatementParameterListItem(name="p",   value=period),
+            StatementParameterListItem(name="t",   value=ts),
+            StatementParameterListItem(name="u",   value=user),
+        ],
+    )
+    return trace_id
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _prior_period(period: str) -> str:
+    """E.g. 2025-Q4 → 2025-Q3, 2025-Q1 → 2024-Q4."""
+    try:
+        year, q = period.split("-Q")
+        y, qn = int(year), int(q)
+        if qn == 1:
+            return f"{y-1}-Q4"
+        return f"{y}-Q{qn-1}"
+    except Exception:
+        return period
+
+
+def _shape_lob_movements(rows: list, prior: str, current: str) -> list:
+    by_lob: dict[str, dict[str, Any]] = {}
+    for r in rows:
+        lob = r["lob_name"]
+        by_lob.setdefault(lob, {})[r["reporting_period"]] = {
+            "incurred": float(r["incurred"] or 0),
+            "count":    int(r["claim_count"] or 0),
+        }
+    out = []
+    for lob, data in by_lob.items():
+        a = data.get(current, {}); b = data.get(prior, {})
+        ic_a = a.get("incurred", 0); ic_b = b.get("incurred", 0)
+        if ic_b <= 0:
+            continue
+        delta_pct = (ic_a - ic_b) / ic_b * 100
+        out.append({
+            "lob": lob, "current_incurred_eur": ic_a, "prior_incurred_eur": ic_b,
+            "delta_eur": ic_a - ic_b, "delta_pct": round(delta_pct, 1),
+        })
+    return sorted(out, key=lambda r: abs(r["delta_pct"]), reverse=True)[:6]
+
+
+# ── Public endpoints ─────────────────────────────────────────────────────────
+
+class RouteRequest(BaseModel):
+    question: str
+    period: str = "2025-Q4"
+
+
+async def _call_supervisor_endpoint(endpoint_name: str, question: str, period: str) -> dict | None:
+    """POST to the Mosaic AI Model Serving endpoint that hosts
+    `agent_workbench_supervisor`. Returns the parsed first-row response, or
+    None if the endpoint isn't reachable. The app proxies to this endpoint
+    when SUPERVISOR_ENDPOINT_NAME is set — Phase 8 wiring.
+    """
+    try:
+        from server.config import get_workspace_client
+        w = get_workspace_client()
+        resp = await asyncio.to_thread(
+            w.serving_endpoints.query,
+            name=endpoint_name,
+            dataframe_records=[{"question": question, "period": period}],
+        )
+        # The pyfunc returns a DataFrame; the SDK serialises it as
+        # {"predictions": [{"agent": "...", "text": "...", ...}]}
+        preds = resp.predictions if hasattr(resp, "predictions") else resp.get("predictions")
+        if not preds:
+            return None
+        return preds[0] if isinstance(preds, list) else preds
+    except Exception as exc:
+        logger.warning("Supervisor endpoint call failed: %s", exc)
+        return None
+
+
+@router.post("/route")
+async def route_question(req: RouteRequest, request: Request):
+    """Main supervisor entry. Classify → cache → invoke → trace → return.
+
+    Phase 8: when `SUPERVISOR_ENDPOINT_NAME` is set, the app proxies to the
+    Mosaic AI serving endpoint that hosts `agent_workbench_supervisor` and
+    records a routing trace from the endpoint response. Falls back to in-app
+    Phase 7 routing if the endpoint is unreachable.
+    """
+    import os
+    if not req.question or len(req.question.strip()) < 3:
+        raise HTTPException(400, "Question too short")
+    user = get_request_user(request)
+    period = req.period
+
+    await ensure_cache_table()
+    await _ensure_trace_table()
+
+    # Phase 8 proxy path — fan out to the supervisor serving endpoint
+    endpoint_name = os.getenv("SUPERVISOR_ENDPOINT_NAME", "").strip()
+    if endpoint_name:
+        pred = await _call_supervisor_endpoint(endpoint_name, req.question, period)
+        if pred and pred.get("text"):
+            specialist_key = pred.get("specialist_key", "general")
+            specialist_name = SPECIALISTS.get(specialist_key, SPECIALISTS["general"])["name"]
+            result = SpecialistResult(
+                text=pred["text"],
+                data_sources=pred.get("data_sources", []),
+                model_used=pred.get("model_used", endpoint_name),
+            )
+            cls = Classification(
+                specialist_key=specialist_key,
+                confidence=float(pred.get("confidence", 0.0) or 0.0),
+                reason=str(pred.get("classifier_reason", "") or "")[:240],
+                classifier_model=f"endpoint:{endpoint_name}",
+            )
+            trace_id = await _record_trace(
+                question=req.question, period=period, cls=cls, result=result,
+                was_cached=bool(pred.get("cached")), baked=bool(pred.get("baked")),
+                user=user,
+            )
+            return {
+                "trace_id": trace_id,
+                "answer": result.text,
+                "specialist_key": specialist_key,
+                "specialist_name": specialist_name,
+                "data_sources": result.data_sources,
+                "model_used": result.model_used,
+                "confidence": cls.confidence,
+                "classifier_reason": cls.reason,
+                "cached": bool(pred.get("cached")),
+                "baked": bool(pred.get("baked")),
+                "via": "endpoint",
+            }
+        # endpoint failed — fall through to Phase 7 in-app routing
+
+    # 1. Cache lookup (fuzzy hash on normalized question + period)
+    key = _route_cache_key(req.question, period)
+    cached = await cache_lookup(key)
+    if cached and cached.get("answer"):
+        result = SpecialistResult(
+            text=cached["answer"],
+            data_sources=cached.get("data_sources", []),
+            model_used=cached.get("model_used", "cached"),
+        )
+        cls = Classification(
+            specialist_key=cached.get("specialist_key", "general"),
+            confidence=float(cached.get("confidence", 1.0)),
+            reason=cached.get("classifier_reason", "from cache"),
+            classifier_model=cached.get("classifier_model", "cached"),
+        )
+        baked = bool(cached.get("baked", False))
+        trace_id = await _record_trace(
+            question=req.question, period=period, cls=cls, result=result,
+            was_cached=True, baked=baked, user=user,
+        )
+        return {
+            "trace_id": trace_id,
+            "answer": result.text,
+            "specialist_key": cls.specialist_key,
+            "specialist_name": SPECIALISTS[cls.specialist_key]["name"],
+            "data_sources": result.data_sources,
+            "model_used": result.model_used,
+            "confidence": cls.confidence,
+            "classifier_reason": cls.reason,
+            "cached": True,
+            "baked": baked,
+            "cached_at": cached.get("_cached_at"),
+        }
+
+    # 2. Classify
+    cls = await _classify(req.question)
+    specialist = SPECIALISTS[cls.specialist_key]
+
+    # 3. Invoke specialist
+    try:
+        result = await specialist["invoke"](req.question, period)
+    except Exception as exc:
+        # Try fallback cache match (cache may have a near-neighbour by normalized hash already tried;
+        # gracefully degrade with an honest message).
+        logger.exception("Specialist invoke failed: %s", cls.specialist_key)
+        msg = (
+            f"I can't reach the model right now — the {specialist['name']} specialist failed. "
+            "Try one of these recently answered questions, or retry in a moment."
+        )
+        recent = await _recent_rows(limit=5)
+        return {
+            "trace_id": None,
+            "answer": msg,
+            "specialist_key": cls.specialist_key,
+            "specialist_name": specialist["name"],
+            "data_sources": specialist["data_sources"],
+            "model_used": "fallback",
+            "confidence": cls.confidence,
+            "classifier_reason": cls.reason,
+            "cached": False,
+            "baked": False,
+            "error": str(exc)[:240],
+            "suggestions": [r["question"] for r in recent if r.get("question")],
+        }
+
+    # 4. Record trace
+    trace_id = await _record_trace(
+        question=req.question, period=period, cls=cls, result=result,
+        was_cached=False, baked=False, user=user,
+    )
+
+    # 5. Cache for next time (TTL is implicit — the route key is stable)
+    cache_payload = {
+        "answer": result.text,
+        "specialist_key": cls.specialist_key,
+        "data_sources": result.data_sources,
+        "model_used": result.model_used,
+        "confidence": cls.confidence,
+        "classifier_reason": cls.reason,
+        "classifier_model": cls.classifier_model,
+        "baked": False,
+    }
+    await cache_persist(
+        key, agent_name="supervisor_route", scene_id=cls.specialist_key,
+        period=period, output=cache_payload, user=user,
+    )
+
+    return {
+        "trace_id": trace_id,
+        "answer": result.text,
+        "specialist_key": cls.specialist_key,
+        "specialist_name": specialist["name"],
+        "data_sources": result.data_sources,
+        "model_used": result.model_used,
+        "confidence": cls.confidence,
+        "classifier_reason": cls.reason,
+        "cached": False,
+        "baked": False,
+    }
+
+
+SPECIALIST_UC_NAMES = {
+    "cat":            "agent_cat_review",
+    "orsa":           "agent_orsa_narrative",
+    "reserving":      "agent_senior_reserving",
+    "second_opinion": "agent_second_opinion",
+    "recon":          "agent_recon_investigator",
+    "dq":             "agent_dq_investigator",
+}
+
+
+def _uc_model_url(host: str, catalog: str, schema: str, model_name: str) -> str:
+    """Workspace deep link to a registered UC model."""
+    return f"{host}/explore/data/models/{catalog}/{schema}/{model_name}"
+
+
+def _uc_function_url(host: str, catalog: str, schema: str, fn_name: str) -> str:
+    """Workspace deep link to a UC function (graceful fallback if the catalog
+    explorer URL pattern differs — the host + path is always reachable)."""
+    return f"{host}/explore/data/functions/{catalog}/{schema}/{fn_name}"
+
+
+@router.get("/specialists")
+async def list_specialists():
+    """Return the specialist catalogue for the architecture view, enriched
+    with workspace deep-links to each agent's UC artefact and the UC functions
+    it calls. Phase 8: every node in the diagram is clickable to a real artefact.
+    """
+    import os
+    from server.config import get_workspace_host
+    host = get_workspace_host()
+    catalog = os.getenv("CATALOG_NAME", "lr_dev_aws_us_catalog")
+    schema  = os.getenv("SCHEMA_NAME",  "solvency2_workbench")
+    endpoint_name = os.getenv("SUPERVISOR_ENDPOINT_NAME", "").strip()
+
+    specialists = []
+    for k, s in SPECIALISTS.items():
+        uc_name = SPECIALIST_UC_NAMES.get(k)
+        artefact = {
+            "uc_path": f"{catalog}.{schema}.{uc_name}" if uc_name else None,
+            "workspace_url": _uc_model_url(host, catalog, schema, uc_name) if uc_name else None,
+            "kind": "mlflow_pyfunc" if uc_name else "in_app",
+        }
+        # Data sources — fn_* names get UC-function deep-links
+        sources = []
+        for ds in s["data_sources"]:
+            sources.append({
+                "name": ds,
+                "kind": "uc_function" if ds.startswith("fn_") else "uc_table",
+                "workspace_url": (
+                    _uc_function_url(host, catalog, schema, ds) if ds.startswith("fn_") else None
+                ),
+            })
+        specialists.append({
+            "key": k, "name": s["name"], "scope": s["scope"], "triggers": s["triggers"],
+            "color": s["color"], "data_sources": s["data_sources"],
+            "uc_artefact": artefact, "tools": sources,
+        })
+    return {
+        "specialists": specialists,
+        "supervisor": {
+            "uc_path": f"{catalog}.{schema}.agent_workbench_supervisor",
+            "workspace_url": _uc_model_url(host, catalog, schema, "agent_workbench_supervisor"),
+            "serving_endpoint": endpoint_name or None,
+            "serving_endpoint_url": (
+                f"{host}/ml/endpoints/{endpoint_name}" if endpoint_name else None
+            ),
+            "kind": "mlflow_pyfunc",
+        },
+    }
+
+
+async def _recent_rows(limit: int = 10) -> list[dict[str, Any]]:
+    await _ensure_trace_table()
+    rows = await execute_query(
+        f"SELECT trace_id, question, specialist_key, specialist_name, confidence,"
+        f"  data_sources_json, model_used, was_cached, baked, period, created_at, created_by "
+        f"FROM {fqn(TRACE_TABLE)} ORDER BY created_at DESC LIMIT {int(limit)}"
+    )
+    for r in rows:
+        try:
+            r["data_sources"] = json.loads(r.pop("data_sources_json") or "[]")
+        except Exception:
+            r["data_sources"] = []
+    return rows
+
+
+@router.get("/recent")
+async def recent_routings(limit: int = Query(10, ge=1, le=50)):
+    """Return last N routing decisions for the architecture view + history panel."""
+    return {"recent": await _recent_rows(limit)}
+
+
+@router.get("/trace/{trace_id}")
+async def trace_detail(trace_id: str):
+    await _ensure_trace_table()
+    rows = await execute_query(
+        f"SELECT * FROM {fqn(TRACE_TABLE)} WHERE trace_id = :t LIMIT 1",
+        parameters=[StatementParameterListItem(name="t", value=trace_id)],
+    )
+    if not rows:
+        raise HTTPException(404, f"Trace {trace_id} not found")
+    r = rows[0]
+    try:
+        r["data_sources"] = json.loads(r.pop("data_sources_json") or "[]")
+    except Exception:
+        r["data_sources"] = []
+    return r
+
+
+# ── Bake endpoint — called by bake_cache.sh ──────────────────────────────────
+
+class BakeRequest(BaseModel):
+    questions: list[str]
+    period: str = "2025-Q4"
+
+
+@router.post("/bake")
+async def bake_questions(req: BakeRequest, request: Request):
+    """Bake answers for a list of pre-known demo questions. Idempotent.
+
+    For each question: classify → invoke → store in cache with baked=True.
+    Returns per-question status so the bake script can report progress.
+    """
+    user = get_request_user(request)
+    await ensure_cache_table()
+    await _ensure_trace_table()
+    results = []
+    for q in req.questions:
+        key = _route_cache_key(q, req.period)
+        try:
+            cls = await _classify(q)
+            specialist = SPECIALISTS[cls.specialist_key]
+            result = await specialist["invoke"](q, req.period)
+            cache_payload = {
+                "answer": result.text,
+                "specialist_key": cls.specialist_key,
+                "data_sources": result.data_sources,
+                "model_used": result.model_used,
+                "confidence": cls.confidence,
+                "classifier_reason": cls.reason,
+                "classifier_model": cls.classifier_model,
+                "baked": True,
+            }
+            await cache_persist(
+                key, agent_name="supervisor_route", scene_id=cls.specialist_key,
+                period=req.period, output=cache_payload, user=user,
+            )
+            results.append({"question": q, "status": "ok", "specialist": cls.specialist_key})
+        except Exception as exc:
+            logger.exception("Bake failed for: %s", q)
+            results.append({"question": q, "status": "failed", "error": str(exc)[:240]})
+    return {"baked": results}
+
+
+# ── Backward-compat SSE endpoint (existing /ask + /ask-sync) ─────────────────
+# Frontend uses /api/agents/workbench/ask for the chat overlay; that endpoint
+# now delegates to /route. Keeping the SSE endpoint as a thin shim so any
+# existing integration doesn't break.
 
 class SupervisorRequest(BaseModel):
     question: str
 
 
-# ── Streaming endpoint ────────────────────────────────────────────────────────
-
-async def _supervisor_stream(question: str, user: str) -> AsyncIterator[str]:
-    """Run the supervisor loop and stream events as SSE."""
-    def sse(event_type: str, data: dict) -> str:
-        return f"event: {event_type}\ndata: {json.dumps(data, default=str)}\n\n"
-
-    yield sse("status", {"message": "Thinking…"})
-
-    messages = [
-        {"role": "system", "content": SUPERVISOR_PROMPT},
-        {"role": "user", "content": question},
-    ]
-
-    total_in = 0
-    total_out = 0
-    model_used = "unknown"
-    max_iterations = 5
-
-    try:
-        for iteration in range(max_iterations):
-            yield sse("status", {"message": f"Reasoning step {iteration + 1}…"})
-
-            resp = await call_with_tools(messages, TOOLS, agent_name="supervisor")
-            msg = resp["message"]
-            total_in += resp.get("input_tokens", 0)
-            total_out += resp.get("output_tokens", 0)
-            model_used = resp.get("model_used", model_used)
-
-            tool_calls = msg.get("tool_calls") or []
-            content = msg.get("content") or ""
-
-            # Echo any partial reasoning content
-            if content and not tool_calls:
-                # Final answer — stream it word by word for nicer perceived speed
-                yield sse("answer", {"text": content})
-                yield sse("done", {
-                    "model_used": model_used,
-                    "input_tokens": total_in,
-                    "output_tokens": total_out,
-                    "iterations": iteration + 1,
-                })
-                return
-
-            if not tool_calls:
-                # No tools called and no content — odd, but bail with what we have
-                yield sse("answer", {"text": content or "(no response)"})
-                yield sse("done", {
-                    "model_used": model_used,
-                    "input_tokens": total_in,
-                    "output_tokens": total_out,
-                    "iterations": iteration + 1,
-                })
-                return
-
-            # Append assistant message with tool calls
-            messages.append({"role": "assistant", "content": content, "tool_calls": tool_calls})
-
-            # Execute tools (in parallel)
-            tool_tasks = []
-            for tc in tool_calls:
-                fn_name = tc["function"]["name"]
-                args_str = tc["function"]["arguments"]
-                try:
-                    args = json.loads(args_str) if args_str else {}
-                except Exception:
-                    args = {}
-                yield sse("tool_call", {
-                    "tool_call_id": tc["id"],
-                    "name": fn_name,
-                    "arguments": args,
-                })
-                impl = TOOL_IMPLS.get(fn_name)
-                if not impl:
-                    tool_tasks.append((tc, asyncio.sleep(0, result=json.dumps({"error": f"Unknown tool: {fn_name}"}))))
-                else:
-                    tool_tasks.append((tc, impl(args)))
-
-            # Await each (they're already coroutines)
-            for tc, coro in tool_tasks:
-                try:
-                    result = await coro
-                except Exception as e:
-                    result = json.dumps({"error": str(e)})
-                yield sse("tool_result", {
-                    "tool_call_id": tc["id"],
-                    "name": tc["function"]["name"],
-                    "result_preview": result[:500] + ("..." if len(result) > 500 else ""),
-                    "result_size": len(result),
-                })
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tc["id"],
-                    "name": tc["function"]["name"],
-                    "content": result,
-                })
-
-        yield sse("error", {"message": f"Max iterations ({max_iterations}) reached without final answer"})
-    except Exception as e:
-        logger.exception("Supervisor stream failed")
-        yield sse("error", {"message": str(e)})
-
-
-@router.post("/ask")
-async def supervisor_ask(req: SupervisorRequest, request: Request):
-    """Stream the supervisor's reasoning and final answer as SSE."""
-    if not req.question or len(req.question.strip()) < 3:
-        raise HTTPException(400, "Question too short")
-
-    user = get_request_user(request)
-    return StreamingResponse(
-        _supervisor_stream(req.question, user),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",  # disable buffering on proxies
-        },
-    )
-
-
-# Non-streaming variant that returns the full answer at once (fallback)
 @router.post("/ask-sync")
-async def supervisor_ask_sync(req: SupervisorRequest):
-    """Run supervisor and return the final answer as JSON (no streaming)."""
-    if not req.question or len(req.question.strip()) < 3:
-        raise HTTPException(400, "Question too short")
-
-    messages = [
-        {"role": "system", "content": SUPERVISOR_PROMPT},
-        {"role": "user", "content": req.question},
-    ]
-    trace = []
-    final_answer = ""
-    model_used = "unknown"
-    total_in = 0
-    total_out = 0
-
-    for _ in range(5):
-        resp = await call_with_tools(messages, TOOLS, agent_name="supervisor")
-        msg = resp["message"]
-        total_in += resp.get("input_tokens", 0)
-        total_out += resp.get("output_tokens", 0)
-        model_used = resp.get("model_used", model_used)
-
-        tool_calls = msg.get("tool_calls") or []
-        content = msg.get("content") or ""
-
-        if not tool_calls:
-            final_answer = content or "(no response)"
-            break
-
-        messages.append({"role": "assistant", "content": content, "tool_calls": tool_calls})
-        for tc in tool_calls:
-            fn_name = tc["function"]["name"]
-            try:
-                args = json.loads(tc["function"]["arguments"]) if tc["function"]["arguments"] else {}
-            except Exception:
-                args = {}
-            impl = TOOL_IMPLS.get(fn_name)
-            try:
-                result = await impl(args) if impl else json.dumps({"error": "Unknown tool"})
-            except Exception as e:
-                result = json.dumps({"error": str(e)})
-            trace.append({"tool": fn_name, "args": args, "result_size": len(result)})
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tc["id"],
-                "name": fn_name,
-                "content": result,
-            })
-
-    return {
-        "answer": final_answer,
-        "trace": trace,
-        "model_used": model_used,
-        "input_tokens": total_in,
-        "output_tokens": total_out,
-    }
+async def supervisor_ask_sync(req: SupervisorRequest, request: Request):
+    """Legacy non-streaming endpoint. Delegates to /route."""
+    return await route_question(
+        RouteRequest(question=req.question, period="2025-Q4"), request,
+    )

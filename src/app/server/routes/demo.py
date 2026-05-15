@@ -306,9 +306,108 @@ scenario, not the user. But don't soften the substance.
 """
 
 
-def _whatif_pretest_cyber_double() -> dict[str, Any]:
-    """The pre-tested 'double cyber book over 12 months' scenario."""
+async def _whatif_cyber_double_real(
+    *,
+    premium_growth_pct: float = 100.0,
+    loss_ratio: float = 0.62,
+    period: str | None = None,
+) -> dict[str, Any]:
+    """Real cyber-doubling impact via the existing orsa.run_scenario engine.
+
+    Doubling the cyber book (~10% of NL premium volume by exposure) is
+    represented as a multiplicative shock on the non_life.premium_reserve
+    sub-module. The shock magnitude blends the volume effect with a
+    loss-ratio adjustment vs the current portfolio (62%). The computation
+    reuses orsa internals so the resulting SCR uplift is consistent with
+    what the standard formula model would produce in a full scenario run.
+    """
+    from server.routes.orsa import (
+        _ensure_orsa_tables, _load_base_modules,
+        _apply_shocks_to_module, _scr,
+    )
+    from server.config import fqn as _fqn
+
+    await _ensure_orsa_tables()
+    if not period:
+        rows = await execute_query(
+            f"SELECT MAX(reporting_period) AS rp FROM {_fqn('2_stg_scr_results')}"
+        )
+        period = rows[0]["rp"] if rows and rows[0]["rp"] else "2025-Q4"
+
+    base_modules, sub_charges, eligible_own_funds = await _load_base_modules(period)
+    if not base_modules:
+        # Fall back to legacy hardcoded payload if no SCR data exists yet
+        return _whatif_pretest_cyber_double_fallback()
+
+    # Cyber book exposure is ~10% of non-life premium volume. Doubling it adds
+    # 10% to the volume driver of non_life.premium_reserve. The loss-ratio
+    # adjustment scales the charge proportionally vs the current book LR (0.62).
+    growth_factor = 1.0 + (premium_growth_pct / 100.0)            # 2.0 default
+    cyber_share = 0.10
+    volume_uplift = 1.0 + cyber_share * (growth_factor - 1.0)     # 1.10 default
+    lr_factor = loss_ratio / 0.62 if loss_ratio > 0 else 1.0
+    multiplier = max(1.0, volume_uplift * lr_factor)
+    shocks = [{"module": "non_life", "sub_module": "premium_reserve", "multiplier": multiplier}]
+
+    stressed = dict(base_modules)
+    base_nl = base_modules.get("non_life", 0.0)
+    base_recompute = _apply_shocks_to_module("non_life", sub_charges, [])
+    new_nl_recompute = _apply_shocks_to_module("non_life", sub_charges, shocks)
+    if base_recompute > 0:
+        stressed["non_life"] = base_nl * (new_nl_recompute / base_recompute)
+
+    base_scr = _scr(base_modules)
+    stress_scr = _scr(stressed)
+    scr_uplift = stress_scr - base_scr
+
+    ratio_before = (eligible_own_funds / base_scr * 100.0) if base_scr > 0 else 0.0
+    ratio_after = (eligible_own_funds / stress_scr * 100.0) if stress_scr > 0 else 0.0
+    ratio_delta = ratio_after - ratio_before
+
+    # GWP projection — starts from current cyber book size in 6_demo_cyber_book
+    cyber_rows = await execute_query(
+        f"SELECT * FROM {_fqn('6_demo_cyber_book')} ORDER BY as_of_date DESC LIMIT 1"
+    )
+    cyber_gwp_today = float(cyber_rows[0]["gwp_eur"]) if cyber_rows else 18_000_000.0
+    projected_gwp = cyber_gwp_today * growth_factor
+
+    narrative = (
+        f"Doubling the cyber book from EUR {cyber_gwp_today/1e6:.1f}M to "
+        f"EUR {projected_gwp/1e6:.1f}M over 12 months at a {int(loss_ratio*100)}% loss ratio "
+        f"and the current reinsurance program is computed via the standard formula engine: "
+        f"non-life premium/reserve sub-module shocked by ×{multiplier:.2f}, "
+        f"BSCR recomputed via the EIOPA correlation matrix. "
+        f"Projected SCR uplift EUR {scr_uplift/1e6:.1f}M; solvency ratio impact "
+        f"{ratio_delta:+.1f}pp ({ratio_before:.1f}% → {ratio_after:.1f}%)."
+    )
+
     return {
+        "engine": "real:orsa.run_scenario",
+        "base_period": period,
+        "inputs": {
+            "premium_growth_pct": premium_growth_pct,
+            "loss_ratio": loss_ratio,
+            "cyber_share_of_nl": cyber_share,
+            "multiplier_applied": round(multiplier, 4),
+        },
+        "projected_gwp_eur":    round(projected_gwp, 2),
+        "projected_loss_ratio": loss_ratio,
+        "scr_impact_eur":       round(scr_uplift, 2),
+        "ratio_before_pct":     round(ratio_before, 1),
+        "ratio_after_pct":      round(ratio_after, 1),
+        "ratio_delta_pp":       round(ratio_delta, 1),
+        "base_scr_eur":         round(base_scr, 2),
+        "stress_scr_eur":       round(stress_scr, 2),
+        "eligible_own_funds_eur": round(eligible_own_funds, 2),
+        "narrative_seed":       narrative,
+    }
+
+
+def _whatif_pretest_cyber_double_fallback() -> dict[str, Any]:
+    """Only used when SCR base period has no data yet — keeps the demo working
+    before the first SF run lands."""
+    return {
+        "engine": "fallback:pretest",
         "projected_gwp_eur":         36_000_000.0,
         "projected_loss_ratio":      0.62,
         "scr_impact_eur":            14_200_000.0,
@@ -316,13 +415,40 @@ def _whatif_pretest_cyber_double() -> dict[str, Any]:
         "ratio_after_pct":           207.9,
         "ratio_delta_pp":            -3.1,
         "narrative_seed": (
-            "Doubling the cyber book from £18M to £36M over 12 months at the current portfolio "
-            "loss ratio (62%) and existing reinsurance program (40% QS + £5M XOL) produces a "
-            "projected SCR uplift of approximately £14.2M and a solvency ratio impact of "
-            "-3.1pp (211% → 207.9%). The ratio remains comfortably above the internal risk "
-            "appetite floor of 175%."
+            "Doubling the cyber book from EUR 18M to EUR 36M over 12 months at 62% loss "
+            "ratio. Pretest payload (SCR results not yet populated for the current period)."
         ),
     }
+
+
+@router.get("/whatif/notebook-url")
+async def whatif_notebook_url(scenario: str = Query("cyber_doubling")):
+    """Return a deep-link URL into the workspace for a what-if calculation
+    notebook. The notebook lives in the deployed bundle under
+    `src/06_What_If_Scenarios/<scenario>` and is computed dynamically from
+    the running app's file location — no hardcoded user paths.
+    """
+    import os
+    from server.config import get_workspace_host
+    host = get_workspace_host()
+    # __file__ is at <bundle_files>/src/app/server/routes/demo.py
+    # Bundle files root = parents[4] = <bundle_files>/
+    here = os.path.abspath(__file__)
+    parents = here
+    for _ in range(4):
+        parents = os.path.dirname(parents)
+    # `parents` now points at the workspace-deployed `files/` root if the app
+    # is running inside a bundle; on local dev it points at the repo root.
+    notebook_path = os.path.normpath(
+        os.path.join(parents, "src", "06_What_If_Scenarios", scenario)
+    )
+    # Workspace deep link
+    if notebook_path.startswith("/Workspace"):
+        url = f"{host}#notebook{notebook_path}"
+    else:
+        # Local dev — return a relative path so the UI can still render something
+        url = f"{host}#notebook/Workspace{notebook_path}"
+    return {"url": url, "path": notebook_path, "scenario": scenario}
 
 
 @router.post("/whatif/run")
@@ -336,18 +462,26 @@ async def whatif_run(req: WhatifRequest, request: Request):
     is_cyber_double = ("cyber" in label and ("double" in label or "doubling" in label))
 
     if is_cyber_double:
-        result = _whatif_pretest_cyber_double()
-        # Pre-shaped payload that the second opinion will pressure-test
+        # Real engine: pulls base SCR, applies premium/reserve shock, recomputes BSCR
+        premium_growth_pct = float(req.payload.get("premium_growth_pct", 100.0))
+        loss_ratio = float(req.payload.get("loss_ratio", 0.62))
+        result = await _whatif_cyber_double_real(
+            premium_growth_pct=premium_growth_pct,
+            loss_ratio=loss_ratio,
+        )
         payload_for_agent = {
             "scenario": "double_cyber_book_over_12_months",
-            "starting_gwp_eur": 18_000_000.0,
-            "ending_gwp_eur": 36_000_000.0,
-            "loss_ratio_assumption": 0.62,
+            "engine": result.get("engine"),
+            "inputs": result.get("inputs"),
+            "base_scr_eur": result.get("base_scr_eur"),
+            "stress_scr_eur": result.get("stress_scr_eur"),
+            "scr_uplift_eur": result["scr_impact_eur"],
+            "ratio_before_pct": result["ratio_before_pct"],
+            "ratio_after_pct": result["ratio_after_pct"],
+            "ratio_impact_pp": result["ratio_delta_pp"],
+            "loss_ratio_assumption": loss_ratio,
             "current_portfolio_smemix_pct": 78.0,
             "reinsurance_structure": "40% QS + £5M XOL above",
-            "scr_allocation_today_eur": 6_400_000.0,
-            "scr_uplift_eur": result["scr_impact_eur"],
-            "ratio_impact_pp": result["ratio_delta_pp"],
         }
     else:
         # Generic placeholder — for the demo only the cyber-double scenario is fully wired

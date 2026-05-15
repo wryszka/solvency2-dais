@@ -390,3 +390,156 @@ async def governance_summary(period: str | None = Query(None)):
         "approved_promotions": int((approved[0] or {}).get("n", 0) or 0),
         "models_with_failed_diagnostics": failed_diags,
     }
+
+
+# ── Phase 9 — Governance destination landing ─────────────────────────────
+
+@router.get("/landing")
+async def governance_landing(period: str | None = Query(None)):
+    """Aggregates the 4 KPI tiles + recent governance events for the
+    Governance destination page. Reads existing tables only — no new ETL.
+    """
+    target_period = period or "2025-Q4"
+
+    # KPI 1 — pending governance actions (overlays + model promotions)
+    try:
+        pend_overlays = await execute_query(
+            f"SELECT overlay_id, line_of_business, magnitude_eur, author "
+            f"FROM {fqn('6_gov_overlays')} "
+            f"WHERE quarter = :p AND status = 'pending_approval' "
+            f"ORDER BY ABS(CAST(magnitude_eur AS DOUBLE)) DESC",
+            parameters=[StatementParameterListItem(name="p", value=target_period)],
+        )
+    except Exception:
+        pend_overlays = []
+    try:
+        pend_promos = await execute_query(
+            f"SELECT model_name, to_version, approver FROM {fqn('6_gov_promotions')} "
+            f"WHERE quarter = :p AND status = 'pending_approval'",
+            parameters=[StatementParameterListItem(name="p", value=target_period)],
+        )
+    except Exception:
+        pend_promos = []
+
+    pending_total = len(pend_overlays) + len(pend_promos)
+    most_urgent = None
+    if pend_overlays:
+        o = pend_overlays[0]
+        eur_m = (abs(float(o.get("magnitude_eur") or 0)) / 1e6)
+        most_urgent = {
+            "label": f"{o.get('line_of_business')} overlay (EUR {eur_m:.1f}M)",
+            "owner": o.get("author"),
+            "type": "overlay",
+        }
+    elif pend_promos:
+        p = pend_promos[0]
+        most_urgent = {
+            "label": f"{p.get('model_name')} → {p.get('to_version')}",
+            "owner": p.get("approver"),
+            "type": "promotion",
+        }
+
+    # KPI 2 — active controls
+    try:
+        controls = await execute_query(
+            f"SELECT control_id, status, last_verified_at "
+            f"FROM {fqn('6_internal_controls')} "
+            f"WHERE status IN ('active', 'auto')"
+        )
+    except Exception:
+        controls = []
+    controls_count = len(controls)
+    controls_last_verified = None
+    if controls:
+        try:
+            controls_last_verified = max(
+                (str(c.get("last_verified_at")) for c in controls if c.get("last_verified_at")),
+                default=None,
+            )
+        except Exception:
+            controls_last_verified = None
+
+    # KPI 3 — AI activity (24h) from 6_ai_routing_trace
+    ai_total = 0; ai_cached = 0; top_specialist = None
+    try:
+        ai_rows = await execute_query(
+            f"SELECT specialist_key, specialist_name, was_cached "
+            f"FROM {fqn('6_ai_routing_trace')} "
+            f"WHERE created_at >= current_timestamp() - INTERVAL 1 DAY"
+        )
+        ai_total = len(ai_rows)
+        ai_cached = sum(1 for r in ai_rows if r.get("was_cached"))
+        if ai_rows:
+            from collections import Counter
+            counts = Counter(r.get("specialist_name") or r.get("specialist_key") for r in ai_rows)
+            top_specialist, _ = counts.most_common(1)[0]
+    except Exception:
+        ai_total = 0
+    ai_cached_pct = round((ai_cached / ai_total * 100), 1) if ai_total else 0.0
+
+    # KPI 4 — audit coverage (% submissions archived for current period)
+    audit_coverage_pct = 0
+    try:
+        arc = await execute_query(
+            f"SELECT qrt, status FROM {fqn('gold_submissions_archive')} "
+            f"WHERE period = :p",
+            parameters=[StatementParameterListItem(name="p", value=target_period)],
+        )
+        if arc:
+            total = len(arc)
+            done = sum(1 for r in arc if (r.get("status") or "").lower() in ("submitted", "approved", "reviewed"))
+            audit_coverage_pct = round(done / total * 100, 1) if total else 0
+    except Exception:
+        audit_coverage_pct = 0
+
+    # Recent events — last 20 from promotions + overlay creates + agent failures
+    events: list[dict[str, Any]] = []
+    try:
+        for r in await execute_query(
+            f"SELECT model_name, to_version, status, approver, "
+            f"  COALESCE(approved_at, promoted_at) AS ts "
+            f"FROM {fqn('6_gov_promotions')} "
+            f"ORDER BY ts DESC LIMIT 20"
+        ):
+            events.append({
+                "kind": "model_promotion",
+                "label": f"{r['model_name']} → {r['to_version']}",
+                "actor": r.get("approver"),
+                "status": r.get("status"),
+                "ts": str(r.get("ts")),
+            })
+    except Exception:
+        pass
+    try:
+        for r in await execute_query(
+            f"SELECT line_of_business, magnitude_eur, status, author, created_at "
+            f"FROM {fqn('6_gov_overlays')} ORDER BY created_at DESC LIMIT 20"
+        ):
+            events.append({
+                "kind": "overlay",
+                "label": f"{r['line_of_business']} overlay · EUR {(float(r.get('magnitude_eur') or 0)/1e6):.1f}M",
+                "actor": r.get("author"),
+                "status": r.get("status"),
+                "ts": str(r.get("created_at")),
+            })
+    except Exception:
+        pass
+    events.sort(key=lambda e: e["ts"], reverse=True)
+    events = events[:20]
+
+    return {
+        "period": target_period,
+        "kpis": {
+            "pending_total": pending_total,
+            "most_urgent": most_urgent,
+            "controls_active": controls_count,
+            "controls_last_verified": controls_last_verified,
+            "ai_24h_total": ai_total,
+            "ai_24h_cached_pct": ai_cached_pct,
+            "ai_top_specialist": top_specialist,
+            "audit_coverage_pct": audit_coverage_pct,
+        },
+        "recent_events": events,
+        "pending_overlays": pend_overlays,
+        "pending_promotions": pend_promos,
+    }

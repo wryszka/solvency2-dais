@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import {
   Building2, FileText, Activity, ShieldCheck, Code2,
-  Layers, Beaker, Compass, GraduationCap, BookOpen, CircleHelp, Workflow, MessageCircleQuestion,
+  Layers, Beaker, GraduationCap, BookOpen, CircleHelp, Workflow, MessageCircleQuestion,
+  Scale, Compass,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Landing from './pages/Landing';
@@ -23,8 +24,6 @@ import LifeUWRisk from './pages/LifeUWRisk';
 import OverlaysRegister from './pages/OverlaysRegister';
 import ActuarialLab from './pages/ActuarialLab';
 import LabModelDetail from './pages/LabModelDetail';
-import Adjacencies from './pages/Adjacencies';
-import Horizon from './pages/Horizon';
 import Today from './pages/Today';
 import ReportingCycle from './pages/ReportingCycle';
 import Learn from './pages/Learn';
@@ -33,6 +32,9 @@ import FeedDetail from './pages/FeedDetail';
 import OrsaDraft from './pages/OrsaDraft';
 import Workbench from './pages/Workbench';
 import RoadmapStub from './pages/RoadmapStub';
+import AgentArchitecture from './pages/AgentArchitecture';
+import Governance from './pages/Governance';
+import ModelDevelopment from './pages/ModelDevelopment';
 import Pillar1Overview from './pages/Pillar1Overview';
 import Pillar2Overview from './pages/Pillar2Overview';
 import Pillar3Overview from './pages/Pillar3Overview';
@@ -70,8 +72,15 @@ const NAV_SECTIONS: NavSection[] = [
     heading: 'Actuarial Lab',
     entries: [
       { to: '/lab',                icon: Beaker,        label: 'Models' },
+      { to: '/model-development',  icon: BookOpen,      label: 'Model Development' },
       { to: '/overlays',           icon: Layers,        label: 'Overlays Register' },
-      { to: '/examples',           icon: BookOpen,      label: 'Worked examples' },
+    ],
+  },
+  {
+    heading: 'Governance',
+    entries: [
+      { to: '/governance',         icon: Scale,         label: 'Governance' },
+      { to: '/agents',             icon: Compass,       label: 'Agent architecture' },
     ],
   },
   {
@@ -86,8 +95,6 @@ const NAV_SECTIONS: NavSection[] = [
     entries: [
       { to: '/whatif',             icon: CircleHelp,            label: 'What-if scenarios' },
       { to: '/genie',              icon: MessageCircleQuestion, label: 'Ask AI (Genie)' },
-      { to: '/adjacencies',        icon: Compass,               label: 'Adjacencies' },
-      { to: '/horizon',            icon: FileText,              label: 'Workbench horizon' },
     ],
   },
 ];
@@ -316,8 +323,8 @@ export default function App() {
             <Route path="/lab"                element={<ActuarialLab />} />
             <Route path="/lab/:modelId"       element={<LabModelDetail />} />
             <Route path="/overlays"           element={<OverlaysRegister />} />
-            <Route path="/adjacencies"        element={<Adjacencies />} />
-            <Route path="/horizon"            element={<Horizon />} />
+            <Route path="/adjacencies"        element={<Navigate to="/" replace />} />
+            <Route path="/horizon"            element={<Navigate to="/" replace />} />
 
             {/* Pillar 2 — Governance */}
             <Route path="/orsa"               element={<Orsa />} />
@@ -333,6 +340,9 @@ export default function App() {
 
             {/* Architecture asset */}
             <Route path="/architecture"       element={<Architecture />} />
+            <Route path="/agents"             element={<AgentArchitecture />} />
+            <Route path="/governance"         element={<Governance />} />
+            <Route path="/model-development"  element={<ModelDevelopment />} />
 
             <Route path="/report/:qrtId"      element={<ReportDetail />} />
             <Route path="/genie"              element={<Genie />} />

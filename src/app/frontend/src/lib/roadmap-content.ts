@@ -58,7 +58,7 @@ export const ROADMAP_CONTENT: Record<string, RoadmapEntry> = {
     ],
     adjacent_links: [
       { label: 'See the cat engine (Igloo) in the Lab', to: '/lab/igloo_cat' },
-      { label: 'See the Adjacencies overview', to: '/adjacencies' },
+      { label: 'See the Workbench landing', to: '/' },
     ],
   },
 
