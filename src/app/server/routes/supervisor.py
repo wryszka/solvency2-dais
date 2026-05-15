@@ -731,45 +731,8 @@ async def route_question(req: RouteRequest, request: Request):
     await ensure_cache_table()
     await _ensure_trace_table()
 
-    # Phase 8 proxy path — fan out to the supervisor serving endpoint
-    endpoint_name = os.getenv("SUPERVISOR_ENDPOINT_NAME", "").strip()
-    if endpoint_name:
-        pred = await _call_supervisor_endpoint(endpoint_name, req.question, period)
-        if pred and pred.get("text"):
-            specialist_key = pred.get("specialist_key", "general")
-            specialist_name = SPECIALISTS.get(specialist_key, SPECIALISTS["general"])["name"]
-            result = SpecialistResult(
-                text=pred["text"],
-                data_sources=pred.get("data_sources", []),
-                model_used=pred.get("model_used", endpoint_name),
-            )
-            cls = Classification(
-                specialist_key=specialist_key,
-                confidence=float(pred.get("confidence", 0.0) or 0.0),
-                reason=str(pred.get("classifier_reason", "") or "")[:240],
-                classifier_model=f"endpoint:{endpoint_name}",
-            )
-            trace_id = await _record_trace(
-                question=req.question, period=period, cls=cls, result=result,
-                was_cached=bool(pred.get("cached")), baked=bool(pred.get("baked")),
-                user=user,
-            )
-            return {
-                "trace_id": trace_id,
-                "answer": result.text,
-                "specialist_key": specialist_key,
-                "specialist_name": specialist_name,
-                "data_sources": result.data_sources,
-                "model_used": result.model_used,
-                "confidence": cls.confidence,
-                "classifier_reason": cls.reason,
-                "cached": bool(pred.get("cached")),
-                "baked": bool(pred.get("baked")),
-                "via": "endpoint",
-            }
-        # endpoint failed — fall through to Phase 7 in-app routing
-
-    # 1. Cache lookup (fuzzy hash on normalized question + period)
+    # 1. Cache lookup (fuzzy hash on normalized question + period) — first
+    # path so repeat questions return in <1s regardless of endpoint state.
     key = _route_cache_key(req.question, period)
     cached = await cache_lookup(key)
     if cached and cached.get("answer"):
@@ -801,7 +764,62 @@ async def route_question(req: RouteRequest, request: Request):
             "cached": True,
             "baked": baked,
             "cached_at": cached.get("_cached_at"),
+            "via": "cache",
         }
+
+    # 2. Phase 8 proxy path — fan out to the supervisor serving endpoint
+    endpoint_name = os.getenv("SUPERVISOR_ENDPOINT_NAME", "").strip()
+    if endpoint_name:
+        pred = await _call_supervisor_endpoint(endpoint_name, req.question, period)
+        if pred and pred.get("text"):
+            specialist_key = pred.get("specialist_key", "general")
+            specialist_name = SPECIALISTS.get(specialist_key, SPECIALISTS["general"])["name"]
+            result = SpecialistResult(
+                text=pred["text"],
+                data_sources=pred.get("data_sources", []),
+                model_used=pred.get("model_used", endpoint_name),
+            )
+            cls = Classification(
+                specialist_key=specialist_key,
+                confidence=float(pred.get("confidence", 0.0) or 0.0),
+                reason=str(pred.get("classifier_reason", "") or "")[:240],
+                classifier_model=f"endpoint:{endpoint_name}",
+            )
+            trace_id = await _record_trace(
+                question=req.question, period=period, cls=cls, result=result,
+                was_cached=bool(pred.get("cached")), baked=bool(pred.get("baked")),
+                user=user,
+            )
+            # Persist the endpoint answer to the route cache so the next
+            # identical question short-circuits to the cache path above.
+            cache_payload = {
+                "answer": result.text,
+                "specialist_key": specialist_key,
+                "data_sources": result.data_sources,
+                "model_used": result.model_used,
+                "confidence": cls.confidence,
+                "classifier_reason": cls.reason,
+                "classifier_model": cls.classifier_model,
+                "baked": False,
+            }
+            await cache_persist(
+                key, agent_name="supervisor_endpoint", scene_id=specialist_key,
+                period=period, output=cache_payload, user=user,
+            )
+            return {
+                "trace_id": trace_id,
+                "answer": result.text,
+                "specialist_key": specialist_key,
+                "specialist_name": specialist_name,
+                "data_sources": result.data_sources,
+                "model_used": result.model_used,
+                "confidence": cls.confidence,
+                "classifier_reason": cls.reason,
+                "cached": bool(pred.get("cached")),
+                "baked": bool(pred.get("baked")),
+                "via": "endpoint",
+            }
+        # endpoint failed — fall through to Phase 7 in-app routing
 
     # 2. Classify
     cls = await _classify(req.question)
