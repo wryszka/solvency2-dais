@@ -67,7 +67,8 @@ Accept / Re-run with adjusted assumption / Escalate."""
 
 async def _cat_fetch(period: str) -> dict[str, Any]:
     igloo = await execute_query(
-        f"SELECT lob_name, AVG(modelled_aal_eur) AS aal "
+        f"SELECT lob_name, AVG(var_gross_eur) AS var_gross_eur, "
+        f"  AVG(tvar_gross_eur) AS tvar_gross_eur, AVG(var_net_eur) AS var_net_eur "
         f"FROM {fqn('2_stg_cat_risk_by_lob')} GROUP BY lob_name LIMIT 5"
     )
     events = await execute_query(
@@ -677,6 +678,7 @@ async def _call_supervisor_endpoint(endpoint_name: str, question: str, period: s
     None if the endpoint isn't reachable. The app proxies to this endpoint
     when SUPERVISOR_ENDPOINT_NAME is set — Phase 8 wiring.
     """
+    logger.info("Calling supervisor endpoint=%s for question=%r", endpoint_name, question[:80])
     try:
         from server.config import get_workspace_client
         w = get_workspace_client()
@@ -694,6 +696,8 @@ async def _call_supervisor_endpoint(endpoint_name: str, question: str, period: s
             preds = resp.as_dict().get("predictions")
         elif isinstance(resp, dict):
             preds = resp.get("predictions")
+        logger.info("Supervisor endpoint response type=%s, preds=%r",
+                    type(resp).__name__, (preds[:1] if isinstance(preds, list) else preds))
         if not preds:
             logger.warning("Supervisor endpoint returned no predictions: %r", resp)
             return None
@@ -701,6 +705,8 @@ async def _call_supervisor_endpoint(endpoint_name: str, question: str, period: s
         if not isinstance(first, dict):
             logger.warning("Supervisor endpoint prediction shape unexpected: %r", first)
             return None
+        logger.info("Supervisor endpoint OK: specialist=%s, text_len=%d",
+                    first.get("specialist_key"), len(first.get("text") or ""))
         return first
     except Exception:
         logger.exception("Supervisor endpoint call failed (endpoint=%s)", endpoint_name)
