@@ -1,5 +1,5 @@
 /**
- * Ask Workbench — primary AI destination.
+ * Workbench AI — primary AI destination.
  *
  * Top:    inline chat with the supervisor (replaces the floating button on
  *         this page; the supervisor proxies to the workbench-supervisor
@@ -149,7 +149,7 @@ export default function AgentArchitecture() {
       </Link>
 
       <header className="pb-2">
-        <div className="text-[11px] uppercase tracking-widest text-violet-700 font-bold">Ask Workbench</div>
+        <div className="text-[11px] uppercase tracking-widest text-violet-700 font-bold">Workbench AI</div>
         <h1 className="text-3xl font-bold text-gray-900 tracking-tight mt-1">One supervisor. Eight specialists. Every call audited.</h1>
         <p className="text-sm text-gray-600 mt-1.5 leading-relaxed max-w-3xl">
           Type a question — the supervisor classifies it, dispatches to the right specialist, and writes a routing trace.
@@ -172,9 +172,11 @@ export default function AgentArchitecture() {
         {supervisor && <SupervisorCard sup={supervisor} />}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-5">
-          {specialists.map((s) => (
-            <SpecialistCard key={s.key} s={s} endpointName={supervisor?.serving_endpoint ?? null} />
-          ))}
+          {specialists
+            .filter((s) => s.key !== 'general')
+            .map((s) => (
+              <SpecialistCard key={s.key} s={s} endpointName={supervisor?.serving_endpoint ?? null} />
+            ))}
         </div>
 
         <p className="text-[11px] text-gray-500 italic mt-4 leading-relaxed">
@@ -279,27 +281,9 @@ function SpecialistCard({ s, endpointName }: { s: Specialist; endpointName: stri
           {badge}
         </span>
       </header>
-      <p className={`text-xs ${p.head}/90 leading-snug`}>{s.scope}</p>
+      <p className={`text-sm ${p.head}/90 leading-relaxed flex-1`}>{s.scope}</p>
 
-      <div>
-        <div className="text-[9px] uppercase tracking-widest font-bold text-gray-500 mb-1">Tools</div>
-        <div className="flex flex-wrap gap-1">
-          {(s.tools ?? []).slice(0, 6).map((t) => (
-            t.workspace_url ? (
-              <a key={t.name} href={t.workspace_url} target="_blank" rel="noopener noreferrer"
-                className={`text-[10px] font-mono ${p.chipBg} ${p.chipText} px-1.5 py-0.5 rounded hover:underline`}>
-                {t.name}
-              </a>
-            ) : (
-              <span key={t.name} className={`text-[10px] font-mono ${p.chipBg} ${p.chipText} px-1.5 py-0.5 rounded`}>
-                {t.name}
-              </span>
-            )
-          ))}
-        </div>
-      </div>
-
-      <footer className="text-[10px] text-gray-600 pt-1 border-t border-gray-200/70">
+      <footer className="text-[10px] text-gray-600 pt-2 border-t border-gray-200/70">
         {s.uc_artefact?.workspace_url ? (
           <>
             <span className="font-semibold">Endpoint:</span>{' '}

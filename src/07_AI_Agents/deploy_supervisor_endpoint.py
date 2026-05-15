@@ -52,6 +52,14 @@ if not versions:
 latest = max(versions, key=lambda v: int(v.version))
 print(f"Serving {full_model} v{latest.version}")
 
+# Inject Databricks auth from the notebook's runtime context so the pyfunc's
+# WorkspaceClient() can call FM API endpoints + SQL warehouse from inside the
+# serving container. (Model Serving doesn't expose DATABRICKS_TOKEN by default.)
+ctx = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+auth_host  = ctx.apiUrl().get()
+auth_token = ctx.apiToken().get()
+print(f"Injecting auth: host={auth_host[:40]}…, token=***{auth_token[-6:] if auth_token else ''}")
+
 served_entity = ServedEntityInput(
     name="supervisor",
     entity_name=full_model,
@@ -63,6 +71,8 @@ served_entity = ServedEntityInput(
         "SCHEMA_NAME":        schema,
         "FM_ENDPOINT":        fm_ep,
         "WAREHOUSE_HTTP_PATH": wh_path,
+        "DATABRICKS_HOST":    auth_host,
+        "DATABRICKS_TOKEN":   auth_token,
     },
 )
 config = EndpointCoreConfigInput(name=endpoint, served_entities=[served_entity])

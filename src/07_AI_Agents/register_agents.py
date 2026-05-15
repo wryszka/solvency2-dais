@@ -284,6 +284,27 @@ class DqInvestigatorAgent(BaseSpecialistAgent):
         return {"feeds": feeds, "failing_dq": dq}
 
 
+# ── Specialist 7: General Workbench (operational state) ─────────────────────
+
+class GeneralWorkbenchAgent(BaseSpecialistAgent):
+    NAME = "agent_general_workbench"
+    SCOPE = "Operational state: feeds, promotions, overlays, approvals."
+    DATA_SOURCES = ["fn_close_status", "fn_feed_status", "fn_approvals_pending"]
+    SYSTEM_PROMPT = (
+        "You are the General Workbench agent. You answer operational \\"where are "
+        "we?\\" questions about Q4 close — feeds, model promotions, overlays, "
+        "approvals. Cite the source table for every fact. Keep under 200 words. "
+        "Use markdown."
+    )
+
+    def fetch(self, question, period):
+        c, s = self._catalog, self._schema
+        feeds = run_sql(f"SELECT * FROM {fqn(c, s, 'fn_feed_status')}('{period}')")
+        approvals = run_sql(f"SELECT * FROM {fqn(c, s, 'fn_approvals_pending')}('{period}')")
+        overlays = run_sql(f"SELECT * FROM {fqn(c, s, 'fn_overlays_recent')}('{period}')")
+        return {"feeds": feeds, "pending_approvals": approvals, "overlays": overlays}
+
+
 # ── Supervisor ──────────────────────────────────────────────────────────────
 
 SUPERVISOR_CLASSIFIER_PROMPT = """You are a routing classifier. Given a user
@@ -305,6 +326,8 @@ class SupervisorAgent(mlflow.pyfunc.PythonModel):
         "second_opinion":  SecondOpinionAgent,
         "recon":           ReconInvestigatorAgent,
         "dq":              DqInvestigatorAgent,
+        "general":         GeneralWorkbenchAgent,
+        "genie":           GeneralWorkbenchAgent,
     }
     CATALOGUE_TEXT = (
         "- cat: Cat Modelling Agent. Triggers: Igloo, cat losses, storm impact, S.26.06.\\n"
@@ -462,6 +485,7 @@ SPECIALIST_CLASSES = {
     "agent_second_opinion":     mod.SecondOpinionAgent,
     "agent_recon_investigator": mod.ReconInvestigatorAgent,
     "agent_dq_investigator":    mod.DqInvestigatorAgent,
+    "agent_general_workbench":  mod.GeneralWorkbenchAgent,
 }
 
 for uc_name, cls in SPECIALIST_CLASSES.items():

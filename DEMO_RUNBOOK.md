@@ -36,7 +36,7 @@ This is a starting point, not gospel. Read the room and swap.
 | **Chief Actuary 1:1** | Actuarial Lab + dev/prod | Reserving agent + overlay | Overlays Register lifecycle | Cross-QRT recon catch (Pain G) |
 | **CFO / CRO 1:1** | Control Tower | ORSA stress | Audit panel | Workbench landing |
 | **Big4 implementation lead** | Lab + dev/prod | Audit panel | SFCR drafting | Regulator Q&A |
-| **CTO / data lead** | Lab + dev/prod | Lineage tab in audit panel | Ask Workbench | Workbench landing |
+| **CTO / data lead** | Lab + dev/prod | Lineage tab in audit panel | Workbench AI | Workbench landing |
 | **Regulator** | Audit panel | Overlays Register | Cross-QRT recon | Internal Controls |
 
 ---

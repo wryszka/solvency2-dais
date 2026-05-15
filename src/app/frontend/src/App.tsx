@@ -66,7 +66,7 @@ const DOORS: DoorLink[] = [
   { to: '/today',           icon: Activity, label: 'Control Tower',   tagline: 'Where are we now?',         accent: 'amber' },
   { to: '/reporting-cycle', icon: Layers,   label: 'Reporting Cycle', tagline: 'Three pillars.',            accent: 'blue' },
   { to: '/governance',      icon: Scale,    label: 'Governance',      tagline: 'Audit, approvals, AI activity.', accent: 'violet' },
-  { to: '/agents',          icon: MessageCircleQuestion, label: 'Ask Workbench', tagline: 'Supervisor + 8 specialists.', accent: 'emerald' },
+  { to: '/agents',          icon: MessageCircleQuestion, label: 'Workbench AI', tagline: 'Supervisor + 8 specialists.', accent: 'emerald' },
 ];
 
 const NAV_SECTIONS: NavSection[] = [

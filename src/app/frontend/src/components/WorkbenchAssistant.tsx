@@ -1,5 +1,5 @@
 /**
- * Ask Workbench — floating chat overlay on every page.
+ * Workbench AI — floating chat overlay on every page.
  *
  * The user types a question; the supervisor classifies it and routes to one of
  * eight specialists (cat, ORSA, reserving, second opinion, recon, DQ, Genie,
@@ -94,10 +94,10 @@ export default function WorkbenchAssistant() {
       <button
         onClick={() => setOpen(!open)}
         className="fixed bottom-5 right-5 z-40 flex items-center gap-2 px-4 py-3 bg-violet-700 text-white rounded-full shadow-lg hover:bg-violet-800 transition-colors text-sm font-semibold"
-        title="Ask Workbench"
+        title="Workbench AI"
       >
         {open ? <X className="w-4 h-4" /> : <Bot className="w-5 h-5" />}
-        {!open && <span className="hidden sm:inline">Ask Workbench</span>}
+        {!open && <span className="hidden sm:inline">Workbench AI</span>}
       </button>
 
       {open && (
@@ -105,7 +105,7 @@ export default function WorkbenchAssistant() {
                         bg-white border border-gray-200 rounded-xl shadow-2xl flex flex-col overflow-hidden">
           <header className="px-4 py-3 border-b border-gray-200 bg-violet-50 flex items-center gap-2">
             <Bot className="w-4 h-4 text-violet-700" />
-            <h3 className="text-sm font-semibold text-violet-900">Ask Workbench</h3>
+            <h3 className="text-sm font-semibold text-violet-900">Workbench AI</h3>
             <Link to="/agents" onClick={() => setOpen(false)}
               className="ml-auto text-[10px] text-violet-700 uppercase tracking-wide font-semibold inline-flex items-center gap-1 hover:underline">
               <Compass className="w-3 h-3" /> View routing

@@ -398,7 +398,12 @@ Answer concisely with citations like `[source: 6_gov_promotions]` per fact. <200
 SPECIALISTS: dict[str, dict[str, Any]] = {
     "cat": {
         "name": "Cat Modelling Agent",
-        "scope": "Stochastic cat output review, event log cross-reference.",
+        "scope": (
+            "Reads the cat engine output, cross-references it against the external "
+            "storm event log, and tells you whether the modelled loss is event-driven "
+            "or methodological. Names the events, quotes the dates, recommends accept "
+            "or re-run."
+        ),
         "triggers": "Igloo, cat losses, storm impact, AAL, VaR, TVaR, S.26.06",
         "color": "amber",
         "data_sources": ["2_stg_cat_risk_by_lob", "6_demo_event_log", "1_raw_claims"],
@@ -406,7 +411,11 @@ SPECIALISTS: dict[str, dict[str, Any]] = {
     },
     "orsa": {
         "name": "ORSA Narrative Agent",
-        "scope": "Stress commentary, board narrative, scenario interpretation.",
+        "scope": (
+            "Drafts board-grade ORSA commentary for any scenario run. Base + stressed "
+            "capital path, sub-module deltas, business plan-tied interpretation — in "
+            "200-300 words of audit-grade prose."
+        ),
         "triggers": "ORSA, stress, scenario, board paper, capital path, worst stress, reverse stress",
         "color": "violet",
         "data_sources": ["gold_orsa_results", "gold_orsa_narratives"],
@@ -414,7 +423,11 @@ SPECIALISTS: dict[str, dict[str, Any]] = {
     },
     "reserving": {
         "name": "Senior Reserving Actuary",
-        "scope": "Reserving anomaly detection, overlay proposals.",
+        "scope": (
+            "Surfaces the 2-3 most material Q-over-Q reserving movements and proposes "
+            "overlays — model, LoB, magnitude, category, rationale — for the human "
+            "actuary to sign off. Never writes overlays itself."
+        ),
         "triggers": "reserves, reserving, triangle, LoB movement, ultimate, IBNR, property reserves",
         "color": "emerald",
         "data_sources": ["1_raw_claims", "6_gov_overlays"],
@@ -422,7 +435,11 @@ SPECIALISTS: dict[str, dict[str, Any]] = {
     },
     "second_opinion": {
         "name": "Contrarian Capital Reviewer",
-        "scope": "Pressure-tests strategic what-if assumptions.",
+        "scope": (
+            "Pressure-tests strategic what-if assumptions before they reach a board "
+            "paper. Surfaces 2-4 specific evidence-based pushbacks and one "
+            "constructive recommendation. Not here to be helpful."
+        ),
         "triggers": "what-if, scenario assumption, doubling, growth scenario, expansion, strategic test",
         "color": "rose",
         "data_sources": ["6_demo_whatif_runs"],
@@ -430,7 +447,11 @@ SPECIALISTS: dict[str, dict[str, Any]] = {
     },
     "recon": {
         "name": "Recon Investigator",
-        "scope": "Cross-QRT reconciliation gap explanation.",
+        "scope": (
+            "Explains every cross-QRT reconciliation break: which cells, what magnitude, "
+            "most likely cause (timing, classification, unit, methodology), and the "
+            "resolution step."
+        ),
         "triggers": "reconciliation, recon, mismatch, breaks, cross-QRT, S.06.02 vs S.25.01",
         "color": "blue",
         "data_sources": ["5_mon_cross_qrt_reconciliation"],
@@ -438,7 +459,11 @@ SPECIALISTS: dict[str, dict[str, Any]] = {
     },
     "dq": {
         "name": "DQ Investigator",
-        "scope": "Data quality root cause: failing expectations, late feeds, schema drift.",
+        "scope": (
+            "Diagnoses pipeline DQ failures end-to-end: which feed, which expectation, "
+            "what's broken, who owns the source, and what the next step is. No generic "
+            "answers."
+        ),
         "triggers": "DQ, data quality, late feed, quarantined, expectation, ABN AMRO, custodian feed",
         "color": "orange",
         "data_sources": ["5_mon_pipeline_sla_status", "5_mon_dq_expectation_results"],
@@ -446,7 +471,11 @@ SPECIALISTS: dict[str, dict[str, Any]] = {
     },
     "genie": {
         "name": "Genie",
-        "scope": "Free-form SQL over governed UC tables. Numeric exploration.",
+        "scope": (
+            "Free-form SQL over the governed Unity Catalog tables — for the "
+            "\"show me the numbers\" questions the specialists don't cover. Natural "
+            "language in, SQL + table out, results auditable."
+        ),
         "triggers": "show me, what was, list, count, sum, group by, by line of business, by quarter",
         "color": "cyan",
         "data_sources": ["Unity Catalog (Genie space)"],
@@ -454,7 +483,10 @@ SPECIALISTS: dict[str, dict[str, Any]] = {
     },
     "general": {
         "name": "General Workbench",
-        "scope": "Operational state — feeds, promotions, overlays, approvals.",
+        "scope": (
+            "Operational close state — feeds, promotions, overlays, approvals — the "
+            "catch-all 'where are we?' answer. Cites every source."
+        ),
         "triggers": "outstanding, status, pending, what's left, where are we, close",
         "color": "slate",
         "data_sources": ["5_mon_pipeline_sla_status", "6_gov_promotions", "6_gov_overlays"],
@@ -653,14 +685,25 @@ async def _call_supervisor_endpoint(endpoint_name: str, question: str, period: s
             name=endpoint_name,
             dataframe_records=[{"question": question, "period": period}],
         )
-        # The pyfunc returns a DataFrame; the SDK serialises it as
-        # {"predictions": [{"agent": "...", "text": "...", ...}]}
-        preds = resp.predictions if hasattr(resp, "predictions") else resp.get("predictions")
+        # Predictions may be on .predictions, .as_dict()['predictions'], or
+        # in older SDK shapes wrapped as a dataframe split. Handle all three.
+        preds = None
+        if hasattr(resp, "predictions") and resp.predictions is not None:
+            preds = resp.predictions
+        elif hasattr(resp, "as_dict"):
+            preds = resp.as_dict().get("predictions")
+        elif isinstance(resp, dict):
+            preds = resp.get("predictions")
         if not preds:
+            logger.warning("Supervisor endpoint returned no predictions: %r", resp)
             return None
-        return preds[0] if isinstance(preds, list) else preds
-    except Exception as exc:
-        logger.warning("Supervisor endpoint call failed: %s", exc)
+        first = preds[0] if isinstance(preds, list) else preds
+        if not isinstance(first, dict):
+            logger.warning("Supervisor endpoint prediction shape unexpected: %r", first)
+            return None
+        return first
+    except Exception:
+        logger.exception("Supervisor endpoint call failed (endpoint=%s)", endpoint_name)
         return None
 
 
