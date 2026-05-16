@@ -660,11 +660,46 @@ function ModelValidationPanel() {
         <h3 className="text-sm font-bold text-gray-900">Model validation evidence</h3>
         <span className="ml-auto text-xs text-gray-500">{rows.length} models</span>
       </header>
-      <p className="text-xs text-gray-500 mb-3">
+      <p className="text-xs text-gray-500 mb-2">
         Per-model validation file: most-recent promotion + diagnostic results + sign-off chain +
         next independent validation due. The artefact set internal validators and regulators
         request when reviewing a model.
       </p>
+      <details className="bg-gray-50 border border-gray-100 rounded mb-3 text-xs text-gray-700">
+        <summary className="cursor-pointer px-3 py-2 font-semibold text-gray-800">
+          What is model validation?
+        </summary>
+        <div className="px-3 pb-3 space-y-2 leading-relaxed">
+          <p>
+            <strong>Model validation</strong> is the periodic, independent review of a model to confirm
+            it remains fit for purpose. Required under Solvency II Article 124 for internal models and
+            Article 116 for technical-provision methodologies; EIOPA's Guidelines on system of governance
+            cover the framework. Typical cadence is annual for major capital and reserving models, more
+            frequent for high-risk lines.
+          </p>
+          <p>
+            An <strong>independent</strong> reviewer (a different team, or an external firm) assesses
+            six things: methodology soundness, numerical accuracy, sensitivity to assumptions,
+            stability across runs and periods, appropriateness of use, and completeness of documentation.
+            Outputs a validation report, a list of findings, and a sign-off chain. Findings either close
+            on remediation or remain open against the next review.
+          </p>
+          <p className="text-gray-600">
+            <strong>What this panel shows.</strong> Each row composes the file from real governance
+            data on the platform —
+          </p>
+          <ul className="list-disc pl-5 space-y-0.5 text-gray-600">
+            <li><strong>Diagnostics</strong> — continuous health checks run on every model output (residuals, calibration tests, stability). From <code className="font-mono bg-white border border-gray-200 px-1 rounded">6_gov_model_diagnostics</code>.</li>
+            <li><strong>Last promotion</strong> — most recent version moved to production + the approver who signed off. From <code className="font-mono bg-white border border-gray-200 px-1 rounded">6_gov_promotions</code>.</li>
+            <li><strong>Next independent validation due</strong> — derived from the last promotion date (annual cadence) + the regulatory minimum.</li>
+            <li><strong>Status</strong> — <em>validated</em> when diagnostics all pass and a sign-off exists; <em>pending revalidation</em> when diagnostics fail; <em>in service</em> when no full validation has been recorded yet; <em>not validated</em> otherwise.</li>
+          </ul>
+          <p className="text-gray-600">
+            Click any row in the Lab to see the model's full diagnostic history, MLflow run trail, and
+            methodology change log.
+          </p>
+        </div>
+      </details>
       <ul className="space-y-2 text-sm">
         {rows.map((m) => {
           const diagOk = m.diagnostics_run > 0 && m.diagnostics_passed === m.diagnostics_run;
