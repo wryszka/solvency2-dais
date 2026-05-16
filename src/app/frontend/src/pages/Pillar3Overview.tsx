@@ -70,7 +70,7 @@ export default function Pillar3Overview() {
 
       <Section
         title="The full QRT inventory"
-        subtitle="Solvency II requires more than the five demo templates. Here's the full landscape — annual + quarterly + group + IGT — with what's exercised in this demo and what runs on the same pipeline pattern."
+        subtitle="The full QRT landscape — annual + quarterly + group + IGT — with what's exercised on this surface and what runs on the same pipeline pattern."
       >
         <FullQRTInventory />
       </Section>
@@ -100,7 +100,7 @@ export default function Pillar3Overview() {
       <Section
         id="evr"
         title="EIOPA validation rules — the gate before submission"
-        subtitle="The full EIOPA 2.8 taxonomy ships ~3,000 validation rules (BV · EV · IV) across ~50 templates. This demo exercises 5 templates with 1,297 rules — the rest run on the same pipeline pattern. Failures route to a triage queue with the rule code, the cell, and the expected value."
+        subtitle="The full EIOPA 2.8 taxonomy ships ~3,000 validation rules (BV · EV · IV) across ~50 templates. Five templates are exercised on this surface with 1,297 rules — the rest run on the same pipeline pattern. Failures route to a triage queue with the rule code, the cell, and the expected value."
       >
         <EVRValidationDrilldown />
       </Section>

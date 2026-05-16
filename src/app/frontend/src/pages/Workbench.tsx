@@ -48,21 +48,17 @@ export default function Workbench() {
       </div>
 
       <details className="bg-white rounded-lg border border-gray-200 p-4 text-sm text-gray-700 mt-2">
-        <summary className="font-semibold text-gray-800 cursor-pointer">About this workbench</summary>
+        <summary className="font-semibold text-gray-800 cursor-pointer">Platform overview</summary>
         <div className="mt-2 space-y-2 leading-relaxed">
           <p>
-            Working demonstration of an actuarial workbench on Databricks — Unity Catalog +
-            Delta + MLflow + Mosaic AI + Databricks Apps. Pipelines, AI agents, model
-            governance, overlays, audit, and disclosure all run on one platform.
-          </p>
-          <p className="italic text-gray-600">
-            Data is synthetic; reserving, SF, Igloo and Prophet are illustrative — vehicle, not
-            cargo. Source code on GitHub. Deployable to any Databricks workspace with serverless
-            and Foundation Model API access.
+            Every workflow on this surface shares one foundation — Unity Catalog for governed
+            tables and ML models, Delta for storage and time travel, MLflow for model versioning,
+            Mosaic AI for the agent layer, Databricks Apps for the surface itself. Pipelines, AI
+            agents, model governance, overlays, audit, and disclosure all live on the same plane.
           </p>
           <p className="text-[11px] text-gray-500">
-            Demo assets: <Link to="/architecture" className="text-blue-600 hover:underline">architecture diagram</Link>
-            {' '}· <Link to="/learn" className="text-blue-600 hover:underline">regime walk-through</Link>
+            <Link to="/architecture" className="text-blue-600 hover:underline">Architecture diagram</Link>
+            {' '}· <Link to="/learn" className="text-blue-600 hover:underline">Regime walk-through</Link>
           </p>
         </div>
       </details>

@@ -5,7 +5,6 @@ import {
   Scale,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import Landing from './pages/Landing';
 import Monitor from './pages/Monitor';
 import ReportDetail from './pages/ReportDetail';
 import DataQuality from './pages/DataQuality';
@@ -283,7 +282,7 @@ export default function App() {
           <Routes>
             {/* Workbench top-level — six tiles, Solvency II is the live one */}
             <Route path="/" element={<Workbench />} />
-            <Route path="/solvency-2"       element={<Landing />} />
+            <Route path="/solvency-2"       element={<Navigate to="/today" replace />} />
             <Route path="/roadmap/:slug"    element={<RoadmapStub />} />
 
             {/* Solvency II surface — top-level routes preserved so existing links + breadcrumbs keep working */}

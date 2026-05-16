@@ -33,7 +33,7 @@ export const TILES: Tile[] = [
     description: 'Capital, governance, disclosure, ORSA — full cycle with native model development and end-to-end audit trail.',
     status: 'live',
     icon: Shield,
-    to: '/solvency-2',
+    to: '/today',
     accent: 'blue',
   },
   {
