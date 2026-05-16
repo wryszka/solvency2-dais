@@ -551,9 +551,15 @@ function AiGovernanceTab() {
 /* ═══════════════════════ Controls & Validation tab ═══════════════════════ */
 
 interface ControlRow {
-  control_id: string; name: string; layer?: string;
-  status: string; last_verified_at?: string | null;
+  id?: string;
+  control_id?: string;
+  control?: string;
+  name?: string;
+  layer?: string;
+  status?: string;
+  last_verified_at?: string | null;
   description?: string;
+  implementation?: string;
 }
 
 function ControlsValidationTab() {
@@ -586,16 +592,26 @@ function ControlsValidationTab() {
           <p className="text-sm text-gray-500 italic">No controls returned by /api/internal-controls/matrix.</p>
         ) : (
           <ul className="divide-y divide-gray-100">
-            {controls.map((c) => (
-              <li key={c.control_id} className="py-2 flex items-center gap-3 text-sm">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-gray-900">{c.name ?? c.control_id}</div>
-                  <div className="text-[11px] text-gray-500">{c.layer ?? '—'} · last verified {relTime(c.last_verified_at ?? null)}</div>
-                </div>
-                <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5">{c.status}</span>
-              </li>
-            ))}
+            {controls.map((c, i) => {
+              const label = c.control ?? c.name ?? c.control_id ?? c.id ?? `(control ${i + 1})`;
+              const status = c.status ?? 'active';
+              return (
+                <li key={c.id ?? c.control_id ?? i} className="py-2.5 flex items-start gap-3 text-sm">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-gray-900 font-medium">{label}</div>
+                    {c.description && (
+                      <div className="text-[11px] text-gray-600 leading-snug mt-0.5">{c.description}</div>
+                    )}
+                    <div className="text-[10px] text-gray-400 mt-0.5">
+                      {c.layer ?? '—'}
+                      {c.last_verified_at && <> · last verified {relTime(c.last_verified_at)}</>}
+                    </div>
+                  </div>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 shrink-0">{status}</span>
+                </li>
+              );
+            })}
           </ul>
         )}
         <div className="mt-3 pt-3 border-t border-gray-100">
