@@ -14,7 +14,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ArrowLeft, Brain, Sparkles, RefreshCw, ExternalLink, Bot, Send,
+  ArrowLeft, ExternalLink, Bot, Send,
   Loader2, MessageSquareCode, Shield, Scale, Beaker, Workflow,
   Database, FileSearch, GitCompare,
 } from 'lucide-react';
@@ -49,21 +49,6 @@ interface SupervisorMeta {
   serving_endpoint: string | null;
   serving_endpoint_url: string | null;
   kind: string;
-}
-
-interface RoutingRow {
-  trace_id: string;
-  question: string;
-  specialist_key: string;
-  specialist_name: string;
-  confidence: number;
-  data_sources: string[];
-  model_used: string;
-  was_cached: boolean;
-  baked: boolean;
-  period: string;
-  created_at: string;
-  created_by: string;
 }
 
 interface ChatTurn {
@@ -101,22 +86,9 @@ const SPECIALIST_ICON: Record<string, React.ComponentType<{ className?: string }
   general:         Workflow,
 };
 
-function relTime(iso: string | undefined | null): string {
-  if (!iso) return '';
-  try {
-    const t = new Date(String(iso).replace(' ', 'T') + (String(iso).endsWith('Z') ? '' : 'Z')).getTime();
-    const ageSec = Math.max(0, (Date.now() - t) / 1000);
-    if (ageSec < 90) return 'just now';
-    if (ageSec < 3600) return `${Math.round(ageSec / 60)}m ago`;
-    if (ageSec < 86400) return `${Math.round(ageSec / 3600)}h ago`;
-    return `${Math.round(ageSec / 86400)}d ago`;
-  } catch { return ''; }
-}
-
 export default function AgentArchitecture() {
   const [specialists, setSpecialists] = useState<Specialist[]>([]);
   const [supervisor, setSupervisor] = useState<SupervisorMeta | null>(null);
-  const [recent, setRecent] = useState<RoutingRow[]>([]);
 
   useEffect(() => {
     fetch('/api/supervisor/specialists')
@@ -126,20 +98,6 @@ export default function AgentArchitecture() {
         setSupervisor(d.supervisor || null);
       })
       .catch(() => { setSpecialists([]); setSupervisor(null); });
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const r = await fetch('/api/supervisor/recent?limit=10');
-        const d = await r.json();
-        if (!cancelled) setRecent(d.recent || []);
-      } catch { /* ignore */ }
-    }
-    load();
-    const id = setInterval(load, 5000);
-    return () => { cancelled = true; clearInterval(id); };
   }, []);
 
   return (
@@ -187,43 +145,9 @@ export default function AgentArchitecture() {
         </p>
       </section>
 
-      {/* Recent routing decisions */}
-      <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <header className="flex items-center justify-between px-5 py-3 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-violet-700" />
-            <h2 className="text-sm font-bold text-gray-900">Recent routing decisions</h2>
-            <span className="text-[11px] text-gray-500">live · refreshes every 5s</span>
-          </div>
-          <button onClick={() => window.location.reload()}
-            className="text-[11px] text-gray-500 hover:text-gray-800 inline-flex items-center gap-1">
-            <RefreshCw className="w-3 h-3" /> Hard refresh
-          </button>
-        </header>
-        {recent.length === 0 ? (
-          <div className="p-6 text-sm text-gray-500">No routing decisions yet. Ask a question above.</div>
-        ) : (
-          <ul>
-            {recent.map((r) => (
-              <li key={r.trace_id} className="flex items-start gap-3 px-5 py-3 border-b border-gray-100 hover:bg-violet-50/30">
-                <span className="w-2 h-2 rounded-full mt-2 shrink-0 bg-violet-500" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-gray-900">{r.question}</div>
-                  <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                    <span className="font-mono">{relTime(r.created_at)}</span>
-                    <span>·</span>
-                    <span className="font-semibold text-violet-700">{r.specialist_name}</span>
-                    {r.was_cached && (<><span>·</span><span className="text-emerald-700">cached {r.baked ? '· baked' : '· session'}</span></>)}
-                    <span>·</span>
-                    <span className="font-mono text-gray-400">{(r.data_sources || []).slice(0, 3).join(' · ')}</span>
-                  </div>
-                </div>
-                <Brain className="w-3.5 h-3.5 text-gray-300 mt-1.5" />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <p className="text-[11px] text-gray-500 italic text-center">
+        Live routing activity: <Link to="/governance" className="text-violet-700 hover:underline">Governance → AI Governance</Link>
+      </p>
     </div>
   );
 }
@@ -237,26 +161,21 @@ function SupervisorCard({ sup }: { sup: SupervisorMeta }) {
     <div className="bg-gradient-to-br from-violet-100 to-white border-2 border-violet-300 rounded-xl p-5 max-w-md mx-auto">
       <div className="text-[10px] uppercase tracking-widest text-violet-700 font-bold text-center">Workbench AI</div>
       <h3 className="text-2xl font-bold text-violet-900 text-center mt-1">Supervisor</h3>
-      <p className="text-sm text-violet-800 text-center mt-1 font-mono">
-        classifies → dispatches → audit-logs
+      <p className="text-sm text-violet-900 mt-2 leading-relaxed">
+        Reads the question. A single Foundation-Model call classifies it against the
+        specialist catalogue, dispatches to the right one, synthesises the response with
+        source citations, and writes the routing decision to the audit log. Sub-second
+        classification; full MLflow trace per dispatch.
       </p>
-      <div className="mt-3 pt-3 border-t border-violet-200 text-[11px] text-violet-800 text-center space-y-1">
-        <a href={sup.workspace_url} target="_blank" rel="noopener noreferrer"
-          className="font-mono hover:underline inline-flex items-center gap-1">
-          {sup.uc_path} <ExternalLink className="w-3 h-3" />
-        </a>
-        {sup.serving_endpoint ? (
-          <div>
-            Endpoint:{' '}
-            <a href={sup.serving_endpoint_url ?? '#'} target="_blank" rel="noopener noreferrer"
-              className="font-mono text-violet-900 hover:underline">
-              {sup.serving_endpoint}
-            </a>
-          </div>
-        ) : (
-          <div className="text-amber-700 italic">in-app fallback (endpoint not configured)</div>
-        )}
-      </div>
+      {sup.serving_endpoint && (
+        <div className="mt-3 pt-3 border-t border-violet-200 text-[11px] text-violet-700 text-center">
+          Endpoint:{' '}
+          <a href={sup.serving_endpoint_url ?? '#'} target="_blank" rel="noopener noreferrer"
+            className="font-mono text-violet-900 hover:underline">
+            {sup.serving_endpoint}
+          </a>
+        </div>
+      )}
     </div>
   );
 }
