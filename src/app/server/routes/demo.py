@@ -556,7 +556,7 @@ async def whatif_run(req: WhatifRequest, request: Request):
             "ratio_impact_pp": result["ratio_delta_pp"],
             "loss_ratio_assumption": loss_ratio,
             "current_portfolio_smemix_pct": 78.0,
-            "reinsurance_structure": "40% QS + £5M XOL above",
+            "reinsurance_structure": "40% QS + €5M XOL above",
         }
     else:
         # Generic placeholder — for the demo only the cyber-double scenario is fully wired
@@ -583,7 +583,7 @@ Stress-test these assumptions. Surface 2-4 specific pushbacks. For the cyber-dou
 specifically, your three strongest pushbacks should target:
 1. The loss ratio assumption — drawn from a 78% SME-dominated portfolio that likely understates
    loss for the larger-account mix implied by doubling.
-2. The reinsurance structure — designed for £18M GWP, doubling without restructuring exposes
+2. The reinsurance structure — designed for €18M GWP, doubling without restructuring exposes
    net retention not modelled in the scenario.
 3. The capital allocation crowding effect — doubling cyber displaces SCR away from other lines
    not addressed in the scenario.
@@ -792,8 +792,9 @@ async def run_stress(req: StressRequest, request: Request):
     label = req.scenario_label.lower().strip()
     is_low_rate = ("low" in label and ("rate" in label or "interest" in label))
 
-    # Synthetic compute time so the stage moment lasts 30-40s
-    await asyncio.sleep(32)
+    # Synthetic compute time — short enough to not die on stage, long enough
+    # to feel like real engine work is happening.
+    await asyncio.sleep(8)
 
     if is_low_rate:
         ratios = [210.0, 199.0, 188.0, 178.0, 170.0, 162.0]    # 6 points: t0..t5; year-5 = 162%

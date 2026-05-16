@@ -335,9 +335,12 @@ function RunStage({ label, delay }: { label: string; delay: number }) {
 }
 
 function NarrativeCard({ narrative: n, streamLatest }: { narrative: OrsaNarrative; streamLatest: boolean }) {
+  // Scene 7 — ORSA board paper narrative renders effectively-instant. By this
+  // point in the demo the audience has watched the cat agent stream and the
+  // second-opinion stream; a third slow stream is tedious. Speaker reads over.
   const { text: streamed, done } = useStreamedText(n.narrative_text, {
     enabled: streamLatest,
-    charsPerTick: 6, tickMs: 14,
+    charsPerTick: 60, tickMs: 4,
   });
   return (
     <article className="border border-gray-200 rounded-md p-4 bg-white">

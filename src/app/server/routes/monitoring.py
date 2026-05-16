@@ -201,7 +201,7 @@ async def q4_pain_summary():
 
         pains = [
             {
-                "id": "A",
+                "id": "A", "category": "ingestion",
                 "title": "Reinsurance feed late",
                 "fired": a_row.get("status") == "late",
                 "severity": "high" if a_row.get("status") == "late" else "ok",
@@ -210,7 +210,7 @@ async def q4_pain_summary():
                 "context": {"period": a_row.get("reporting_period"), "received": a_row.get("feed_received_timestamp")},
             },
             {
-                "id": "B",
+                "id": "B", "category": "ingestion",
                 "title": "Quarantined claims (DQ break)",
                 "fired": int(b_row.get("n", 0) or 0) > 0,
                 "severity": "high" if int(b_row.get("n", 0) or 0) > 0 else "ok",
@@ -222,7 +222,7 @@ async def q4_pain_summary():
                 "context": {},
             },
             {
-                "id": "C",
+                "id": "C", "category": "reserving",
                 "title": "December storm — property reserve spike",
                 "fired": int(c_row.get("storm_claims", 0) or 0) > 0,
                 "severity": "warn" if int(c_row.get("storm_claims", 0) or 0) > 0 else "ok",
@@ -234,7 +234,7 @@ async def q4_pain_summary():
                 "context": {},
             },
             {
-                "id": "D",
+                "id": "D", "category": "reserving",
                 "title": "Life lapse deterioration (unit-linked)",
                 "fired": (lapse_uplift_pct or 0) > 20,
                 "severity": "warn" if (lapse_uplift_pct or 0) > 20 else "ok",
@@ -246,7 +246,7 @@ async def q4_pain_summary():
                 "context": {"q4_pct": lapse_q4, "q3_pct": lapse_q3, "uplift_pct": lapse_uplift_pct},
             },
             {
-                "id": "E",
+                "id": "E", "category": "reconciliation",
                 "title": "Asset / own-funds reconciliation gap",
                 "fired": int(e_row.get("dup_rows", 0) or 0) > 0,
                 "severity": "high" if int(e_row.get("dup_rows", 0) or 0) > 0 else "ok",
@@ -258,7 +258,7 @@ async def q4_pain_summary():
                 "context": {"dup_eur": e_row.get("dup_eur")},
             },
             {
-                "id": "F",
+                "id": "F", "category": "model_governance",
                 "title": "Challenger model pending decision",
                 "fired": True,  # always relevant: surfacing the +4% delta to be reviewed
                 "severity": "warn",
@@ -267,7 +267,7 @@ async def q4_pain_summary():
                 "context": {"model": "standard_formula"},
             },
             {
-                "id": "G",
+                "id": "G", "category": "reconciliation",
                 "title": "Reserve-capital divergence",
                 "fired": (g_row.get("status") == "MISMATCH"),
                 "severity": "high" if g_row.get("status") == "MISMATCH" else "ok",
@@ -280,7 +280,7 @@ async def q4_pain_summary():
                 "context": {"divergence_eur": g_row.get("difference")},
             },
             {
-                "id": "H",
+                "id": "H", "category": "model_governance",
                 "title": "Stochastic candidate awaiting actuarial review",
                 "fired": True,
                 "severity": "warn",

@@ -29,7 +29,7 @@ interface WhatifResult {
 const SUGGESTIONS = [
   'double cyber book over 12 months',
   'increase motor portfolio by 20% next year',
-  'reduce property cat retention to £2M XOL',
+  'reduce property cat retention to €2M XOL',
 ];
 
 export default function Whatif() {
@@ -43,8 +43,12 @@ export default function Whatif() {
     fetchCyberBook().then((r) => setCyber(r.cyber as Row | null)).catch(() => undefined);
   }, []);
 
-  const { text: narrativeStreamed, done: narrativeDone } = useStreamedText(result?.result.narrative_seed ?? null, { charsPerTick: 5, tickMs: 14 });
-  const { text: opinionStreamed, done: opinionDone } = useStreamedText(narrativeDone ? (result?.second_opinion ?? null) : null, { charsPerTick: 6, tickMs: 12 });
+  // Scene 6 — the contrarian agent should feel snappy and pointed, not
+  // contemplative. Cyber-doubling narrative renders quickly; second-opinion
+  // pushbacks stream fast (the audience has already seen one slow stream
+  // in Scene 5's cat agent — by here they want the answer).
+  const { text: narrativeStreamed, done: narrativeDone } = useStreamedText(result?.result.narrative_seed ?? null, { charsPerTick: 20, tickMs: 8 });
+  const { text: opinionStreamed, done: opinionDone } = useStreamedText(narrativeDone ? (result?.second_opinion ?? null) : null, { charsPerTick: 25, tickMs: 8 });
 
   async function go() {
     setRunning(true); setError(null); setResult(null);
@@ -75,7 +79,7 @@ export default function Whatif() {
         <section className="bg-white border border-gray-200 rounded-lg p-3.5 text-xs grid grid-cols-2 md:grid-cols-4 gap-3">
           <Stat label="Cyber GWP today" value={formatEur(cyber.gwp_eur)} />
           <Stat label="Loss ratio"       value={`${(parseFloat(String(cyber.loss_ratio)) * 100).toFixed(0)}%`} />
-          <Stat label="Reinsurance"      value={`${(parseFloat(String(cyber.reinsurance_qs_pct)) * 100).toFixed(0)}% QS + £5M XOL`} />
+          <Stat label="Reinsurance"      value={`${(parseFloat(String(cyber.reinsurance_qs_pct)) * 100).toFixed(0)}% QS + €5M XOL`} />
           <Stat label="SCR allocation"   value={formatEur(cyber.scr_allocation_eur)} />
         </section>
       )}

@@ -540,8 +540,11 @@ export async function fetchLandingStatus(): Promise<LandingStatus> {
 
 export type PainSeverity = 'ok' | 'warn' | 'high';
 
+export type PainCategory = 'ingestion' | 'reserving' | 'reconciliation' | 'model_governance' | string;
+
 export interface Q4Pain {
   id: string;
+  category: PainCategory;
   title: string;
   fired: boolean;
   severity: PainSeverity;
