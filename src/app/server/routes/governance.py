@@ -227,6 +227,21 @@ async def get_model_promotions(model_id: str):
     return {"promotions": rows}
 
 
+@router.get("/promotions")
+async def list_all_promotions(limit: int = Query(100, ge=1, le=500)):
+    """All promotions across all models — drives the Governance →
+    Model Change History tab."""
+    rows = await execute_query(
+        f"SELECT model_name, from_version, to_version, from_alias, to_alias, "
+        f"  status, quarter, approver, approved_at, promoted_by, promoted_at, "
+        f"  justification "
+        f"FROM {fqn('6_gov_promotions')} "
+        f"ORDER BY COALESCE(promoted_at, approved_at) DESC NULLS LAST "
+        f"LIMIT {int(limit)}"
+    )
+    return {"promotions": rows}
+
+
 # ── Write endpoints ─────────────────────────────────────────────────────────
 
 class PromoteRequest(BaseModel):

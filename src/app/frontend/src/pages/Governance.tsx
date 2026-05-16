@@ -666,9 +666,9 @@ interface PromotionRow {
 function ModelChangeHistoryTab() {
   const [rows, setRows] = useState<PromotionRow[]>([]);
   useEffect(() => {
-    fetch('/api/model-governance/registry')
+    fetch('/api/governance/promotions?limit=100')
       .then((r) => r.json())
-      .then((d) => setRows(d.promotions || d.registry || []))
+      .then((d) => setRows(d.promotions || []))
       .catch(() => setRows([]));
   }, []);
   return (
