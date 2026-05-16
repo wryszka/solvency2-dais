@@ -339,12 +339,13 @@ async def _whatif_cyber_double_real(
         # Fall back to legacy hardcoded payload if no SCR data exists yet
         return _whatif_pretest_cyber_double_fallback()
 
-    # Cyber book exposure is ~10% of non-life premium volume. Doubling it adds
-    # 10% to the volume driver of non_life.premium_reserve. The loss-ratio
-    # adjustment scales the charge proportionally vs the current book LR (0.62).
+    # Cyber book exposure is ~3.3% of non-life premium volume (EUR 18M cyber
+    # vs ~EUR 550M total NL GWP). Doubling it adds ~3.3% to the volume driver
+    # of non_life.premium_reserve. The loss-ratio adjustment scales the
+    # charge proportionally vs the current book LR (0.62).
     growth_factor = 1.0 + (premium_growth_pct / 100.0)            # 2.0 default
-    cyber_share = 0.10
-    volume_uplift = 1.0 + cyber_share * (growth_factor - 1.0)     # 1.10 default
+    cyber_share = 0.033
+    volume_uplift = 1.0 + cyber_share * (growth_factor - 1.0)     # 1.033 default
     lr_factor = loss_ratio / 0.62 if loss_ratio > 0 else 1.0
     multiplier = max(1.0, volume_uplift * lr_factor)
     shocks = [{"module": "non_life", "sub_module": "premium_reserve", "multiplier": multiplier}]
@@ -721,7 +722,7 @@ async def run_stress(req: StressRequest, request: Request):
     await asyncio.sleep(32)
 
     if is_low_rate:
-        ratios = [210.0, 192.0, 178.0, 168.0, 162.0, 158.0]    # 6 points: t0..t5
+        ratios = [210.0, 199.0, 188.0, 178.0, 170.0, 162.0]    # 6 points: t0..t5; year-5 = 162%
         narrative_seed = (
             f"Sustained low interest rates over {req.duration_years} years compress the discount "
             "applied to life best-estimate liabilities. By year 5 the projected solvency ratio "
