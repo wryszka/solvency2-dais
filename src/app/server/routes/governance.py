@@ -399,14 +399,30 @@ async def governance_landing(period: str | None = Query(None)):
     """Aggregates the 4 KPI tiles + recent governance events for the
     Governance destination page. Reads existing tables only — no new ETL.
     """
-    target_period = period or "2025-Q4"
+    # Default target period to whatever today resolves to via the demo
+    # period helper — derived from datetime, not a table lookup.
+    if period:
+        target_period = period
+    else:
+        try:
+            from datetime import datetime, timezone
+            from server.routes.demo import _quarter_for, _quarter_label
+            today = datetime.now(timezone.utc)
+            yyyy, q, _qs, _qe = _quarter_for(today)
+            target_period = _quarter_label(yyyy, q)
+        except Exception:
+            target_period = "2026-Q2"
 
-    # KPI 1 — pending governance actions (overlays + model promotions)
+    # KPI 1 — pending governance actions (overlays + model promotions).
+    # Status values across the seed are inconsistent: overlays land as
+    # 'pending_approval', promotions as 'pending'. Accept both. Promotions
+    # span quarters (a pending Q1 promotion can still be pending in Q2) so
+    # don't filter by quarter — overlays we do filter by current quarter.
     try:
         pend_overlays = await execute_query(
             f"SELECT overlay_id, line_of_business, magnitude_eur, author "
             f"FROM {fqn('6_gov_overlays')} "
-            f"WHERE quarter = :p AND status = 'pending_approval' "
+            f"WHERE quarter = :p AND status IN ('pending', 'pending_approval') "
             f"ORDER BY ABS(CAST(magnitude_eur AS DOUBLE)) DESC",
             parameters=[StatementParameterListItem(name="p", value=target_period)],
         )
@@ -414,9 +430,9 @@ async def governance_landing(period: str | None = Query(None)):
         pend_overlays = []
     try:
         pend_promos = await execute_query(
-            f"SELECT model_name, to_version, approver FROM {fqn('6_gov_promotions')} "
-            f"WHERE quarter = :p AND status = 'pending_approval'",
-            parameters=[StatementParameterListItem(name="p", value=target_period)],
+            f"SELECT model_name, to_version, approver, quarter FROM {fqn('6_gov_promotions')} "
+            f"WHERE status IN ('pending', 'pending_approval') "
+            f"ORDER BY COALESCE(approved_at, promoted_at) DESC"
         )
     except Exception:
         pend_promos = []

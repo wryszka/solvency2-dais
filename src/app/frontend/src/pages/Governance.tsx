@@ -560,7 +560,18 @@ function ControlsValidationTab() {
   const [controls, setControls] = useState<ControlRow[]>([]);
   useEffect(() => {
     fetch('/api/internal-controls/matrix').then((r) => r.json())
-      .then((d) => setControls(d.controls || d || []))
+      .then((d) => {
+        // API shape: { layers: [{ layer, controls: [...] }, ...], ... }
+        // Flatten nested layers into a single controls array, attaching the
+        // layer name to each row for display.
+        const flat: ControlRow[] = [];
+        const layers = Array.isArray(d?.layers) ? d.layers : [];
+        for (const lyr of layers) {
+          const items = Array.isArray(lyr?.controls) ? lyr.controls : [];
+          for (const c of items) flat.push({ ...c, layer: c.layer ?? lyr.layer });
+        }
+        setControls(flat);
+      })
       .catch(() => setControls([]));
   }, []);
   return (
