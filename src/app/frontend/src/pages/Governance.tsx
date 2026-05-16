@@ -627,8 +627,9 @@ function ControlsValidationTab() {
           <h3 className="text-sm font-bold text-gray-900">Model validation evidence</h3>
         </header>
         <p className="text-xs text-gray-500 mb-3">
-          Independent validation reports per model. Where evidence isn't attached, the row carries
-          an honest empty-state badge — not faked.
+          The validation file each model needs to defend itself in an internal review or a regulator
+          inspection: independent validation report, methodology change log, sign-off chain, prior
+          versions' diagnostics. One row per registered model.
         </p>
         <ul className="space-y-2 text-sm">
           {['reserving_pnc', 'reserving_life', 'standard_formula', 'igloo_cat', 'prophet_life'].map((m) => (
