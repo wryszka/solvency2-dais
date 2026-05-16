@@ -621,30 +621,100 @@ function ControlsValidationTab() {
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <header className="flex items-center gap-2 mb-3">
-          <FlaskConical className="w-4 h-4 text-amber-700" />
-          <h3 className="text-sm font-bold text-gray-900">Model validation evidence</h3>
-        </header>
-        <p className="text-xs text-gray-500 mb-3">
-          The validation file each model needs to defend itself in an internal review or a regulator
-          inspection: independent validation report, methodology change log, sign-off chain, prior
-          versions' diagnostics. One row per registered model.
-        </p>
-        <ul className="space-y-2 text-sm">
-          {['reserving_pnc', 'reserving_life', 'standard_formula', 'igloo_cat', 'prophet_life'].map((m) => (
-            <li key={m} className="border border-gray-100 rounded p-3 flex items-center gap-3">
-              <FlaskConical className="w-3.5 h-3.5 text-gray-400" />
-              <div className="flex-1 min-w-0">
-                <div className="text-gray-900 font-mono text-xs">{m}</div>
-                <div className="text-[11px] text-gray-500">Independent validation · methodology change history</div>
-              </div>
-              <span className="text-[10px] uppercase tracking-wider font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">Evidence not attached</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <ModelValidationPanel />
     </section>
+  );
+}
+
+interface ModelValidationRow {
+  model_id: string; label: string; engine_tag?: string; engine?: string;
+  last_promotion_to?: string | null;
+  last_promotion_at?: string | null;
+  last_promotion_quarter?: string | null;
+  approver?: string | null;
+  diagnostics_run: number;
+  diagnostics_passed: number;
+  last_diagnostic_period?: string | null;
+  last_diagnostic_at?: string | null;
+  next_independent_validation_due?: string | null;
+  status: 'validated' | 'pending revalidation' | 'in service' | 'not validated';
+}
+
+function ModelValidationPanel() {
+  const [rows, setRows] = useState<ModelValidationRow[]>([]);
+  useEffect(() => {
+    fetch('/api/governance/model-validation').then((r) => r.json())
+      .then((d) => setRows(d.models || []))
+      .catch(() => setRows([]));
+  }, []);
+  const badgeFor = (s: ModelValidationRow['status']): string => {
+    if (s === 'validated') return 'text-emerald-700 bg-emerald-50 border-emerald-200';
+    if (s === 'pending revalidation') return 'text-amber-700 bg-amber-50 border-amber-200';
+    if (s === 'in service') return 'text-blue-700 bg-blue-50 border-blue-200';
+    return 'text-gray-600 bg-gray-50 border-gray-200';
+  };
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-4">
+      <header className="flex items-center gap-2 mb-3">
+        <FlaskConical className="w-4 h-4 text-amber-700" />
+        <h3 className="text-sm font-bold text-gray-900">Model validation evidence</h3>
+        <span className="ml-auto text-xs text-gray-500">{rows.length} models</span>
+      </header>
+      <p className="text-xs text-gray-500 mb-3">
+        Per-model validation file: most-recent promotion + diagnostic results + sign-off chain +
+        next independent validation due. The artefact set internal validators and regulators
+        request when reviewing a model.
+      </p>
+      <ul className="space-y-2 text-sm">
+        {rows.map((m) => {
+          const diagOk = m.diagnostics_run > 0 && m.diagnostics_passed === m.diagnostics_run;
+          return (
+            <li key={m.model_id} className="border border-gray-100 rounded p-3 flex items-start gap-3">
+              <FlaskConical className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-gray-900 font-medium">{m.label}</span>
+                  <code className="text-[10px] font-mono text-gray-500">{m.model_id}</code>
+                  {m.engine_tag === 'external' && m.engine && (
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded px-1.5 py-0.5">external · {m.engine}</span>
+                  )}
+                </div>
+                <div className="text-[11px] text-gray-600 mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                  <span>
+                    <span className="text-gray-400">Diagnostics:</span>{' '}
+                    <span className={diagOk ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>
+                      {m.diagnostics_passed}/{m.diagnostics_run} passed
+                    </span>
+                    {m.last_diagnostic_period && <span className="text-gray-400"> · {m.last_diagnostic_period}</span>}
+                  </span>
+                  <span className="text-gray-400">·</span>
+                  <span>
+                    <span className="text-gray-400">Last promotion:</span>{' '}
+                    {m.last_promotion_to ?? '—'}
+                    {m.last_promotion_at && <span className="text-gray-400"> · {String(m.last_promotion_at).slice(0, 10)}</span>}
+                  </span>
+                  {m.approver && (
+                    <>
+                      <span className="text-gray-400">·</span>
+                      <span><span className="text-gray-400">Approver:</span> {m.approver}</span>
+                    </>
+                  )}
+                </div>
+                {m.next_independent_validation_due && (
+                  <div className="text-[10px] text-gray-500 mt-1">
+                    Next independent validation due{' '}
+                    <span className="font-mono text-gray-700">{m.next_independent_validation_due}</span>
+                  </div>
+                )}
+              </div>
+              <span className={`text-[10px] uppercase tracking-wider font-bold border rounded px-1.5 py-0.5 shrink-0 ${badgeFor(m.status)}`}>
+                {m.status}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

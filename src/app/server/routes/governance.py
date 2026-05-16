@@ -227,6 +227,83 @@ async def get_model_promotions(model_id: str):
     return {"promotions": rows}
 
 
+@router.get("/model-validation")
+async def model_validation():
+    """One-row-per-model validation evidence summary, composed from real
+    governance data — most recent promotion + diagnostic results + sign-off
+    chain. Drives the Governance → Controls & Validation tab.
+    """
+    # Latest promotion per model
+    promos = await execute_query(f"""
+        WITH ranked AS (
+          SELECT model_name, to_version, approver, approved_at, promoted_by, promoted_at, quarter,
+                 ROW_NUMBER() OVER (PARTITION BY model_name
+                   ORDER BY COALESCE(promoted_at, approved_at) DESC NULLS LAST) AS rn
+          FROM {fqn('6_gov_promotions')}
+          WHERE status IN ('approved')
+        )
+        SELECT * FROM ranked WHERE rn = 1
+    """)
+    promo_by_model = {r["model_name"]: r for r in promos}
+
+    # Diagnostic roll-up per model
+    diags = await execute_query(f"""
+        SELECT model_name,
+               COUNT(*) AS n_diagnostics,
+               SUM(CASE WHEN passed THEN 1 ELSE 0 END) AS n_passed,
+               MAX(reporting_period) AS last_period,
+               MAX(computed_at) AS last_computed_at
+        FROM {fqn('6_gov_model_diagnostics')}
+        GROUP BY model_name
+    """)
+    diag_by_model = {r["model_name"]: r for r in diags}
+
+    # Compose one row per native + external model
+    rows: list[dict[str, Any]] = []
+    all_specs = NATIVE_MODELS + EXTERNAL_MODELS
+    for spec in all_specs:
+        mid = spec["model_id"]
+        p = promo_by_model.get(mid, {})
+        d = diag_by_model.get(mid, {})
+        approver = p.get("approver") or p.get("promoted_by")
+        promoted_at = p.get("promoted_at") or p.get("approved_at")
+        n_diag = int(d.get("n_diagnostics") or 0)
+        n_pass = int(d.get("n_passed") or 0)
+        # Independent validation typically annual — derive next-due from
+        # most recent approved promotion + 365 days.
+        next_due = None
+        try:
+            if promoted_at:
+                from datetime import datetime, timedelta
+                ts = promoted_at if isinstance(promoted_at, datetime) else datetime.fromisoformat(str(promoted_at).replace(" ", "T").rstrip("Z"))
+                next_due = (ts + timedelta(days=365)).date().isoformat()
+        except Exception:
+            next_due = None
+
+        rows.append({
+            "model_id":               mid,
+            "label":                  spec.get("label", mid),
+            "engine_tag":             spec.get("engine_tag"),
+            "engine":                 spec.get("engine"),
+            "last_promotion_to":      p.get("to_version"),
+            "last_promotion_at":      str(promoted_at) if promoted_at else None,
+            "last_promotion_quarter": p.get("quarter"),
+            "approver":               approver,
+            "diagnostics_run":        n_diag,
+            "diagnostics_passed":     n_pass,
+            "last_diagnostic_period": d.get("last_period"),
+            "last_diagnostic_at":     str(d.get("last_computed_at")) if d.get("last_computed_at") else None,
+            "next_independent_validation_due": next_due,
+            "status": (
+                "validated" if n_diag > 0 and n_pass == n_diag and promoted_at
+                else "pending revalidation" if n_diag > 0 and n_pass < n_diag
+                else "in service" if promoted_at
+                else "not validated"
+            ),
+        })
+    return {"models": rows}
+
+
 @router.get("/promotions")
 async def list_all_promotions(limit: int = Query(100, ge=1, le=500)):
     """All promotions across all models — drives the Governance →
