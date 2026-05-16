@@ -887,7 +887,7 @@ async def _rebase_demo_state() -> dict[str, str]:
     feeds_table = fqn("6_demo_data_feeds")
     await execute_query(f"DELETE FROM {feeds_table}")
     feeds_rows = [
-        # Late ABN AMRO custodian (Scene 3) — anchored relative to today
+        # Late ABN AMRO custodian (Scene 3 deep-dive) — anchored relative to today
         ("custodian_holdings_abn", "ABN AMRO Custody Services", "ABN AMRO",
          "Janusz Kowalski", "Custody Operations Lead, Amsterdam", "janusz.kowalski@abnamro.example.com",
          last_friday, last_monday, "received_late",
@@ -897,6 +897,27 @@ async def _rebase_demo_state() -> dict[str, str]:
          2_300_000.0,
          "Custodian holdings file delivered late vs Friday 18:00 CET expected. Cause: ABN AMRO weekend "
          "batch reprocessing. Phantom EUR 2.3M asset/own-funds break in cross-QRT recon resolves once feed lands.",
+         current_period),
+        # Late reinsurance bordereau — Scene 3 primary attention item (matches
+        # Pain A "Reinsurance feed late"). Real ingestion table 1_raw_reinsurance
+        # carries the same feed_name; this row carries the broker contact +
+        # escalation timeline + downstream impact for the FeedDetail surface.
+        ("1_raw_reinsurance", "Munich Re — quarterly bordereau", "Munich Re",
+         "Anja Vogel", "Senior Treaty Administrator, Munich",
+         "anja.vogel@munichre.example.com",
+         q_end.replace(hour=18, minute=0, tzinfo=timezone.utc),
+         (q_end + timedelta(days=8)).replace(hour=14, minute=15, tzinfo=timezone.utc),
+         "received_late",
+         (q_end + timedelta(days=6)).replace(hour=9, minute=30, tzinfo=timezone.utc),
+         "Email + Slack escalation to broker channel",
+         "Auto-email D+1, D+3, D+5; Slack escalation D+6 to broker channel; Anja acknowledged D+6 ETA D+8 14:30 CET; quarterly batch was reprocessed at Munich Re after a treaty-mapping update.",
+         (q_end + timedelta(days=8)).replace(hour=16, minute=30, tzinfo=timezone.utc),
+         ["S.26.06", "S.25.01", "S.05.01"],
+         ["reserving_pnc:reinsurance_recoverables", "reserving_life:reinsurance_recoverables", "standard_formula:default_risk"],
+         0.0,
+         "Quarterly cession statement delayed 8 business days. Blocks technical-provision recoverable calculations "
+         "across non-life + life books and the default-risk sub-module of the standard formula. Three teams waiting. "
+         "Broker has acknowledged; ETA end of this week.",
          current_period),
         # On-time peer feeds (received during current quarter close)
         ("policies_pas", "Bricksurance Policy Administration System", "Bricksurance internal",
@@ -912,10 +933,6 @@ async def _rebase_demo_state() -> dict[str, str]:
          "Internal", "Underwriting Ops", "uw-ops@bricksurance.example.com",
          last_friday, last_friday - timedelta(hours=1), "received_on_time", None, None, None, None,
          ["S.26.06"], ["igloo_cat"], 0.0, "Exposure layers ready for cat engine.", current_period),
-        ("ri_treaties", "ReinsurePro", "Munich Re — broker channel",
-         "Internal", "Reinsurance Operations", "ri-ops@bricksurance.example.com",
-         last_friday + timedelta(days=1), last_friday + timedelta(days=2), "received_on_time", None, None, None, None,
-         ["S.26.06", "S.05.01"], [], 0.0, "Quarterly cession statement.", current_period),
     ]
     for r in feeds_rows:
         params = []

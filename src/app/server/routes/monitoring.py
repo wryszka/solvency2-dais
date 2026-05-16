@@ -206,7 +206,7 @@ async def q4_pain_summary():
                 "fired": a_row.get("status") == "late",
                 "severity": "high" if a_row.get("status") == "late" else "ok",
                 "headline": (a_row.get("notes") or "—") if a_row.get("status") == "late" else "RI feed on time",
-                "drill_path": "/ingestion",
+                "drill_path": "/feeds/1_raw_reinsurance",
                 "context": {"period": a_row.get("reporting_period"), "received": a_row.get("feed_received_timestamp")},
             },
             {
