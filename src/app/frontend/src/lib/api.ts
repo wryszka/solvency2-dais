@@ -1010,6 +1010,12 @@ export async function promoteSfChallenger(approver_signoff: string): Promise<Row
 export async function fetchCatAgentReview(): Promise<{ review: string; events: Row[]; storm_claims: Row[] }> {
   return fetchJson('/api/demo/cat-agent/review');
 }
+export async function fetchCatAgentState(): Promise<{ state: 'pending_review' | 'promoted'; promoted_at?: string; promoted_by?: string }> {
+  return fetchJson('/api/demo/cat-agent/state');
+}
+export async function approveCatAgent(): Promise<{ status: string; promotion_id: string; approved_at: string; approved_by: string }> {
+  return postJson('/api/demo/cat-agent/approve', {});
+}
 export async function fetchSolvencyDaily(days = 90): Promise<{ series: DailySolvency[] }> {
   return fetchJson(`/api/demo/solvency-daily?days=${days}`);
 }

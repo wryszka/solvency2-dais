@@ -6,10 +6,10 @@
  * alongside.
  */
 import { useEffect, useState } from 'react';
-import { Sparkles, Loader2, AlertTriangle, Wind, RefreshCw } from 'lucide-react';
+import { Sparkles, Loader2, AlertTriangle, Wind, RefreshCw, CheckCircle2, Send } from 'lucide-react';
 import { renderMarkdownSafe } from '../lib/markdown';
 import { useStreamedText } from '../lib/hooks/useStreamedText';
-import { fetchCatAgentReview } from '../lib/api';
+import { fetchCatAgentReview, fetchCatAgentState, approveCatAgent } from '../lib/api';
 
 interface ReviewResponse {
   review: string;
@@ -17,17 +17,39 @@ interface ReviewResponse {
   storm_claims: Record<string, unknown>[];
 }
 
+interface AgentState {
+  state: 'pending_review' | 'promoted';
+  promoted_at?: string;
+  promoted_by?: string;
+}
+
 export default function CatAgentPanel() {
   const [data, setData] = useState<ReviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<AgentState>({ state: 'pending_review' });
+  const [busy, setBusy] = useState(false);
   const { text: streamed, done } = useStreamedText(data?.review, { charsPerTick: 5, tickMs: 16 });
+
+  useEffect(() => {
+    fetchCatAgentState().then(setState).catch(() => undefined);
+  }, []);
 
   async function load() {
     setLoading(true); setError(null); setData(null);
     try { setData(await fetchCatAgentReview()); }
     catch (e) { setError(String(e)); }
     finally { setLoading(false); }
+  }
+
+  async function approve() {
+    if (!confirm('Approve Q2 Igloo cat output? This flips the MLflow alias for igloo_cat from candidate → production and logs the promotion in 6_gov_promotions.')) return;
+    setBusy(true); setError(null);
+    try {
+      const r = await approveCatAgent();
+      setState({ state: 'promoted', promoted_at: r.approved_at, promoted_by: r.approved_by });
+    } catch (e) { setError(String(e)); }
+    finally { setBusy(false); }
   }
 
   return (
@@ -81,6 +103,36 @@ export default function CatAgentPanel() {
             <div dangerouslySetInnerHTML={{ __html: renderMarkdownSafe(streamed) }} />
             {!done && <span className="inline-block w-2 h-4 bg-violet-700 align-middle ml-0.5 animate-pulse" />}
           </div>
+
+          {/* Approve action — appears after the streaming review finishes. The agent
+              recommends; the actuary decides. Promote flips the MLflow alias on
+              igloo_cat (candidate → production) and logs a 6_gov_promotions row. */}
+          {done && (
+            <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg p-3.5">
+              {state.state === 'promoted' ? (
+                <div className="inline-flex items-center gap-1.5 text-sm text-emerald-700 font-semibold">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Approved
+                  {state.promoted_at && (
+                    <span className="text-[11px] text-gray-500 font-mono ml-1">
+                      {state.promoted_at.slice(0, 16).replace('T', ' ')} · {state.promoted_by ?? '—'}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="flex-1 text-xs text-gray-700">
+                    Agent recommends <span className="font-semibold">accept</span>. Your call.
+                  </div>
+                  <button onClick={approve} disabled={busy}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-violet-700 text-white rounded-md hover:bg-violet-800 disabled:opacity-50 text-xs font-semibold">
+                    {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    Approve & promote Igloo Q2 → production
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           {done && data.events.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

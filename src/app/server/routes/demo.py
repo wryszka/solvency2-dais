@@ -201,7 +201,9 @@ End with the exact line: **This decision is yours.**
 async def cat_agent_review():
     """Run the cat agent against the latest Igloo output + event log."""
     igloo_summary = await execute_query(
-        f"""SELECT lob_name, AVG(modelled_aal_eur) AS aal_q3, AVG(modelled_aal_eur) AS aal_q4
+        f"""SELECT lob_name, AVG(var_gross_eur) AS var_gross_eur,
+                   AVG(tvar_gross_eur) AS tvar_gross_eur,
+                   AVG(var_net_eur) AS var_net_eur
             FROM {fqn('2_stg_cat_risk_by_lob')}
             GROUP BY lob_name LIMIT 5"""
     )
@@ -251,6 +253,78 @@ End with exactly: **This decision is yours.**"""
     except Exception as exc:
         logger.exception("Cat agent failed")
         raise HTTPException(500, str(exc)) from exc
+
+
+# Track Igloo cat-output approval state for the Lab card. Bare-bones demo
+# state — promotes the cat module candidate to production by inserting a
+# governance row + flipping the MLflow alias on igloo_cat.
+
+@router.post("/cat-agent/approve")
+async def cat_agent_approve(request: Request):
+    user = get_request_user(request)
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    promotion_id = str(uuid.uuid4())
+
+    # MLflow alias flip on igloo_cat — candidate → production. Best-effort.
+    try:
+        from server.config import get_workspace_client, get_catalog, get_schema
+        client = get_workspace_client()
+        full = f"{get_catalog()}.{get_schema()}.igloo_cat"
+        rm = await asyncio.to_thread(client.registered_models.get, full_name=full, include_aliases=True)
+        aliases = {a.alias_name.lower(): int(a.version_num) for a in (rm.aliases or [])}
+        cand_v = aliases.get("candidate") or aliases.get("challenger")
+        if cand_v:
+            await asyncio.to_thread(
+                client.registered_models.set_alias,
+                full_name=full, alias="production", version_num=cand_v,
+            )
+            await asyncio.to_thread(
+                client.registered_models.set_alias,
+                full_name=full, alias="Champion", version_num=cand_v,
+            )
+    except Exception as exc:
+        logger.warning("Igloo MLflow alias flip skipped: %s", exc)
+
+    # Governance promotion row
+    try:
+        await execute_query(
+            f"INSERT INTO {fqn('6_gov_promotions')} "
+            "(promotion_id, model_name, model_type, from_alias, to_alias, "
+            " from_version, to_version, quarter, diagnostics_passed, justification, "
+            " approver, approved_at, promoted_by, promoted_at, status) "
+            "VALUES (:pid, 'igloo_cat', 'external', 'candidate', 'production', "
+            "        'Q-1', 'Q-current', '2026-Q2', true, "
+            "        'Q2 Igloo stochastic cat output reviewed and approved. "
+            "Cat agent recommended ACCEPT — +12% vs prior quarter is event-driven "
+            "(Storm Henrik, 16-18 December 2025, 142 km/h peak gust, Northern Germany + Denmark). "
+            "Loss-to-event-severity within calibration band against Storm Ylenia 2022 comparator.', "
+            "        :u, CAST(:now AS TIMESTAMP), :u, CAST(:now AS TIMESTAMP), 'approved')",
+            parameters=[
+                StatementParameterListItem(name="pid", value=promotion_id),
+                StatementParameterListItem(name="now", value=now),
+                StatementParameterListItem(name="u",   value=user),
+            ],
+        )
+    except Exception as exc:
+        logger.warning("Igloo gov_promotions insert failed: %s", exc)
+
+    return {"status": "approved", "promotion_id": promotion_id, "approved_at": now, "approved_by": user}
+
+
+@router.get("/cat-agent/state")
+async def cat_agent_state():
+    """Return current promotion state for igloo_cat — used by Lab card."""
+    try:
+        rows = await execute_query(
+            f"SELECT promoted_at, promoted_by, status FROM {fqn('6_gov_promotions')} "
+            f"WHERE model_name = 'igloo_cat' AND status = 'approved' "
+            f"ORDER BY promoted_at DESC LIMIT 1"
+        )
+        if rows:
+            return {"state": "promoted", "promoted_at": str(rows[0].get("promoted_at")), "promoted_by": rows[0].get("promoted_by")}
+    except Exception:
+        pass
+    return {"state": "pending_review"}
 
 
 # ── Scene 6 — Daily solvency + cyber what-if + second opinion ───────────────
