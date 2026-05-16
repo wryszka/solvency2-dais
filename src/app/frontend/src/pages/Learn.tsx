@@ -231,7 +231,7 @@ const PANELS: Panel[] = [
     ),
     diagram: <GovernanceWrapDiagram />,
     links: [
-      { label: 'See model governance',     to: '/model-governance' },
+      { label: 'See Governance',           to: '/governance' },
       { label: 'See the Overlays Register', to: '/overlays' },
       { label: 'See internal controls',    to: '/internal-controls' },
     ],

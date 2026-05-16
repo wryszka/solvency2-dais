@@ -248,7 +248,7 @@ function CapabilityGrid({ models }: { models: LabModelRow[] }) {
     },
     {
       icon: Scale, title: 'Model Governance',
-      to: '/model-governance',
+      to: '/governance',
       tagline: 'Champion / Challenger · alias-based promotion',
       what: 'Every model has production + candidate aliases in MLflow. Candidates run in shadow; diagnostics decide promotion; the alias flip is the cutover and is logged.',
       cadence: 'Continuous · promotions logged on event',
@@ -687,7 +687,7 @@ const ARTICLE_48: Article48Obligation[] = [
     obligation: 'Ensure the appropriateness of methodologies and underlying models',
     platform: 'Champion / Challenger continuous comparison · Tier 1/2/3 governance · diagnostics on every run.',
     judgement: 'Appropriateness test — has the business changed? Does the model still fit the portfolio?',
-    link: { to: '/model-governance', label: 'Model Governance' },
+    link: { to: '/governance', label: 'Governance' },
   },
   {
     ref: 'Art. 48(1)(c)',

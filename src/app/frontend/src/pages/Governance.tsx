@@ -173,7 +173,7 @@ function OverviewTab({ landing }: { landing: LandingResponse | null }) {
               <ShieldCheck className="w-3 h-3" /> Internal controls
             </Link>
             <br />
-            <Link to="/model-governance" className="text-xs text-violet-700 hover:underline inline-flex items-center gap-1">
+            <Link to="/governance" className="text-xs text-violet-700 hover:underline inline-flex items-center gap-1">
               <FlaskConical className="w-3 h-3" /> Model governance
             </Link>
           </div>
@@ -359,7 +359,7 @@ function ApprovalsTab({ landing }: { landing: LandingResponse | null }) {
                   <div className="text-gray-900">{(p as { model_name?: string }).model_name} → {(p as { to_version?: string }).to_version}</div>
                   <div className="text-[11px] text-gray-500">awaiting {(p as { approver?: string }).approver ?? '—'}</div>
                 </div>
-                <Link to="/model-governance" className="text-xs text-violet-700 hover:underline">Review →</Link>
+                <Link to="/governance" className="text-xs text-violet-700 hover:underline">Review →</Link>
               </li>
             ))}
           </ul>

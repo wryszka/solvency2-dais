@@ -53,7 +53,7 @@ const COLUMNS: PillarColumn[] = [
     blurb: 'Risk management. The judgement framework around the numbers.',
     deliverables: [
       { to: '/orsa',              label: 'ORSA',                  description: 'Own risk + solvency assessment. Stress projections + narrative.', icon: Workflow },
-      { to: '/model-governance',  label: 'Model Governance',      description: 'Champion / Challenger comparison + approvals.',                  icon: Scale },
+      { to: '/governance',        label: 'Governance',            description: 'Approvals, audit, AI activity, controls, model change history.', icon: Scale },
       { to: '/afr',               label: 'Actuarial Function',    description: 'Article 48 report — TPs, UW, reinsurance, internal model.',     icon: ScrollText },
       { to: '/internal-controls', label: 'Internal Controls',     description: 'AI guardrails + architectural assertions + audit log.',         icon: Lock },
     ],

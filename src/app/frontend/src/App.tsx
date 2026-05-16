@@ -15,7 +15,6 @@ import Orsa from './pages/Orsa';
 import Afr from './pages/Afr';
 import Sfcr from './pages/Sfcr';
 import Rsr from './pages/Rsr';
-import ModelGovernance from './pages/ModelGovernance';
 import InternalControls from './pages/InternalControls';
 import Architecture from './pages/Architecture';
 import LifeReserving from './pages/LifeReserving';
@@ -318,7 +317,7 @@ export default function App() {
 
             {/* Pillar 2 — Governance */}
             <Route path="/orsa"               element={<Orsa />} />
-            <Route path="/model-governance"   element={<ModelGovernance />} />
+            <Route path="/model-governance"   element={<Navigate to="/governance" replace />} />
             <Route path="/afr"                element={<Afr />} />
             <Route path="/internal-controls"  element={<InternalControls />} />
 
