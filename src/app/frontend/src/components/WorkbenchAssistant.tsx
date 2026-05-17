@@ -26,12 +26,15 @@ interface ChatTurn {
   confidence?: number;
 }
 
-const SUGGESTIONS = [
-  "What's outstanding for Q4 close?",
-  "Why did property reserves move?",
-  "What did the cat agent say about Igloo output?",
-  "Explain the cross-QRT recon gap",
-  "Show me the worst stress scenario",
+// Each suggestion carries the specialist hint so the audience sees where the
+// supervisor will dispatch the question.
+const SUGGESTIONS: { text: string; hint: string }[] = [
+  { text: "What's outstanding for Q4 close?",                              hint: "General Workbench" },
+  { text: "Why did property reserves move?",                                hint: "Senior Reserving Actuary" },
+  { text: "What did the cat agent say about Igloo output?",                 hint: "Cat Modelling Agent" },
+  { text: "Explain the cross-QRT recon gap",                                hint: "Recon Investigator" },
+  { text: "Show me the worst stress scenario",                              hint: "ORSA Narrative Agent" },
+  { text: "What could go wrong if we double our cyber book over 12 months?", hint: "Contrarian Capital Reviewer" },
 ];
 
 function relTime(iso: string | undefined): string {
@@ -118,10 +121,13 @@ export default function WorkbenchAssistant() {
                 <p>The supervisor classifies your question and routes it to one of eight specialists. Try:</p>
                 <div className="space-y-1.5">
                   {SUGGESTIONS.map((s) => (
-                    <button key={s} onClick={() => ask(s)}
-                      className="w-full text-left text-xs px-2.5 py-1.5 rounded border border-gray-200 hover:bg-violet-50 hover:border-violet-300 text-gray-700">
-                      <MessageSquareCode className="w-3 h-3 inline mr-1.5 text-violet-700" />
-                      {s}
+                    <button key={s.text} onClick={() => ask(s.text)}
+                      className="w-full text-left text-xs px-2.5 py-1.5 rounded border border-gray-200 hover:bg-violet-50 hover:border-violet-300 text-gray-700 flex items-start gap-2">
+                      <MessageSquareCode className="w-3 h-3 mt-0.5 shrink-0 text-violet-700" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block">{s.text}</span>
+                        <span className="block text-[10px] text-violet-600/80 mt-0.5">→ {s.hint}</span>
+                      </span>
                     </button>
                   ))}
                 </div>

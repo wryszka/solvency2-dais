@@ -228,11 +228,16 @@ function SpecialistCard({ s, endpointName }: { s: Specialist; endpointName: stri
 /*  Inline chat — mirrors the floating Ask-Workbench overlay, full panel     */
 /* ────────────────────────────────────────────────────────────────────────── */
 
-const SUGGESTIONS = [
-  "What's outstanding for Q4 close?",
-  "Why did property reserves move?",
-  "What did the cat agent say about Igloo output?",
-  "Explain the cross-QRT recon gap",
+// Example questions on the supervisor's chat — each one carries a hint
+// showing which specialist the classifier should route it to. The hint is
+// editorial guidance (LLM classifier may differ) but is reliable for these
+// pre-baked variants.
+const SUGGESTIONS: { text: string; hint: string }[] = [
+  { text: "What's outstanding for Q4 close?",                              hint: "General Workbench" },
+  { text: "Why did property reserves move?",                                hint: "Senior Reserving Actuary" },
+  { text: "What did the cat agent say about Igloo output?",                 hint: "Cat Modelling Agent" },
+  { text: "Explain the cross-QRT recon gap",                                hint: "Recon Investigator" },
+  { text: "What could go wrong if we double our cyber book over 12 months?", hint: "Contrarian Capital Reviewer" },
 ];
 
 function InlineChat() {
@@ -290,10 +295,13 @@ function InlineChat() {
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
               {SUGGESTIONS.map((s) => (
-                <button key={s} onClick={() => ask(s)}
-                  className="text-left text-xs px-2.5 py-1.5 rounded border border-gray-200 hover:bg-violet-50 hover:border-violet-300 text-gray-700">
-                  <MessageSquareCode className="w-3 h-3 inline mr-1.5 text-violet-700" />
-                  {s}
+                <button key={s.text} onClick={() => ask(s.text)}
+                  className="text-left text-xs px-2.5 py-1.5 rounded border border-gray-200 hover:bg-violet-50 hover:border-violet-300 text-gray-700 flex items-start gap-2">
+                  <MessageSquareCode className="w-3 h-3 mt-0.5 shrink-0 text-violet-700" />
+                  <span className="flex-1 min-w-0">
+                    <span className="block">{s.text}</span>
+                    <span className="block text-[10px] text-violet-600/80 mt-0.5">→ {s.hint}</span>
+                  </span>
                 </button>
               ))}
             </div>
