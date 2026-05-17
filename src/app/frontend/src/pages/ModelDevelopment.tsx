@@ -111,6 +111,11 @@ function ViewButton({ active, onClick, icon: Icon, label }: {
 
 /* ═══════════════════════ Native Models view ═══════════════════════ */
 
+// Only the 3 MLflow-versioned models have a Lab detail page. The other native
+// notebooks (ORSA engine, cross-QRT recon, risk margin) are surfaced here for
+// transparency but have no versioned Lab view to drill into.
+const LAB_VISIBLE = new Set(['reserving_pnc', 'reserving_life', 'standard_formula']);
+
 function NativeModelsView() {
   const [models, setModels] = useState<NativeModel[]>([]);
   useEffect(() => {
@@ -145,9 +150,11 @@ function NativeModelsView() {
             </p>
           )}
           <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
-            <Link to={`/lab/${m.model_id}`} className="text-blue-700 hover:underline font-semibold inline-flex items-center gap-1">
-              View in Lab <ArrowRight className="w-3 h-3" />
-            </Link>
+            {LAB_VISIBLE.has(m.model_id) ? (
+              <Link to={`/lab/${m.model_id}`} className="text-blue-700 hover:underline font-semibold inline-flex items-center gap-1">
+                View in Lab <ArrowRight className="w-3 h-3" />
+              </Link>
+            ) : <span />}
             <a href={m.workspace_url} target="_blank" rel="noopener noreferrer"
               className="text-blue-700 hover:underline font-semibold inline-flex items-center gap-1">
               Open notebook <ExternalLink className="w-3 h-3" />

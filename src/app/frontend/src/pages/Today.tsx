@@ -37,8 +37,7 @@ export default function Today() {
       </header>
 
       {/* Headline tiles — three operational reads: today's solvency, worst-stress
-          posture, and what's awaiting human sign-off. MCR coverage lives in the
-          Overview tab below as quarterly reference material. */}
+          posture, and what's awaiting human sign-off. */}
       <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-4 pb-2">
         <TodaySolvencyTile />
         <TodayOrsaTile />

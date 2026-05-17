@@ -313,6 +313,145 @@ async def get_model_versions(period: str = Query(None)):
 
 # ── Feed Detail ──────────────────────────────────────────────────────────────
 
+# Ownership / escalation chain per feed. Used by the Ownership tab on the feed
+# detail drilldown so a user clicking a late feed knows who to chase.
+OWNERSHIP_MAP: dict[str, dict[str, str]] = {
+    "1_raw_reinsurance": {
+        "source_party":         "Munich Re (broker: Aon)",
+        "owner_contact_name":   "Anja Vogel",
+        "owner_contact_role":   "Senior Treaty Administrator, Munich",
+        "owner_contact_email":  "anja.vogel@munichre.example.com",
+        "internal_owner":       "Carlos Mendes — Head of Reinsurance Operations",
+        "internal_owner_email": "carlos.mendes@bricksurance.example.com",
+        "escalation_chain":     "D+1 auto-email · D+3 second auto-email · D+5 third auto-email · D+6 Slack to #broker-aon · D+7 Head of RI ops · D+8+ CFO + regulator notification",
+        "sla_text":             "3 business days after quarter close",
+    },
+    "1_raw_assets": {
+        "source_party":         "ABN AMRO Custody Services",
+        "owner_contact_name":   "Janusz Kowalski",
+        "owner_contact_role":   "Custody Operations Lead, Amsterdam",
+        "owner_contact_email":  "janusz.kowalski@abnamro.example.com",
+        "internal_owner":       "Investment Operations team",
+        "internal_owner_email": "investment-ops@bricksurance.example.com",
+        "escalation_chain":     "Mon 08:15 auto-email · Mon 11:00 Slack ops · D+2 Head of Investment Ops · D+3 CRO + regulator notification",
+        "sla_text":             "Friday 18:00 CET weekly · 2 business days after quarter close",
+    },
+    "1_raw_counterparties": {
+        "source_party":         "Bloomberg + S&P Capital IQ",
+        "owner_contact_name":   "Maria Petrova",
+        "owner_contact_role":   "Market Data Manager",
+        "owner_contact_email":  "maria.petrova@bricksurance.example.com",
+        "internal_owner":       "Market Data team",
+        "internal_owner_email": "marketdata@bricksurance.example.com",
+        "escalation_chain":     "D+1 auto-email · D+2 vendor support ticket · D+3 Head of Market Data",
+        "sla_text":             "Daily 06:00 CET",
+    },
+    "1_raw_balance_sheet": {
+        "source_party":         "Bricksurance Finance (SAP)",
+        "owner_contact_name":   "Tomasz Wojcik",
+        "owner_contact_role":   "Group Financial Reporting Lead",
+        "owner_contact_email":  "tomasz.wojcik@bricksurance.example.com",
+        "internal_owner":       "Group Finance",
+        "internal_owner_email": "group-finance@bricksurance.example.com",
+        "escalation_chain":     "D+1 auto-email · D+2 Slack #finance-close · D+3 Group CFO",
+        "sla_text":             "5 business days after quarter close",
+    },
+    "1_raw_premiums": {
+        "source_party":         "Bricksurance PAS",
+        "owner_contact_name":   "Internal — PAS Operations",
+        "owner_contact_role":   "PAS Operations",
+        "owner_contact_email":  "pas-ops@bricksurance.example.com",
+        "internal_owner":       "PAS Operations team",
+        "internal_owner_email": "pas-ops@bricksurance.example.com",
+        "escalation_chain":     "D+1 auto-email · D+2 Slack #pas-ops · D+3 Head of Operations",
+        "sla_text":             "2 business days after quarter close",
+    },
+    "1_raw_claims": {
+        "source_party":         "Bricksurance Claims Administration",
+        "owner_contact_name":   "Internal — Claims Operations",
+        "owner_contact_role":   "Claims Operations",
+        "owner_contact_email":  "claims-ops@bricksurance.example.com",
+        "internal_owner":       "Claims Operations team",
+        "internal_owner_email": "claims-ops@bricksurance.example.com",
+        "escalation_chain":     "D+1 auto-email · D+2 Slack #claims-ops · D+3 Head of Claims",
+        "sla_text":             "2 business days after quarter close",
+    },
+    "1_raw_expenses": {
+        "source_party":         "Bricksurance Finance (cost-allocation engine)",
+        "owner_contact_name":   "Tomasz Wojcik",
+        "owner_contact_role":   "Group Financial Reporting Lead",
+        "owner_contact_email":  "tomasz.wojcik@bricksurance.example.com",
+        "internal_owner":       "Group Finance — expense allocation",
+        "internal_owner_email": "expense-allocation@bricksurance.example.com",
+        "escalation_chain":     "D+1 auto-email · D+2 Slack #finance-close · D+3 Group CFO",
+        "sla_text":             "5 business days after quarter close",
+    },
+    "1_raw_risk_factors": {
+        "source_party":         "EIOPA risk-free rate + Bloomberg market data",
+        "owner_contact_name":   "Internal — Market Data team",
+        "owner_contact_role":   "Market Data team",
+        "owner_contact_email":  "marketdata@bricksurance.example.com",
+        "internal_owner":       "Market Data team",
+        "internal_owner_email": "marketdata@bricksurance.example.com",
+        "escalation_chain":     "EIOPA publishes monthly · vendor ticket if outage",
+        "sla_text":             "Monthly · within 5 days of EIOPA publication",
+    },
+    "1_raw_exposures": {
+        "source_party":         "Bricksurance Underwriting platform",
+        "owner_contact_name":   "Internal — Underwriting Ops",
+        "owner_contact_role":   "Underwriting Operations",
+        "owner_contact_email":  "uw-ops@bricksurance.example.com",
+        "internal_owner":       "Underwriting Operations team",
+        "internal_owner_email": "uw-ops@bricksurance.example.com",
+        "escalation_chain":     "D+1 auto-email · D+2 Slack #uw-ops · D+3 Head of Underwriting",
+        "sla_text":             "2 business days after quarter close",
+    },
+    "1_raw_volume_measures": {
+        "source_party":         "Bricksurance Underwriting platform",
+        "owner_contact_name":   "Internal — Underwriting Ops",
+        "owner_contact_role":   "Underwriting Operations",
+        "owner_contact_email":  "uw-ops@bricksurance.example.com",
+        "internal_owner":       "Underwriting Operations team",
+        "internal_owner_email": "uw-ops@bricksurance.example.com",
+        "escalation_chain":     "D+1 auto-email · D+2 Slack #uw-ops · D+3 Head of Underwriting",
+        "sla_text":             "2 business days after quarter close",
+    },
+    "1_raw_own_funds": {
+        "source_party":         "Bricksurance Treasury",
+        "owner_contact_name":   "Internal — Treasury",
+        "owner_contact_role":   "Treasury Operations",
+        "owner_contact_email":  "treasury@bricksurance.example.com",
+        "internal_owner":       "Treasury team",
+        "internal_owner_email": "treasury@bricksurance.example.com",
+        "escalation_chain":     "D+1 auto-email · D+3 Group CFO",
+        "sla_text":             "5 business days after quarter close",
+    },
+    "1_raw_claims_triangles": {
+        "source_party":         "Bricksurance Claims Administration",
+        "owner_contact_name":   "Internal — Reserving team",
+        "owner_contact_role":   "Reserving Operations",
+        "owner_contact_email":  "reserving@bricksurance.example.com",
+        "internal_owner":       "Reserving team (Senior Reserving Actuary)",
+        "internal_owner_email": "reserving@bricksurance.example.com",
+        "escalation_chain":     "D+1 auto-email · D+2 Senior Reserving Actuary · D+3 Chief Actuary",
+        "sla_text":             "3 business days after quarter close",
+    },
+}
+
+
+def _ownership_for(feed_name: str) -> dict[str, str]:
+    return OWNERSHIP_MAP.get(feed_name, {
+        "source_party":         "Internal / unspecified",
+        "owner_contact_name":   "—",
+        "owner_contact_role":   "—",
+        "owner_contact_email":  "—",
+        "internal_owner":       "See feed catalog (6_demo_data_feeds) for owner mapping.",
+        "internal_owner_email": "—",
+        "escalation_chain":     "—",
+        "sla_text":             "—",
+    })
+
+
 # Map feed names to their source raw table and the DQ pipeline/table they flow through
 FEED_MAP = {
     "1_raw_assets": {"table": "1_raw_assets", "dq_pipeline": "S.06.02 List of Assets", "dq_tables": ["2_stg_assets_enriched", "3_qrt_s0602_list_of_assets"]},
@@ -397,13 +536,29 @@ async def get_feed_detail(feed_name: str):
         columns = _ok(columns_r)
 
         # If the table has no reporting_period column, the period-aware
-        # queries return empty (or raise). Retry with the fallback shape.
+        # queries return empty (or raise). For completeness, prefer the
+        # per-period row_count history from 5_mon_pipeline_sla_status — that
+        # gives 3-4 prior uploads for trend comparison instead of one bucket.
+        # Sample falls back to a plain LIMIT.
         has_period = any(c.get("col_name") == "reporting_period" for c in columns)
         if not has_period:
             try:
-                completeness = await execute_query_cached(completeness_fallback_q, ttl_seconds=30)
+                completeness = await execute_query_cached(
+                    f"""
+                    SELECT reporting_period, row_count
+                    FROM {fqn('5_mon_pipeline_sla_status')}
+                    WHERE feed_name = '{feed_name}'
+                    ORDER BY reporting_period DESC
+                    """,
+                    ttl_seconds=30,
+                )
             except Exception:
                 completeness = []
+            if not completeness:
+                try:
+                    completeness = await execute_query_cached(completeness_fallback_q, ttl_seconds=30)
+                except Exception:
+                    completeness = []
             try:
                 sample = await execute_query_cached(sample_fallback_q, ttl_seconds=30)
             except Exception:
@@ -430,6 +585,7 @@ async def get_feed_detail(feed_name: str):
             "dq_rules": dq_rules,
             "sample": sample,
             "columns": columns,
+            "ownership": _ownership_for(feed_name),
         }
 
     except Exception as exc:

@@ -323,8 +323,13 @@ function AuditTrailsTab() {
 
 /* ═══════════════════════ Approvals & Workflow tab ═══════════════════════ */
 
+type ReviewTarget =
+  | { kind: 'overlay';   data: Overlay }
+  | { kind: 'promotion'; data: Record<string, unknown> };
+
 function ApprovalsTab({ landing }: { landing: LandingResponse | null }) {
   const [overlays, setOverlays] = useState<Overlay[]>([]);
+  const [reviewing, setReviewing] = useState<ReviewTarget | null>(null);
   useEffect(() => {
     fetchOverlays({ quarter: '2025-Q4' }).then((r) => setOverlays(r.overlays || [])).catch(() => undefined);
   }, []);
@@ -349,7 +354,9 @@ function ApprovalsTab({ landing }: { landing: LandingResponse | null }) {
                   <div className="text-gray-900">{o.line_of_business} overlay · EUR {(Math.abs(Number(o.magnitude_eur || 0)) / 1e6).toFixed(1)}M</div>
                   <div className="text-[11px] text-gray-500">submitted by {o.author ?? '—'}</div>
                 </div>
-                <Link to="/overlays" className="text-xs text-violet-700 hover:underline">Review →</Link>
+                <button
+                  onClick={() => setReviewing({ kind: 'overlay', data: o })}
+                  className="text-xs text-violet-700 hover:underline">Review →</button>
               </li>
             ))}
             {(landing?.pending_promotions ?? []).map((p, i) => (
@@ -359,12 +366,18 @@ function ApprovalsTab({ landing }: { landing: LandingResponse | null }) {
                   <div className="text-gray-900">{(p as { model_name?: string }).model_name} → {(p as { to_version?: string }).to_version}</div>
                   <div className="text-[11px] text-gray-500">awaiting {(p as { approver?: string }).approver ?? '—'}</div>
                 </div>
-                <Link to="/governance" className="text-xs text-violet-700 hover:underline">Review →</Link>
+                <button
+                  onClick={() => setReviewing({ kind: 'promotion', data: p })}
+                  className="text-xs text-violet-700 hover:underline">Review →</button>
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {reviewing && (
+        <ReviewModal target={reviewing} onClose={() => setReviewing(null)} />
+      )}
 
       <div className="bg-white border border-gray-200 rounded-lg p-4">
         <header className="flex items-center gap-2 mb-3">
@@ -391,6 +404,135 @@ function ApprovalsTab({ landing }: { landing: LandingResponse | null }) {
         )}
       </div>
     </section>
+  );
+}
+
+/* ═══════════════════════ Review modal (overlay or promotion) ═══════════════════════ */
+
+function ReviewModal({ target, onClose }: { target: ReviewTarget; onClose: () => void }) {
+  const isOverlay = target.kind === 'overlay';
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto"
+      >
+        <header className="px-5 py-3 border-b border-gray-200 flex items-center gap-2 sticky top-0 bg-white">
+          {isOverlay ? <Layers className="w-4 h-4 text-violet-700" /> : <GitCompare className="w-4 h-4 text-blue-700" />}
+          <h3 className="text-sm font-bold text-gray-900">
+            {isOverlay ? 'Overlay — pending approval' : 'Model promotion — pending approval'}
+          </h3>
+          <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-700 text-xs uppercase tracking-wide">Close</button>
+        </header>
+
+        <div className="p-5 space-y-4 text-sm">
+          {isOverlay ? <OverlayReviewBody overlay={target.data} /> : <PromotionReviewBody p={target.data} />}
+        </div>
+
+        <footer className="px-5 py-3 border-t border-gray-200 bg-gray-50 flex items-center gap-2">
+          <p className="text-[11px] text-gray-500 flex-1">
+            Approving / rejecting is performed by the named approver in their queue.
+            This is a read-only review pane.
+          </p>
+          {isOverlay ? (
+            <Link to="/overlays" onClick={onClose} className="text-xs text-violet-700 hover:underline">
+              Open in Overlays Register →
+            </Link>
+          ) : (
+            <a href="#model-history" onClick={(e) => { e.preventDefault(); onClose(); window.location.hash = 'model-history'; }}
+              className="text-xs text-blue-700 hover:underline">
+              Open Model Change History →
+            </a>
+          )}
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function OverlayReviewBody({ overlay }: { overlay: Overlay }) {
+  const mag = parseFloat(String(overlay.magnitude_eur));
+  const extra = overlay as unknown as Record<string, unknown>;
+  const cellsRaw = extra.linked_qrt_cells;
+  const cells: string[] = Array.isArray(cellsRaw) ? (cellsRaw as unknown[]).map(String) : [];
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Line of business" value={overlay.line_of_business} />
+        <Field label="Quarter" value={overlay.quarter} mono />
+        <Field label="Model" value={overlay.model_name} />
+        <Field label="Category" value={String(overlay.category).replace(/_/g, ' ')} />
+        <Field label="Magnitude" value={`${mag >= 0 ? '+' : ''}EUR ${(Math.abs(mag) / 1e6).toFixed(2)}M`} mono
+          tone={mag >= 0 ? 'rose' : 'emerald'} />
+        <Field label="Direction" value={overlay.direction ?? '—'} />
+        <Field label="Lifecycle" value={String(overlay.lifecycle_action).replace(/_/g, ' ')} />
+        <Field label="Status" value={String(overlay.status).replace(/_/g, ' ')} />
+      </div>
+
+      <div className="border-t border-gray-100 pt-3 space-y-2">
+        <Field label="Author" value={overlay.author ?? '—'} />
+        <Field label="Required approver"
+          value={String(extra.required_approval_role ?? overlay.approver ?? '—')} />
+      </div>
+
+      <div className="border-t border-gray-100 pt-3 space-y-1">
+        <div className="text-[10px] uppercase tracking-widest font-bold text-gray-500">Rationale</div>
+        <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+          {overlay.rationale || 'No rationale recorded.'}
+        </p>
+      </div>
+
+      <div className="border-t border-gray-100 pt-3 space-y-1">
+        <div className="text-[10px] uppercase tracking-widest font-bold text-gray-500">Linked QRT cells</div>
+        <div className="flex flex-wrap gap-1.5">
+          {cells.length === 0
+            ? <span className="text-xs text-gray-500 italic">None linked.</span>
+            : cells.map((c, i) => (
+                <code key={i} className="text-[11px] bg-violet-50 border border-violet-200 text-violet-800 px-1.5 py-0.5 rounded font-mono">{c}</code>
+              ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function PromotionReviewBody({ p }: { p: Record<string, unknown> }) {
+  const get = (k: string) => p[k] !== undefined && p[k] !== null ? String(p[k]) : '—';
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Model" value={get('model_name')} />
+        <Field label="Engine" value={get('engine')} />
+        <Field label="From version" value={get('from_version')} mono />
+        <Field label="To version" value={get('to_version')} mono />
+        <Field label="From alias" value={get('from_alias')} />
+        <Field label="To alias" value={get('to_alias')} />
+      </div>
+
+      <div className="border-t border-gray-100 pt-3 grid grid-cols-2 gap-3">
+        <Field label="Requested by" value={get('requester')} />
+        <Field label="Awaiting approver" value={get('approver')} />
+        <Field label="Period" value={get('period')} mono />
+        <Field label="Submitted at" value={get('decision_at') !== '—' ? get('decision_at') : get('created_at')} mono />
+      </div>
+
+      {p['rationale'] && (
+        <div className="border-t border-gray-100 pt-3 space-y-1">
+          <div className="text-[10px] uppercase tracking-widest font-bold text-gray-500">Rationale</div>
+          <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">{String(p['rationale'])}</p>
+        </div>
+      )}
+    </>
+  );
+}
+
+function Field({ label, value, mono, tone }: { label: string; value: string; mono?: boolean; tone?: 'rose' | 'emerald' }) {
+  const toneCls = tone === 'rose' ? 'text-rose-700' : tone === 'emerald' ? 'text-emerald-700' : 'text-gray-900';
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-widest font-bold text-gray-500">{label}</div>
+      <div className={`text-sm ${mono ? 'font-mono' : ''} ${toneCls}`}>{value}</div>
+    </div>
   );
 }
 

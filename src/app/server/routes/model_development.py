@@ -106,7 +106,7 @@ NATIVE_MODELS: list[dict[str, Any]] = [
         "methodology": "Cost-of-capital approach on the non-hedgeable risk SCR projection.",
         "status": "Production",
         "illustrative": True,
-        "notebook": "src/05_QRT_S1201_Life_TPs/qrt_s1201_pipeline.py",
+        "notebook": "src/05_QRT_S1201_Life_TPs/gold_s1201_life_technical_provisions.sql",
         "linked_artefacts": ["S.12.01"],
     },
 ]

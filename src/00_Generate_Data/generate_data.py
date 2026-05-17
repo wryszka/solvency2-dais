@@ -1897,9 +1897,9 @@ for feed_name, source in FEED_SOURCES.items():
         # Pain B taints Q4 claims — visible drop in pass rate
         dq_pass = round(rng.uniform(0.955, 0.978), 4)
 
-    notes = f"Arrived {days_after_close} day(s) after quarter close"
-    if feed_name == "1_raw_reinsurance" and reporting_period == "2025-Q4":
-        notes = "RI broker delayed — quarterly bordereau received 8 business days late"
+    # Notes intentionally blank — the freshness tab + Ownership tab carry the
+    # detail; the row-level note was redundant with the status badge.
+    notes = ""
 
     sla_rows.append({
         "reporting_period": reporting_period,

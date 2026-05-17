@@ -294,6 +294,17 @@ export function fetchModelVersions(period?: string): Promise<{ data: Row[] }> {
 
 // ─── Feed Detail API ──────────────────────────────────────────────
 
+export interface FeedOwnership {
+  source_party: string;
+  owner_contact_name: string;
+  owner_contact_role: string;
+  owner_contact_email: string;
+  internal_owner: string;
+  internal_owner_email: string;
+  escalation_chain: string;
+  sla_text: string;
+}
+
 export interface FeedDetail {
   feed_name: string;
   table: string;
@@ -303,6 +314,7 @@ export interface FeedDetail {
   dq_rules: Row[];
   sample: Row[];
   columns: Row[];
+  ownership?: FeedOwnership;
 }
 
 export function fetchFeedDetail(feedName: string): Promise<FeedDetail> {

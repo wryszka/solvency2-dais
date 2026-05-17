@@ -9,7 +9,6 @@ import Q4PainCallouts from '../components/Q4PainCallouts';
 import ControlTowerHero, { type HealthLevel } from '../components/ControlTowerHero';
 import ReadinessPanel from '../components/ReadinessPanel';
 import PipelinePanel from '../components/PipelinePanel';
-import TodayMCRTile from '../components/TodayMCRTile';
 import { fetchSlaStatus, fetchDqSummary, fetchReconciliation, generateCrossQrtReview, fetchFeedDetail, investigateRecon, fetchOverlays, fetchPeriodState, formatEur, type Row, type CrossQrtReviewResponse, type FeedDetail, type ReconInvestigation, type PeriodState } from '../lib/api';
 import { renderMarkdownSafe } from '../lib/markdown';
 import { ProcessOverview, DataInventory } from './Governance';
@@ -126,12 +125,8 @@ export default function Monitor({ initialTab = 'overview' }: { initialTab?: Moni
           {/* Q4 attention items — surfaces the 6 engineered Q4 2025 pains */}
           <Q4PainCallouts />
 
-          {/* KPIs moved into the hero strip above. The overview tab now shows
-              the per-QRT readiness panel + reporting pipeline panel + MCR
-              coverage as quarterly reference material. */}
           <ReadinessPanel />
           <PipelinePanel />
-          <TodayMCRTile />
         </div>
       )}
 
@@ -379,8 +374,7 @@ function FeedCard({ feed, isExpanded, onClick }: { feed: Row; isExpanded: boolea
             variant={cfg.badge}
           />
         </div>
-        <div className="flex items-center gap-2">
-          <div className="text-right text-xs text-gray-400 min-w-[100px]">{feed.notes}</div>
+        <div className="flex items-center gap-1">
           {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
         </div>
       </div>
@@ -392,7 +386,7 @@ function FeedDetailPanel({ feedName }: { feedName: string }) {
   const [detail, setDetail] = useState<FeedDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'freshness' | 'completeness' | 'dq' | 'data'>('freshness');
+  const [activeTab, setActiveTab] = useState<'freshness' | 'completeness' | 'dq' | 'data' | 'ownership'>('freshness');
 
   useEffect(() => {
     setLoading(true);
@@ -422,10 +416,11 @@ function FeedDetailPanel({ feedName }: { feedName: string }) {
   if (!detail) return null;
 
   const tabs = [
-    { id: 'freshness' as const, label: 'Freshness', count: detail.freshness.length },
-    { id: 'completeness' as const, label: 'Completeness', count: detail.completeness.length },
-    { id: 'dq' as const, label: 'DQ Rules', count: detail.dq_rules.length },
-    { id: 'data' as const, label: 'Data Preview', count: detail.sample.length },
+    { id: 'freshness' as const,    label: 'Freshness',     count: detail.freshness.length },
+    { id: 'completeness' as const, label: 'Completeness',  count: detail.completeness.length },
+    { id: 'dq' as const,           label: 'DQ Rules',      count: detail.dq_rules.length },
+    { id: 'data' as const,         label: 'Data Preview',  count: detail.sample.length },
+    { id: 'ownership' as const,    label: 'Ownership',     count: detail.ownership ? 1 : 0 },
   ];
 
   return (
@@ -581,6 +576,42 @@ function FeedDetailPanel({ feedName }: { feedName: string }) {
                   })}
                 </tbody>
               </table>
+            )}
+          </div>
+        )}
+
+        {/* Ownership tab */}
+        {activeTab === 'ownership' && (
+          <div className="space-y-4">
+            <p className="text-xs text-gray-500">
+              Who to contact if this feed is late or wrong. Vendor-supplied feeds list both the
+              external contact and the internal owner; internal feeds list the team responsible.
+            </p>
+            {!detail.ownership ? (
+              <p className="text-sm text-gray-400 py-4 text-center">No ownership recorded for this feed.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="border border-gray-200 rounded-lg p-3">
+                  <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Source / vendor</div>
+                  <div className="text-sm font-semibold text-gray-900">{detail.ownership.source_party}</div>
+                  <div className="text-sm text-gray-800 mt-2">{detail.ownership.owner_contact_name}</div>
+                  <div className="text-xs text-gray-600">{detail.ownership.owner_contact_role}</div>
+                  <div className="text-xs text-gray-600 font-mono mt-1">{detail.ownership.owner_contact_email}</div>
+                </div>
+                <div className="border border-gray-200 rounded-lg p-3 bg-amber-50/40">
+                  <div className="text-[10px] uppercase tracking-widest text-amber-700 font-bold mb-1">Internal owner — chase this person</div>
+                  <div className="text-sm font-semibold text-gray-900">{detail.ownership.internal_owner}</div>
+                  <div className="text-xs text-gray-600 font-mono mt-1">{detail.ownership.internal_owner_email}</div>
+                </div>
+                <div className="md:col-span-2 border border-gray-200 rounded-lg p-3">
+                  <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Escalation chain</div>
+                  <div className="text-sm text-gray-800 leading-relaxed">{detail.ownership.escalation_chain}</div>
+                </div>
+                <div className="md:col-span-2 border border-gray-200 rounded-lg p-3">
+                  <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">SLA</div>
+                  <div className="text-sm text-gray-800">{detail.ownership.sla_text}</div>
+                </div>
+              </div>
             )}
           </div>
         )}
