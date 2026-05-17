@@ -23,17 +23,13 @@ router = APIRouter(prefix="/api/model-development", tags=["model-development"])
 
 
 def _bundle_files_root() -> str:
-    """Compute the workspace path to <bundle_files>/ from this module's __file__.
+    """Workspace path to the deployed bundle's files/ root.
 
-    Module location at runtime: <bundle_files>/src/app/server/routes/model_development.py
-    Five parents up → <bundle_files>/, so a notebook path like
-    "src/02_Reserving_Model/foo.py" joins to a single, correct workspace path.
+    Set by app.yaml (BUNDLE_FILES_ROOT) so the URL resolver doesn't have to
+    derive it from `__file__` — which is the in-container path, not the
+    workspace path.
     """
-    here = os.path.abspath(__file__)
-    p = here
-    for _ in range(5):
-        p = os.path.dirname(p)
-    return p
+    return os.environ.get("BUNDLE_FILES_ROOT", "").rstrip("/")
 
 
 def _workspace_url(rel_path: str) -> str:
@@ -44,10 +40,11 @@ def _workspace_url(rel_path: str) -> str:
     """
     host = get_workspace_host().rstrip("/")
     root = _bundle_files_root()
-    full = os.path.normpath(os.path.join(root, rel_path))
-    if not full.startswith("/Workspace"):
-        # Local dev — synthesise a Workspace path so the UI renders something
-        full = "/Workspace" + full
+    if root:
+        full = os.path.normpath(os.path.join(root, rel_path))
+    else:
+        # Local dev or BUNDLE_FILES_ROOT unset — synthesise something readable.
+        full = "/Workspace" + os.path.normpath("/" + rel_path)
     return f"{host}/#workspace{full}"
 
 

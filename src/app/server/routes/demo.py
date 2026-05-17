@@ -506,17 +506,15 @@ async def whatif_notebook_url(scenario: str = Query("cyber_doubling")):
     import os
     from server.config import get_workspace_host
     host = get_workspace_host().rstrip("/")
-    # __file__ is at <bundle_files>/src/app/server/routes/demo.py
-    # Bundle files root = parents[5] = <bundle_files>/
-    here = os.path.abspath(__file__)
-    parents = here
-    for _ in range(5):
-        parents = os.path.dirname(parents)
-    notebook_path = os.path.normpath(
-        os.path.join(parents, "src", "06_What_If_Scenarios", scenario)
-    )
-    if not notebook_path.startswith("/Workspace"):
-        notebook_path = "/Workspace" + notebook_path
+    # Bundle files root comes from env (set by app.yaml at deploy time).
+    # __file__ is the in-container path on Databricks Apps and cannot be used
+    # to derive the workspace path.
+    root = os.environ.get("BUNDLE_FILES_ROOT", "").rstrip("/")
+    rel = os.path.join("src", "06_What_If_Scenarios", scenario)
+    if root:
+        notebook_path = os.path.normpath(os.path.join(root, rel))
+    else:
+        notebook_path = "/Workspace" + os.path.normpath("/" + rel)
     url = f"{host}/#workspace{notebook_path}"
     return {"url": url, "path": notebook_path, "scenario": scenario}
 

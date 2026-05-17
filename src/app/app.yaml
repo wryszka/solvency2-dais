@@ -24,3 +24,5 @@ env:
     value: "databricks"
   - name: SUPERVISOR_ENDPOINT_NAME
     value: ${var.supervisor_endpoint_name}
+  - name: BUNDLE_FILES_ROOT
+    value: ${var.bundle_files_root}
