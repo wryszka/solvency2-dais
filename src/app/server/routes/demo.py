@@ -955,6 +955,71 @@ async def _rebase_demo_state() -> dict[str, str]:
             parameters=params,
         )
 
+    # ── 1b. Pipeline SLA status — repair the current-period rows so the
+    # freshness tab and the status badge agree, and so only the reinsurance
+    # feed shows as late. (Pain B — claims DQ — sits on a different surface.)
+    sla_status_table = fqn("5_mon_pipeline_sla_status")
+    quarter_close = q_end.replace(hour=18, minute=0, tzinfo=timezone.utc)
+    # SLA business days per feed (mirrors 0_cfg_feed_sla without depending on it
+    # being readable at runtime — the table is small and the values are stable).
+    sla_business_days_by_feed = {
+        "1_raw_assets":                   3,
+        "1_raw_premiums":                 3,
+        "1_raw_claims":                   3,
+        "1_raw_expenses":                 5,
+        "1_raw_reinsurance":              3,
+        "1_raw_risk_factors":             2,
+        "1_raw_exposures":                5,
+        "1_raw_volume_measures":          5,
+        "1_raw_counterparties":           1,
+        "1_raw_balance_sheet":            5,
+        "1_raw_own_funds":                5,
+        "1_raw_claims_triangles":         3,
+        "1_raw_life_policies":            3,
+        "1_raw_life_claims":              3,
+        "1_raw_life_lapses":              5,
+        "1_raw_life_mortality_experience":7,
+        "1_raw_life_assumptions":         7,
+    }
+    try:
+        existing = await execute_query(
+            f"SELECT feed_name FROM {sla_status_table} WHERE reporting_period = :rp",
+            parameters=[StatementParameterListItem(name="rp", value=current_period)],
+        )
+        for row in existing:
+            fn = row.get("feed_name")
+            if not fn:
+                continue
+            sla_bd = sla_business_days_by_feed.get(fn, 5)
+            feed_deadline = quarter_close + timedelta(days=sla_bd)
+            if fn == "1_raw_reinsurance":
+                # Stays late: 8 business days past the 3-business-day SLA.
+                arrival = quarter_close + timedelta(days=11, hours=4)
+                status_v = "late"
+            else:
+                # Lands 1 day inside the SLA — comfortably on time.
+                arrival_days = max(1, sla_bd - 1)
+                arrival = quarter_close + timedelta(days=arrival_days, hours=3)
+                status_v = "on_time"
+            await execute_query(
+                f"UPDATE {sla_status_table} "
+                "SET sla_deadline = CAST(:dl AS TIMESTAMP), "
+                "    actual_arrival = CAST(:ar AS TIMESTAMP), "
+                "    feed_received_timestamp = :ar, "
+                "    status = :st, "
+                "    notes = '' "
+                "WHERE feed_name = :fn AND reporting_period = :rp",
+                parameters=[
+                    StatementParameterListItem(name="dl", value=feed_deadline.isoformat()),
+                    StatementParameterListItem(name="ar", value=arrival.isoformat()),
+                    StatementParameterListItem(name="st", value=status_v),
+                    StatementParameterListItem(name="fn", value=fn),
+                    StatementParameterListItem(name="rp", value=current_period),
+                ],
+            )
+    except Exception as exc:
+        logger.warning("SLA status repair skipped: %s", exc)
+
     # ── 2. Solvency daily series — rolling 90 days ending today ─────────────
     solvency_table = fqn("6_demo_solvency_daily")
     await execute_query(f"DELETE FROM {solvency_table}")

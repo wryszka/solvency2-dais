@@ -1859,13 +1859,15 @@ FEED_SOURCES = {
 }
 
 # Pain A — late RI feed: in Q1-Q3 it arrives ~t+2/3, in Q4 it arrives at t+11
-# (8 days late vs 3-business-day SLA). All other feeds stay clean.
+# (8 days late vs 3-business-day SLA). Every other feed lands within its SLA.
+# (Pain B is a DQ break on claims, not a freshness break — handled below.)
 def _arrival_days_after_close(feed_name: str) -> int:
     if feed_name == "1_raw_reinsurance":
         return 11 if reporting_period == "2025-Q4" else int(rng.choice([2, 2, 3, 3]))
-    if feed_name == "1_raw_expenses":
-        return 6 if reporting_period == "2025-Q4" else int(rng.choice([3, 4, 4, 5]))
-    return int(rng.choice([1, 2, 2, 3, 3]))
+    sla_bd = SLA_BUSINESS_DAYS.get(feed_name, 5)
+    # Arrive 1-2 days inside the per-feed SLA so every other feed shows green.
+    upper = max(1, sla_bd - 1)
+    return int(rng.choice([1, 1, 2] if upper >= 2 else [1]))
 
 # Per-feed SLA in business days (must match 0_cfg_feed_sla.sla_business_days)
 SLA_BUSINESS_DAYS = {row["feed_name"]: int(row["sla_business_days"]) for row in feed_sla_rows}
@@ -1882,6 +1884,9 @@ for feed_name, source in FEED_SOURCES.items():
     feed_deadline = quarter_close + timedelta(days=sla_bd)
     on_time = arrival <= feed_deadline
     status = "on_time" if on_time else "late"
+    # Persist the per-feed SLA deadline (not the QRT submission deadline) so the
+    # freshness tab's "X days early / late" agrees with the status badge.
+    row_sla_deadline = feed_deadline
 
     try:
         feed_count = spark.table(f"{catalog}.{schema}.`{feed_name}`").filter(
@@ -1905,7 +1910,7 @@ for feed_name, source in FEED_SOURCES.items():
         "reporting_period": reporting_period,
         "feed_name": feed_name,
         "source_system": source,
-        "sla_deadline": sla_deadline,
+        "sla_deadline": row_sla_deadline,
         "actual_arrival": arrival,
         "feed_received_timestamp": feed_received_timestamp,
         "row_count": feed_count,
