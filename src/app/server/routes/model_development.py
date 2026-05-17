@@ -25,25 +25,30 @@ router = APIRouter(prefix="/api/model-development", tags=["model-development"])
 def _bundle_files_root() -> str:
     """Compute the workspace path to <bundle_files>/ from this module's __file__.
 
-    Module location: <bundle_files>/src/app/server/routes/model_development.py
-    Four parents up → <bundle_files>/. On local dev this points at the repo root.
+    Module location at runtime: <bundle_files>/src/app/server/routes/model_development.py
+    Five parents up → <bundle_files>/, so a notebook path like
+    "src/02_Reserving_Model/foo.py" joins to a single, correct workspace path.
     """
     here = os.path.abspath(__file__)
     p = here
-    for _ in range(4):
+    for _ in range(5):
         p = os.path.dirname(p)
     return p
 
 
 def _workspace_url(rel_path: str) -> str:
-    """Resolve a repo-relative notebook path to a workspace deep-link."""
-    host = get_workspace_host()
+    """Resolve a repo-relative notebook path to a workspace deep-link.
+
+    Uses the `#workspace<path>` fragment form — opens the workspace browser at
+    that file, which works for both notebooks (.py) and queries (.sql).
+    """
+    host = get_workspace_host().rstrip("/")
     root = _bundle_files_root()
     full = os.path.normpath(os.path.join(root, rel_path))
-    if full.startswith("/Workspace"):
-        return f"{host}#notebook{full}"
-    # Local dev — show a synthesised path so the UI renders something useful
-    return f"{host}#notebook/Workspace{full}"
+    if not full.startswith("/Workspace"):
+        # Local dev — synthesise a Workspace path so the UI renders something
+        full = "/Workspace" + full
+    return f"{host}/#workspace{full}"
 
 
 # ── Static catalogues ────────────────────────────────────────────────────────

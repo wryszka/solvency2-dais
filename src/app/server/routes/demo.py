@@ -505,24 +505,19 @@ async def whatif_notebook_url(scenario: str = Query("cyber_doubling")):
     """
     import os
     from server.config import get_workspace_host
-    host = get_workspace_host()
+    host = get_workspace_host().rstrip("/")
     # __file__ is at <bundle_files>/src/app/server/routes/demo.py
-    # Bundle files root = parents[4] = <bundle_files>/
+    # Bundle files root = parents[5] = <bundle_files>/
     here = os.path.abspath(__file__)
     parents = here
-    for _ in range(4):
+    for _ in range(5):
         parents = os.path.dirname(parents)
-    # `parents` now points at the workspace-deployed `files/` root if the app
-    # is running inside a bundle; on local dev it points at the repo root.
     notebook_path = os.path.normpath(
         os.path.join(parents, "src", "06_What_If_Scenarios", scenario)
     )
-    # Workspace deep link
-    if notebook_path.startswith("/Workspace"):
-        url = f"{host}#notebook{notebook_path}"
-    else:
-        # Local dev — return a relative path so the UI can still render something
-        url = f"{host}#notebook/Workspace{notebook_path}"
+    if not notebook_path.startswith("/Workspace"):
+        notebook_path = "/Workspace" + notebook_path
+    url = f"{host}/#workspace{notebook_path}"
     return {"url": url, "path": notebook_path, "scenario": scenario}
 
 
