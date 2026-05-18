@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 import { Workflow, Loader2, AlertTriangle, ArrowLeft, Zap, Anchor, Calendar } from 'lucide-react';
 import { renderMarkdownSafe } from '../lib/markdown';
 import { fetchOrsaDraft, type OrsaDraftSection } from '../lib/api';
+import UnderTheHood from '../components/UnderTheHood';
 
 const STATUS_VARIANT = {
   live:           { Icon: Zap,      cls: 'bg-emerald-100 text-emerald-800 border-emerald-200', label: 'live' },
@@ -110,6 +111,17 @@ export default function OrsaDraft() {
           </header>
 
           {sections.map((s) => <Section key={s.section_id} s={s} pref={(el) => { refs.current[s.section_id] = el; }} />)}
+
+          <UnderTheHood
+            title="What this document is built on"
+            lines={[
+              { component: 'Unity Catalog',     detail: 'Sections live in gold_orsa_draft (Delta). Quantitative sections regenerate nightly; narrative sections preserve their human-authored content.' },
+              { component: 'Nightly job',       detail: 'A scheduled job runs the standing stress, writes results to gold_orsa_results, then refreshes the quant sections.' },
+              { component: 'Foundation Model API', detail: 'Each quant section is re-written by the ORSA Narrative Agent against the latest numbers — not boilerplate.' },
+              { component: 'Mosaic AI',         detail: 'In production the narrative agent runs as a Mosaic AI Serving endpoint with full MLflow trace and approval log.' },
+              { component: 'DBSQL',             detail: 'This page reads the draft via the serverless warehouse — same warehouse that drives the Control Tower.' },
+            ]}
+          />
         </main>
       </div>
     </div>
