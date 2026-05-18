@@ -985,12 +985,17 @@ async def _rebase_demo_state() -> dict[str, str]:
         # Repair ALL periods in the SLA status table — the Freshness drill-down
         # shows history, so leaving older quarters with the old QRT-submission
         # deadline values produces "12 days early" vs a "late" badge.
-        # Only the current period keeps the reinsurance "late" story; all
-        # prior periods get on-time values for reinsurance too, so the trend
-        # looks clean.
+        # Only the LATEST period (what the Ingestion tab actually shows) keeps
+        # the reinsurance "late" story; all prior periods get on-time values
+        # for reinsurance too, so the trend looks clean.
         existing = await execute_query(
             f"SELECT DISTINCT feed_name, reporting_period FROM {sla_status_table}"
         )
+        # Find the max period actually present — using current_period directly
+        # is fragile because the rebase rewrites timestamps but doesn't insert
+        # new SLA rows for the live quarter.
+        all_periods = {row.get("reporting_period") for row in existing if row.get("reporting_period")}
+        live_period = max(all_periods) if all_periods else current_period
         for row in existing:
             fn = row.get("feed_name")
             rp = row.get("reporting_period")
@@ -1012,7 +1017,7 @@ async def _rebase_demo_state() -> dict[str, str]:
                 period_close = quarter_close
             sla_bd = sla_business_days_by_feed.get(fn, 5)
             feed_deadline = period_close + timedelta(days=sla_bd)
-            if fn == "1_raw_reinsurance" and rp == current_period:
+            if fn == "1_raw_reinsurance" and rp == live_period:
                 # Only the live period keeps the late story.
                 arrival = period_close + timedelta(days=11, hours=4)
                 status_v = "late"
@@ -1020,13 +1025,21 @@ async def _rebase_demo_state() -> dict[str, str]:
                 arrival_days = max(1, sla_bd - 1)
                 arrival = period_close + timedelta(days=arrival_days, hours=3)
                 status_v = "on_time"
+            # Claims feed gets a degraded DQ pass rate in the live period
+            # (Pain B — quarantined claims). Other periods stay clean.
+            if fn == "1_raw_claims" and rp == live_period:
+                dq_pass = 0.965
+            else:
+                dq_pass = None  # leave existing value alone
+            dq_set_clause = ", dq_pass_rate = :dq" if dq_pass is not None else ""
+            extra_params = [StatementParameterListItem(name="dq", value=str(dq_pass))] if dq_pass is not None else []
             await execute_query(
                 f"UPDATE {sla_status_table} "
                 "SET sla_deadline = CAST(:dl AS TIMESTAMP), "
                 "    actual_arrival = CAST(:ar AS TIMESTAMP), "
                 "    feed_received_timestamp = :ar, "
                 "    status = :st, "
-                "    notes = '' "
+                f"    notes = '' {dq_set_clause} "
                 "WHERE feed_name = :fn AND reporting_period = :rp",
                 parameters=[
                     StatementParameterListItem(name="dl", value=feed_deadline.isoformat()),
@@ -1034,6 +1047,7 @@ async def _rebase_demo_state() -> dict[str, str]:
                     StatementParameterListItem(name="st", value=status_v),
                     StatementParameterListItem(name="fn", value=fn),
                     StatementParameterListItem(name="rp", value=rp),
+                    *extra_params,
                 ],
             )
     except Exception as exc:

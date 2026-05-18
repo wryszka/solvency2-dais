@@ -302,17 +302,22 @@ function KpiCard({ icon: Icon, label, value, color, onClick }: {
 function FeedStatusSection({ feeds }: { feeds: Row[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  // Sort: late / missing first, then on-time alphabetical. Surfaces the
-  // issue at the top so the eye doesn't have to scan a wall of green feeds.
-  const STATUS_RANK: Record<string, number> = { missing: 0, late: 1, on_time: 2 };
+  // Sort: missing → late → on-time-with-DQ-issue → on-time, then alphabetical.
+  // Surfaces both attention items (late feed + DQ break) at the top so the eye
+  // doesn't have to scan a wall of green feeds.
+  const STATUS_RANK: Record<string, number> = { missing: 0, late: 1, on_time: 3 };
+  const dqLow = (f: Row) => parseFloat(f.dq_pass_rate || '1') * 100 < 98;
   const sorted = [...feeds].sort((a, b) => {
     const ra = STATUS_RANK[a.status] ?? 9;
     const rb = STATUS_RANK[b.status] ?? 9;
-    if (ra !== rb) return ra - rb;
+    const aRank = ra === 3 && dqLow(a) ? 2 : ra;
+    const bRank = rb === 3 && dqLow(b) ? 2 : rb;
+    if (aRank !== bRank) return aRank - bRank;
     return (a.feed_name || '').localeCompare(b.feed_name || '');
   });
-  const issueCount = feeds.filter((f) => f.status === 'late' || f.status === 'missing').length;
-  const okCount = feeds.length - issueCount;
+  const lateCount = feeds.filter((f) => f.status === 'late' || f.status === 'missing').length;
+  const dqCount = feeds.filter((f) => f.status === 'on_time' && dqLow(f)).length;
+  const okCount = feeds.length - lateCount - dqCount;
 
   return (
     <div>
@@ -320,12 +325,17 @@ function FeedStatusSection({ feeds }: { feeds: Row[] }) {
         <h3 className="text-lg font-semibold text-gray-900">Data Ingestion — Source Assets</h3>
         <span className="text-[10px] font-medium text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full uppercase tracking-wide">Unity Catalog</span>
         <span className="ml-auto text-xs text-gray-500">
-          {issueCount > 0 && (
+          {lateCount > 0 && (
             <span className="text-amber-700 font-semibold mr-2">
-              {issueCount} late
+              {lateCount} late
             </span>
           )}
-          {okCount} on time
+          {dqCount > 0 && (
+            <span className="text-rose-700 font-semibold mr-2">
+              {dqCount} DQ issue{dqCount === 1 ? '' : 's'}
+            </span>
+          )}
+          {okCount} clean
         </span>
       </div>
       <p className="text-xs text-gray-500 mb-3">
@@ -359,6 +369,8 @@ function FeedCard({ feed, isExpanded, onClick }: { feed: Row; isExpanded: boolea
   };
   const cfg = statusConfig[feed.status] || statusConfig.missing;
   const Icon = cfg.icon;
+  const dqPassPct = parseFloat(feed.dq_pass_rate || '1') * 100;
+  const dqLow = dqPassPct < 98;
 
   return (
     <button
@@ -368,9 +380,16 @@ function FeedCard({ feed, isExpanded, onClick }: { feed: Row; isExpanded: boolea
       }`}
     >
       <div className="flex items-center gap-4">
-        <Icon className={`w-5 h-5 ${cfg.color}`} />
+        <Icon className={`w-5 h-5 ${dqLow && feed.status === 'on_time' ? 'text-rose-500' : cfg.color}`} />
         <div>
-          <div className="font-semibold text-gray-900 capitalize">{String(feed.feed_name).replace(/^1_raw_/, '').replace(/_/g, ' ')}</div>
+          <div className="font-semibold text-gray-900 capitalize flex items-center gap-2">
+            {String(feed.feed_name).replace(/^1_raw_/, '').replace(/_/g, ' ')}
+            {dqLow && (
+              <span className="text-[10px] uppercase tracking-wide font-bold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
+                DQ issue
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-0.5">
             <code className="px-1.5 py-0.5 bg-gray-100 rounded font-mono text-[10px] text-blue-700">{feed.feed_name}</code>
             <span>·</span>
@@ -385,7 +404,7 @@ function FeedCard({ feed, isExpanded, onClick }: { feed: Row; isExpanded: boolea
         </div>
         <div className="text-right">
           <div className="text-gray-500 text-xs">DQ Pass</div>
-          <div className="font-mono text-gray-800">{(parseFloat(feed.dq_pass_rate || '1') * 100).toFixed(1)}%</div>
+          <div className={`font-mono ${dqLow ? 'text-rose-700 font-bold' : 'text-gray-800'}`}>{dqPassPct.toFixed(1)}%</div>
         </div>
         <div className="text-right min-w-[100px]">
           <div className="text-gray-500 text-xs">SLA</div>
