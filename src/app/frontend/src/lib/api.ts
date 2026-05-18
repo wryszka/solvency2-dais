@@ -29,6 +29,52 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.json();
 }
 
+/**
+ * Stale-while-revalidate cache for GET endpoints. Returns cached data
+ * synchronously when fresh, otherwise refetches. Half-TTL trips a background
+ * refresh so the next navigation is instant. Cache is cleared on any
+ * postJson() so mutations are immediately visible.
+ *
+ * Keyed by full URL. Demo-friendly default TTL is 30s — long enough that
+ * navigating away and back is instant, short enough that data stays alive.
+ */
+type CacheEntry<T> = { ts: number; data: T; inflight?: Promise<T> };
+const _swrCache: Map<string, CacheEntry<unknown>> = new Map();
+
+function cachedFetchJson<T>(url: string, ttlMs = 30_000): Promise<T> {
+  const now = Date.now();
+  const hit = _swrCache.get(url) as CacheEntry<T> | undefined;
+  if (hit) {
+    const age = now - hit.ts;
+    if (age < ttlMs) {
+      // Past half-TTL: refresh in background so the next read is fully fresh.
+      if (age > ttlMs / 2 && !hit.inflight) {
+        hit.inflight = fetchJson<T>(url)
+          .then((data) => {
+            _swrCache.set(url, { ts: Date.now(), data });
+            return data;
+          })
+          .catch(() => hit.data)
+          .finally(() => { if (hit.inflight) delete hit.inflight; });
+      }
+      return Promise.resolve(hit.data);
+    }
+    // Past TTL but already refetching — return the in-flight promise.
+    if (hit.inflight) return hit.inflight;
+  }
+  const p = fetchJson<T>(url).then((data) => {
+    _swrCache.set(url, { ts: Date.now(), data });
+    return data;
+  });
+  // Track the in-flight promise so concurrent callers dedupe.
+  _swrCache.set(url, { ts: hit?.ts ?? 0, data: hit?.data as T, inflight: p });
+  return p;
+}
+
+function invalidateCache(): void {
+  _swrCache.clear();
+}
+
 async function postJson<T>(url: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${withCacheFlag(url)}`, {
     method: 'POST',
@@ -36,6 +82,8 @@ async function postJson<T>(url: string, body?: unknown): Promise<T> {
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
+  // Writes invalidate the entire read cache. Brutally simple, demo-safe.
+  invalidateCache();
   return res.json();
 }
 
@@ -270,21 +318,21 @@ export function fetchGovernanceControls(): Promise<{ controls: GovernanceControl
 
 export function fetchSlaStatus(period?: string): Promise<{ data: Row[] }> {
   const qs = period ? `?period=${period}` : '';
-  return fetchJson(`/api/monitoring/sla-status${qs}`);
+  return cachedFetchJson(`/api/monitoring/sla-status${qs}`);
 }
 
 export function fetchDqSummary(period?: string): Promise<{ data: Row[]; aggregate: Row | null }> {
   const qs = period ? `?period=${period}` : '';
-  return fetchJson(`/api/monitoring/dq-summary${qs}`);
+  return cachedFetchJson(`/api/monitoring/dq-summary${qs}`);
 }
 
 export function fetchDqTrends(): Promise<{ data: Row[] }> {
-  return fetchJson('/api/monitoring/dq-trends');
+  return cachedFetchJson('/api/monitoring/dq-trends');
 }
 
 export function fetchReconciliation(period?: string): Promise<{ data: Row[] }> {
   const qs = period ? `?period=${period}` : '';
-  return fetchJson(`/api/monitoring/reconciliation${qs}`);
+  return cachedFetchJson(`/api/monitoring/reconciliation${qs}`);
 }
 
 export function fetchModelVersions(period?: string): Promise<{ data: Row[] }> {
@@ -545,7 +593,7 @@ export interface LandingStatus {
 }
 
 export async function fetchLandingStatus(): Promise<LandingStatus> {
-  return fetchJson('/api/landing/status');
+  return cachedFetchJson('/api/landing/status');
 }
 
 // ─── Q4 pain callouts ────────────────────────────────────────────────
@@ -566,7 +614,7 @@ export interface Q4Pain {
 }
 
 export async function fetchQ4Pains(): Promise<{ pains: Q4Pain[] }> {
-  return fetchJson('/api/monitoring/q4-pains');
+  return cachedFetchJson('/api/monitoring/q4-pains');
 }
 
 // ─── ORSA ────────────────────────────────────────────────────────────
@@ -760,7 +808,7 @@ export async function fetchOverlays(filters?: {
   if (filters?.status) qs.append('status', filters.status);
   if (filters?.model_name) qs.append('model_name', filters.model_name);
   const q = qs.toString();
-  return fetchJson(`/api/overlays${q ? `?${q}` : ''}`);
+  return cachedFetchJson(`/api/overlays${q ? `?${q}` : ''}`);
 }
 
 export async function fetchOverlay(overlay_id: string): Promise<{ overlay: Overlay }> {
@@ -772,7 +820,7 @@ export async function fetchOverlayLineage(overlay_id: string): Promise<{ overlay
 }
 
 export async function fetchOverlaySummary(quarter?: string): Promise<OverlaySummary> {
-  return fetchJson(`/api/overlays/summary${quarter ? `?quarter=${encodeURIComponent(quarter)}` : ''}`);
+  return cachedFetchJson(`/api/overlays/summary${quarter ? `?quarter=${encodeURIComponent(quarter)}` : ''}`);
 }
 
 export async function createOverlay(payload: OverlayCreate): Promise<{ overlay_id: string; status: string; required_approval_role: string }> {
@@ -864,7 +912,7 @@ export interface PromotionRow {
 }
 
 export async function fetchLabModels(): Promise<{ models: LabModelRow[] }> {
-  return fetchJson('/api/governance/models');
+  return cachedFetchJson(`/api/governance/models`);
 }
 
 export async function fetchLabModel(model_id: string): Promise<ModelDetail> {
@@ -1014,7 +1062,7 @@ export async function fetchDemoFeed(feedName: string): Promise<{ feed: DemoFeed 
   return fetchJson(`/api/demo/feeds/${encodeURIComponent(feedName)}`);
 }
 export async function fetchSfChallenger(): Promise<{ challenger: DemoSfChallenger | null }> {
-  return fetchJson('/api/demo/sf-challenger');
+  return cachedFetchJson('/api/demo/sf-challenger');
 }
 export async function escalateSfChallenger(note?: string): Promise<Row> {
   return postJson('/api/demo/sf-challenger/escalate', { note });
@@ -1032,7 +1080,7 @@ export async function approveCatAgent(): Promise<{ status: string; promotion_id:
   return postJson('/api/demo/cat-agent/approve', {});
 }
 export async function fetchSolvencyDaily(days = 90): Promise<{ series: DailySolvency[] }> {
-  return fetchJson(`/api/demo/solvency-daily?days=${days}`);
+  return cachedFetchJson(`/api/demo/solvency-daily?days=${days}`);
 }
 export async function fetchCyberBook(): Promise<{ cyber: Row | null }> {
   return fetchJson('/api/demo/cyber-book');
@@ -1093,7 +1141,7 @@ export interface PeriodState {
   status: 'in_progress';
 }
 export async function fetchPeriodState(): Promise<PeriodState> {
-  return fetchJson('/api/demo/period-state');
+  return cachedFetchJson('/api/demo/period-state');
 }
 export async function runOrsaStress(scenario_label: string, duration_years = 5): Promise<Row> {
   return postJson('/api/demo/orsa/run-stress', { scenario_label, duration_years });
