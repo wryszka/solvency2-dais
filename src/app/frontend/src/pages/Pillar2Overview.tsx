@@ -245,6 +245,9 @@ function CapabilityGrid({ models }: { models: LabModelRow[] }) {
       cadence: 'Continuous draft · annual board approval',
       kpi: 'Draft updated within 24h of any approval',
       open: 'Open ORSA',
+      extras: [
+        { to: '/orsa/reverse-stress', label: 'Reverse stress test — Article 45(1)(b)' },
+      ] as { to: string; label: string }[] | undefined,
     },
     {
       icon: Scale, title: 'Model Governance',
@@ -279,33 +282,46 @@ function CapabilityGrid({ models }: { models: LabModelRow[] }) {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {cards.map((c) => {
         const Icon = c.icon;
+        const extras = (c as { extras?: { to: string; label: string }[] }).extras;
         return (
-          <Link key={c.title} to={c.to}
+          <div key={c.title}
             className="block border-2 border-emerald-200 bg-emerald-50/30 rounded-xl p-4 bg-white hover:border-emerald-400 hover:shadow transition-all group">
-            <header className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                <Icon className="w-5 h-5" />
+            <Link to={c.to} className="block">
+              <header className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-base font-bold text-gray-900">{c.title}</h3>
+                  <p className="text-[11px] text-emerald-700/80 italic">{c.tagline}</p>
+                </div>
+              </header>
+              <p className="text-sm text-gray-700 mt-3 leading-relaxed">{c.what}</p>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Cadence</div>
+                  <div className="text-gray-800 mt-0.5">{c.cadence}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Live signal</div>
+                  <div className="text-gray-800 mt-0.5">{c.kpi}</div>
+                </div>
               </div>
-              <div className="flex-1">
-                <h3 className="text-base font-bold text-gray-900">{c.title}</h3>
-                <p className="text-[11px] text-emerald-700/80 italic">{c.tagline}</p>
+              <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-emerald-700 group-hover:text-emerald-900">
+                {c.open} <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              </span>
+            </Link>
+            {extras && extras.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-emerald-200/60 flex flex-wrap gap-1.5">
+                {extras.map((e) => (
+                  <Link key={e.to} to={e.to}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:text-amber-900 px-2 py-1 rounded border border-amber-200 bg-amber-50/50">
+                    {e.label} <ArrowRight className="w-3 h-3" />
+                  </Link>
+                ))}
               </div>
-            </header>
-            <p className="text-sm text-gray-700 mt-3 leading-relaxed">{c.what}</p>
-            <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Cadence</div>
-                <div className="text-gray-800 mt-0.5">{c.cadence}</div>
-              </div>
-              <div>
-                <div className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Live signal</div>
-                <div className="text-gray-800 mt-0.5">{c.kpi}</div>
-              </div>
-            </div>
-            <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-emerald-700 group-hover:text-emerald-900">
-              {c.open} <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-            </span>
-          </Link>
+            )}
+          </div>
         );
       })}
     </div>
