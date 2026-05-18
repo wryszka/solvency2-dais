@@ -123,21 +123,27 @@ function DrawerChart({ series, onClose }: { series: DailySolvency[]; onClose: ()
               );
             })}
 
-            {/* hover tooltip */}
+            {/* hover tooltip — clamped to chart bounds so it doesn't clip
+                when the user hovers near the left or right edge */}
             {hover != null && (() => {
               const d = data[hover];
               const x = xFor(hover);
               const y = yFor(d.ratio_pct);
               const label = `${d.observed_date} · ${d.ratio_pct.toFixed(1)}%`;
               const sub = d.driver !== '—' ? d.driver : 'gentle drift';
+              const tipW = 260;
+              const tipH = 36;
+              const tipX = Math.min(Math.max(x - tipW / 2, PAD_L), W - PAD_R - tipW);
+              const tipCenterX = tipX + tipW / 2;
+              const tipY = Math.max(y - 50, PAD_T);
               return (
                 <g>
                   <line x1={x} y1={PAD_T} x2={x} y2={H - PAD_B} stroke="#1e40af" strokeOpacity={0.2} strokeWidth={1} />
-                  <rect x={x - 130} y={y - 50} width={260} height={36} rx={4} fill="white" stroke="#1e40af" strokeWidth={1} />
-                  <text x={x} y={y - 32} textAnchor="middle" fontSize={11} fontFamily="ui-monospace, monospace" fill="#1e293b" fontWeight={700}>
+                  <rect x={tipX} y={tipY} width={tipW} height={tipH} rx={4} fill="white" stroke="#1e40af" strokeWidth={1} />
+                  <text x={tipCenterX} y={tipY + 18} textAnchor="middle" fontSize={11} fontFamily="ui-monospace, monospace" fill="#1e293b" fontWeight={700}>
                     {label}
                   </text>
-                  <text x={x} y={y - 18} textAnchor="middle" fontSize={10} fill="#475569">
+                  <text x={tipCenterX} y={tipY + 32} textAnchor="middle" fontSize={10} fill="#475569">
                     {sub.length > 50 ? sub.slice(0, 49) + '…' : sub}
                   </text>
                 </g>
