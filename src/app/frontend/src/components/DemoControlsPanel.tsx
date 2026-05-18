@@ -27,11 +27,11 @@ function Row({ children }: { children: React.ReactNode }) {
   );
 }
 
-function RowLabel({ title, sub }: { title: string; sub: string }) {
+function RowLabel({ title, sub }: { title: string; sub?: string }) {
   return (
     <div className="flex-1 min-w-0">
       <div className="text-[11px] font-semibold text-white/85 leading-tight">{title}</div>
-      <div className="text-[10px] text-white/45 leading-tight mt-0.5">{sub}</div>
+      {sub && <div className="text-[10px] text-white/45 leading-tight mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -51,10 +51,7 @@ function AiModeRow() {
   const Icon = mode === 'cached' ? Database : Radio;
   return (
     <Row>
-      <RowLabel
-        title="AI mode"
-        sub={mode === 'cached' ? 'Pre-baked answers (safe).' : 'Live calls to the model.'}
-      />
+      <RowLabel title="AI mode" />
       <button
         onClick={flip}
         title="Switch between cached and live AI"
@@ -82,7 +79,7 @@ function ForceRefreshRow() {
     <Row>
       <RowLabel
         title="Force refresh"
-        sub="Clear cache · refetch all panels."
+        sub="Clear webpage cache."
       />
       <button
         onClick={go}
@@ -118,10 +115,7 @@ function ResetDemoRow() {
   return (
     <>
       <Row>
-        <RowLabel
-          title="Reset demo"
-          sub="Rewind state · rebase dates to today."
-        />
+        <RowLabel title="Reset demo" />
         <button
           onClick={() => { setOpen(true); setResult(null); }}
           title="Restore baseline demo state"
