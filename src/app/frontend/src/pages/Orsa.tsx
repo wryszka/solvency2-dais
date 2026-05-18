@@ -161,6 +161,10 @@ export default function Orsa() {
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 px-2 py-1 rounded border border-emerald-200 bg-emerald-50/50">
               Use-test evidence — Article 45 <ArrowRight className="w-3 h-3" />
             </Link>
+            <Link to="/orsa/reverse-stress"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:text-amber-900 px-2 py-1 rounded border border-amber-200 bg-amber-50/50">
+              Reverse stress test — Article 45(1)(b) <ArrowRight className="w-3 h-3" />
+            </Link>
           </div>
         </div>
       </div>

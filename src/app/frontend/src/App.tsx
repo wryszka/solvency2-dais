@@ -28,6 +28,7 @@ import Learn from './pages/Learn';
 import Whatif from './pages/Whatif';
 import FeedDetail from './pages/FeedDetail';
 import OrsaDraft from './pages/OrsaDraft';
+import OrsaReverseStress from './pages/OrsaReverseStress';
 import Workbench from './pages/Workbench';
 import RoadmapStub from './pages/RoadmapStub';
 import AgentArchitecture from './pages/AgentArchitecture';
@@ -296,6 +297,7 @@ export default function App() {
             <Route path="/whatif"   element={<Whatif />} />
             <Route path="/feeds/:feedName" element={<FeedDetail />} />
             <Route path="/orsa/draft" element={<OrsaDraft />} />
+            <Route path="/orsa/reverse-stress" element={<OrsaReverseStress />} />
             <Route path="/pillar-1" element={<Pillar1Overview />} />
             <Route path="/pillar-2" element={<Pillar2Overview />} />
             <Route path="/pillar-3" element={<Pillar3Overview />} />
