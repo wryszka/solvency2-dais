@@ -38,6 +38,7 @@ import Pillar2Overview from './pages/Pillar2Overview';
 import Pillar3Overview from './pages/Pillar3Overview';
 import Breadcrumb from './components/Breadcrumb';
 import ResetDemoButton from './components/ResetDemoButton';
+import ForceRefreshButton from './components/ForceRefreshButton';
 import DemoModeToggle from './components/DemoModeToggle';
 import WorkbenchAssistant from './components/WorkbenchAssistant';
 
@@ -177,6 +178,7 @@ function Sidebar() {
         <SignedInUser />
         <div className="ml-auto flex items-center gap-1">
           <DemoModeToggle />
+          <ForceRefreshButton />
           <ResetDemoButton />
           <BackstageLink />
         </div>

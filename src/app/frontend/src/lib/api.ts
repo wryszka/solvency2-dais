@@ -41,7 +41,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 type CacheEntry<T> = { ts: number; data: T; inflight?: Promise<T> };
 const _swrCache: Map<string, CacheEntry<unknown>> = new Map();
 
-function cachedFetchJson<T>(url: string, ttlMs = 30_000): Promise<T> {
+function cachedFetchJson<T>(url: string, ttlMs = 1_200_000): Promise<T> {
   const now = Date.now();
   const hit = _swrCache.get(url) as CacheEntry<T> | undefined;
   if (hit) {
@@ -71,7 +71,7 @@ function cachedFetchJson<T>(url: string, ttlMs = 30_000): Promise<T> {
   return p;
 }
 
-function invalidateCache(): void {
+export function invalidateCache(): void {
   _swrCache.clear();
 }
 
