@@ -37,9 +37,7 @@ import Pillar1Overview from './pages/Pillar1Overview';
 import Pillar2Overview from './pages/Pillar2Overview';
 import Pillar3Overview from './pages/Pillar3Overview';
 import Breadcrumb from './components/Breadcrumb';
-import ResetDemoButton from './components/ResetDemoButton';
-import ForceRefreshButton from './components/ForceRefreshButton';
-import DemoModeToggle from './components/DemoModeToggle';
+import DemoControlsPanel from './components/DemoControlsPanel';
 import WorkbenchAssistant from './components/WorkbenchAssistant';
 
 interface NavEntry {
@@ -172,14 +170,14 @@ function Sidebar() {
       {/* Learn tile — secondary, tucked at the bottom */}
       <LearnTile />
 
+      {/* Demo controls — three labeled rows the presenter touches on stage */}
+      <DemoControlsPanel />
+
       {/* Footer */}
       <div className="border-t border-white/10 p-3 flex items-center gap-2 text-[10px] text-gray-400">
         <Building2 className="w-3 h-3 shrink-0" />
         <SignedInUser />
-        <div className="ml-auto flex items-center gap-1">
-          <DemoModeToggle />
-          <ForceRefreshButton />
-          <ResetDemoButton />
+        <div className="ml-auto">
           <BackstageLink />
         </div>
       </div>
