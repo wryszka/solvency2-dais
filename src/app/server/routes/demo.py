@@ -982,24 +982,43 @@ async def _rebase_demo_state() -> dict[str, str]:
         "1_raw_life_assumptions":         7,
     }
     try:
+        # Repair ALL periods in the SLA status table — the Freshness drill-down
+        # shows history, so leaving older quarters with the old QRT-submission
+        # deadline values produces "12 days early" vs a "late" badge.
+        # Only the current period keeps the reinsurance "late" story; all
+        # prior periods get on-time values for reinsurance too, so the trend
+        # looks clean.
         existing = await execute_query(
-            f"SELECT feed_name FROM {sla_status_table} WHERE reporting_period = :rp",
-            parameters=[StatementParameterListItem(name="rp", value=current_period)],
+            f"SELECT DISTINCT feed_name, reporting_period FROM {sla_status_table}"
         )
         for row in existing:
             fn = row.get("feed_name")
-            if not fn:
+            rp = row.get("reporting_period")
+            if not fn or not rp:
                 continue
+            # Compute that period's quarter-close from the YYYY-Qn label.
+            try:
+                yr_str, q_str = rp.split("-Q")
+                yr = int(yr_str); qn = int(q_str)
+                last_month = qn * 3
+                if last_month in (4, 6, 9, 11):
+                    last_day = 30
+                elif last_month == 2:
+                    last_day = 29 if yr % 4 == 0 and (yr % 100 != 0 or yr % 400 == 0) else 28
+                else:
+                    last_day = 31
+                period_close = datetime(yr, last_month, last_day, 18, 0, 0, tzinfo=timezone.utc)
+            except Exception:
+                period_close = quarter_close
             sla_bd = sla_business_days_by_feed.get(fn, 5)
-            feed_deadline = quarter_close + timedelta(days=sla_bd)
-            if fn == "1_raw_reinsurance":
-                # Stays late: 8 business days past the 3-business-day SLA.
-                arrival = quarter_close + timedelta(days=11, hours=4)
+            feed_deadline = period_close + timedelta(days=sla_bd)
+            if fn == "1_raw_reinsurance" and rp == current_period:
+                # Only the live period keeps the late story.
+                arrival = period_close + timedelta(days=11, hours=4)
                 status_v = "late"
             else:
-                # Lands 1 day inside the SLA — comfortably on time.
                 arrival_days = max(1, sla_bd - 1)
-                arrival = quarter_close + timedelta(days=arrival_days, hours=3)
+                arrival = period_close + timedelta(days=arrival_days, hours=3)
                 status_v = "on_time"
             await execute_query(
                 f"UPDATE {sla_status_table} "
@@ -1014,7 +1033,7 @@ async def _rebase_demo_state() -> dict[str, str]:
                     StatementParameterListItem(name="ar", value=arrival.isoformat()),
                     StatementParameterListItem(name="st", value=status_v),
                     StatementParameterListItem(name="fn", value=fn),
-                    StatementParameterListItem(name="rp", value=current_period),
+                    StatementParameterListItem(name="rp", value=rp),
                 ],
             )
     except Exception as exc:

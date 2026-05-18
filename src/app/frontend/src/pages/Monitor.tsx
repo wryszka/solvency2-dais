@@ -302,11 +302,31 @@ function KpiCard({ icon: Icon, label, value, color, onClick }: {
 function FeedStatusSection({ feeds }: { feeds: Row[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  // Sort: late / missing first, then on-time alphabetical. Surfaces the
+  // issue at the top so the eye doesn't have to scan a wall of green feeds.
+  const STATUS_RANK: Record<string, number> = { missing: 0, late: 1, on_time: 2 };
+  const sorted = [...feeds].sort((a, b) => {
+    const ra = STATUS_RANK[a.status] ?? 9;
+    const rb = STATUS_RANK[b.status] ?? 9;
+    if (ra !== rb) return ra - rb;
+    return (a.feed_name || '').localeCompare(b.feed_name || '');
+  });
+  const issueCount = feeds.filter((f) => f.status === 'late' || f.status === 'missing').length;
+  const okCount = feeds.length - issueCount;
+
   return (
     <div>
       <div className="flex items-center gap-3 mb-1">
         <h3 className="text-lg font-semibold text-gray-900">Data Ingestion — Source Assets</h3>
         <span className="text-[10px] font-medium text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full uppercase tracking-wide">Unity Catalog</span>
+        <span className="ml-auto text-xs text-gray-500">
+          {issueCount > 0 && (
+            <span className="text-amber-700 font-semibold mr-2">
+              {issueCount} late
+            </span>
+          )}
+          {okCount} on time
+        </span>
       </div>
       <p className="text-xs text-gray-500 mb-3">
         Each row below is a tracked data asset (Unity Catalog table) with its source system, freshness vs SLA,
@@ -314,7 +334,7 @@ function FeedStatusSection({ feeds }: { feeds: Row[] }) {
         and a sample of rows.
       </p>
       <div className="grid gap-2">
-        {feeds.map((feed) => (
+        {sorted.map((feed) => (
           <div key={feed.feed_name}>
             <FeedCard
               feed={feed}
