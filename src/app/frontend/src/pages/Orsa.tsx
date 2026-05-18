@@ -26,6 +26,7 @@ import {
   fetchOrsaScenarios, runOrsaScenario, generateOrsaNarrative, fetchOrsaNarratives,
   type OrsaScenario, type OrsaRun, type OrsaResultRow, type OrsaNarrative,
 } from '../lib/api';
+import UnderTheHood from '../components/UnderTheHood';
 
 interface ProjectionPoint {
   yearOffset: number;
@@ -305,6 +306,17 @@ export default function Orsa() {
           Run the scenario to see capital path, module attribution, and narrative.
         </div>
       )}
+
+      <UnderTheHood
+        title="What just happened?"
+        lines={[
+          { component: 'Unity Catalog',     detail: 'Base sub-module charges read from 2_stg_scr_results; scenario shock recipe from 0_cfg_orsa_scenarios.' },
+          { component: 'orsa engine',       detail: 'Multiplicative shocks applied to sub-modules → BSCR recomputed via EIOPA correlation matrix → 3-year projection using 0_cfg_business_plan growth.' },
+          { component: 'Unity Catalog',     detail: 'Capital path + module attribution persisted to gold_orsa_results (Delta).' },
+          { component: 'Foundation Model API', detail: 'ORSA narrative streamed by the ORSA Narrative Agent — drafted from this run\'s numbers, not boilerplate.' },
+          { component: 'Mosaic AI',         detail: 'In production the narrative agent runs as a Mosaic AI Serving endpoint with the same trace + audit you see in the AI governance tab.' },
+        ]}
+      />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { Sparkles, Loader2, AlertTriangle, ShieldAlert, Play, RefreshCw, CircleH
 import { renderMarkdownSafe } from '../lib/markdown';
 import { useStreamedText } from '../lib/hooks/useStreamedText';
 import { runWhatif, fetchCyberBook, formatEur, type Row } from '../lib/api';
+import UnderTheHood from '../components/UnderTheHood';
 
 interface WhatifResult {
   run_id: string;
@@ -147,6 +148,17 @@ export default function Whatif() {
               {!narrativeDone && <span className="inline-block w-2 h-4 bg-blue-700 align-middle ml-0.5 animate-pulse" />}
             </div>
           </section>
+
+          <UnderTheHood
+            title="What just happened?"
+            lines={[
+              { component: 'Unity Catalog',     detail: 'Base SCR + module charges read from 2_stg_scr_results (Delta).' },
+              { component: 'orsa engine',       detail: 'Multiplicative shock on non_life.premium_reserve sub-module; BSCR recomputed via the EIOPA correlation matrix in the FastAPI process.' },
+              { component: 'Unity Catalog',     detail: 'Result row persisted to 6_demo_whatif_runs for the audit trail.' },
+              { component: 'Foundation Model API', detail: 'Narrative streamed by the second-opinion specialist (Contrarian Capital Reviewer).' },
+              { component: 'DBSQL',             detail: 'All reads via the serverless warehouse — same warehouse the Control Tower uses.' },
+            ]}
+          />
 
           {/* Second opinion — visually distinct, contrarian */}
           {result.second_opinion && narrativeDone && (

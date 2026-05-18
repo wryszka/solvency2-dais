@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Send, AlertTriangle, CheckCircle2, Mail, ArrowRight, UserCheck, Clock } from 'lucide-react';
 import { fetchSfChallenger, fetchModelComparison, escalateSfChallenger, promoteSfChallenger, asArray, type DemoSfChallenger } from '../lib/api';
+import UnderTheHood from './UnderTheHood';
 
 interface LiveComparison {
   scr_delta_pct: number;
@@ -194,6 +195,19 @@ export default function SfChallengerPanel() {
           Promotion runs the SF model end-to-end on serverless · 60-120s
         </span>
       </footer>
+
+      <div className="px-5 pb-4">
+        <UnderTheHood
+          title="What just happened?"
+          lines={[
+            { component: 'MLflow Registry', detail: 'standard_formula is a versioned pyfunc with Champion / Challenger aliases. Promotion = alias flip.' },
+            { component: 'Unity Catalog',   detail: 'Both versions read calibration parameters from 0_cfg_sf_calibrations — the governed config table.' },
+            { component: 'Unity Catalog',   detail: 'Approval logged to 6_gov_promotions (Delta) with approver, justification, from→to version, timestamp.' },
+            { component: 'DBSQL',           detail: 'Live SCR delta (Champion vs Challenger) computed via the warehouse — same calibration table, two parameter sets.' },
+            { component: 'Mosaic AI',       detail: 'Downstream agents (cat, second-opinion) pick up the new Champion automatically — no app redeploy.' },
+          ]}
+        />
+      </div>
     </section>
   );
 }
