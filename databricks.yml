@@ -130,6 +130,25 @@ targets:
       # For free-edition Databricks (no Claude available), uncomment:
       # fm_model_endpoints: "databricks-gpt-oss-120b"
 
+  # ─ serverless ─ FEVM serverless workspace target. Same code, different
+  # catalog/warehouse. Use `make deploy-serverless` to deploy + run setup jobs.
+  serverless:
+    mode: development
+    workspace:
+      host: https://fevm-lr-serverless-aws-us.cloud.databricks.com
+      profile: sfevm
+    variables:
+      catalog_name: lr_serverless_aws_us_catalog
+      schema_name: solvency2_workbench
+      warehouse_id: ab79eced8207d29b
+      app_name: solvency2-workbench
+      app_display_name: Actuarial Workbench
+      workspace_host: https://fevm-lr-serverless-aws-us.cloud.databricks.com
+      databricks_profile: sfevm
+      entity_type: composite
+      pricing_app_url: ""
+      supervisor_endpoint_name: workbench-supervisor
+
   prod:
     mode: production
 

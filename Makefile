@@ -1,6 +1,6 @@
 # Make targets for the Solvency II demo.
 
-.PHONY: help cue-cards.pdf preflight bake-cache deploy-dev app-start app-stop
+.PHONY: help cue-cards.pdf preflight bake-cache deploy-dev deploy-serverless app-start app-stop
 
 help:
 	@echo "  make cue-cards.pdf   — render docs/cue_cards.md to PDF (requires pandoc)"
@@ -57,3 +57,30 @@ deploy-dev:
 	databricks apps deploy solvency2-workbench \
 	    --source-code-path "/Workspace/Users/$$USER@databricks.com/.bundle/solvency2_workbench/dev/files/src/app" \
 	    --profile DEV
+
+deploy-serverless:
+	databricks bundle deploy -t serverless --profile sfevm
+	@TMPYAML=$$(mktemp); \
+	  sed \
+	    -e 's|$${var.catalog_name}|lr_serverless_aws_us_catalog|g' \
+	    -e 's|$${var.schema_name}|solvency2_workbench|g' \
+	    -e 's|$${var.warehouse_id}|ab79eced8207d29b|g' \
+	    -e 's|$${var.app_display_name}|Actuarial Workbench|g' \
+	    -e 's|$${var.dashboard_id}||g' \
+	    -e 's|$${var.genie_space_id}||g' \
+	    -e 's|$${var.backstage_notebook_path}||g' \
+	    -e 's|$${var.pricing_app_url}||g' \
+	    -e 's|$${var.fm_model_endpoints}||g' \
+	    -e 's|$${var.supervisor_endpoint_name}|workbench-supervisor|g' \
+	    -e "s|\$${var.bundle_files_root}|/Workspace/Users/$$USER@databricks.com/.bundle/solvency2_workbench/serverless/files|g" \
+	    src/app/app.yaml > $$TMPYAML; \
+	  databricks workspace import \
+	    "/Workspace/Users/$$USER@databricks.com/.bundle/solvency2_workbench/serverless/files/src/app/app.yaml" \
+	    --format AUTO --file $$TMPYAML --overwrite --profile sfevm; \
+	  rm -f $$TMPYAML
+	@# Ensure the app exists (create if not), then deploy code
+	@databricks apps get solvency2-workbench --profile sfevm >/dev/null 2>&1 || \
+	  databricks apps create solvency2-workbench --description "Actuarial Workbench" --profile sfevm
+	databricks apps deploy solvency2-workbench \
+	    --source-code-path "/Workspace/Users/$$USER@databricks.com/.bundle/solvency2_workbench/serverless/files/src/app" \
+	    --profile sfevm
