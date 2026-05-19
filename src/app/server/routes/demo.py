@@ -1057,31 +1057,65 @@ async def _rebase_demo_state() -> dict[str, str]:
     except Exception as exc:
         logger.warning("SLA status repair skipped: %s", exc)
 
-    # ── 1c. DQ expectation results — make the failing rule for claims
-    # visible in the live period so the FeedCard's 96.5% has a credible
-    # explanation in the drill-down DQ Rules tab. All other rules across
-    # all periods snap to 100% pass for a clean trend.
+    # ── 1c. DQ expectation results — scale every rule's totals to the raw
+    # feed row count so the drill-down numbers match the FeedCard "Rows"
+    # column. The failing rule for claims scales proportionally to keep
+    # the feed-level 96.4% pass rate consistent end-to-end.
     dq_table = fqn("5_mon_dq_expectation_results")
     try:
-        # First: snap everything to passing.
-        await execute_query(
-            f"UPDATE {dq_table} SET failing_records = 0, "
-            "passing_records = total_records, pass_rate = 1.0"
+        # Map each pipeline to its primary raw feed (whose row_count drives
+        # the rule totals shown in the drill-down).
+        pipeline_primary_feed = {
+            "S.05.01 Premiums Claims Expenses": "1_raw_claims",
+            "S.06.02 List of Assets":           "1_raw_assets",
+            "S.25.01 SCR Template":             "1_raw_risk_factors",
+            "S.26.06 NL UW Risk Template":      "1_raw_reinsurance",
+        }
+        # Pull the canonical row counts for the live period from the SLA
+        # status table — single source of truth for the FeedCard.
+        sla_counts = await execute_query(
+            f"SELECT feed_name, row_count FROM {sla_status_table} "
+            f"WHERE reporting_period = '{live_period}'"
         )
-        # Then: punch a hole in one rule for the live period — the
-        # gross_incurred_positive rule on 2_stg_claims_by_lob. 1 of 7 LoBs
-        # fails (storm-tainted claims with negative paid_amount triggered
-        # the DLT expectation). 27/28 across 4 rules = 96.4% feed-level —
-        # matches the FeedCard summary above.
+        feed_to_count = {
+            r["feed_name"]: int(float(r["row_count"]))
+            for r in sla_counts if r.get("row_count") is not None
+        }
+        # Snap every rule for the live period to total = primary-feed-count,
+        # all passing.
+        for pipeline, primary in pipeline_primary_feed.items():
+            total = feed_to_count.get(primary, 1000)
+            await execute_query(
+                f"UPDATE {dq_table} SET "
+                f"  total_records = {total}, "
+                f"  passing_records = {total}, "
+                f"  failing_records = 0, "
+                f"  pass_rate = 1.0 "
+                f"WHERE reporting_period = '{live_period}' "
+                f"AND pipeline_name = '{pipeline}'"
+            )
+        # Punch the storm-tainted hole — gross_incurred_positive on
+        # 2_stg_claims_by_lob fails 3.6% of records (~540 of 15,014),
+        # giving the claims feed its 96.4% drill-down pass rate.
+        claims_total = feed_to_count.get("1_raw_claims", 15014)
+        claims_failing = round(claims_total * 0.036)
+        claims_passing = claims_total - claims_failing
+        claims_pass_rate = round(claims_passing / claims_total, 4)
         await execute_query(
-            f"UPDATE {dq_table} SET failing_records = 1, "
-            "passing_records = total_records - 1, "
-            "pass_rate = ROUND((total_records - 1.0) / total_records, 4) "
-            "WHERE reporting_period = :rp "
-            "AND pipeline_name = 'S.05.01 Premiums Claims Expenses' "
-            "AND table_name = '2_stg_claims_by_lob' "
-            "AND expectation_name = 'gross_incurred_positive'",
-            parameters=[StatementParameterListItem(name="rp", value=live_period)],
+            f"UPDATE {dq_table} SET "
+            f"  total_records = {claims_total}, "
+            f"  failing_records = {claims_failing}, "
+            f"  passing_records = {claims_passing}, "
+            f"  pass_rate = {claims_pass_rate} "
+            f"WHERE reporting_period = '{live_period}' "
+            f"AND pipeline_name = 'S.05.01 Premiums Claims Expenses' "
+            f"AND table_name = '2_stg_claims_by_lob' "
+            f"AND expectation_name = 'gross_incurred_positive'"
+        )
+        # Sync feed-level dq_pass_rate to the derived value.
+        await execute_query(
+            f"UPDATE {sla_status_table} SET dq_pass_rate = {claims_pass_rate} "
+            f"WHERE reporting_period = '{live_period}' AND feed_name = '1_raw_claims'"
         )
     except Exception as exc:
         logger.warning("DQ expectation repair skipped: %s", exc)
