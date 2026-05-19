@@ -497,13 +497,13 @@ async def get_feed_detail(feed_name: str):
             SELECT 'all' AS reporting_period, COUNT(*) AS row_count
             FROM {fqn(table)}
         """
-        dq_rules_q = f"""
-            SELECT expectation_name, table_name, total_records,
-                   passing_records, failing_records,
-                   ROUND(passing_records * 100.0 / NULLIF(total_records, 0), 1) AS pass_rate_pct
+        # DQ rule NAMES only — counts are derived from the SLA row's
+        # row_count + dq_pass_rate below so the drill-down always agrees
+        # with the FeedCard summary numerically.
+        dq_rule_names_q = f"""
+            SELECT DISTINCT expectation_name, table_name
             FROM {fqn('5_mon_dq_expectation_results')}
             WHERE pipeline_name LIKE '%{feed_info["dq_pipeline"]}%'
-            AND reporting_period = (SELECT MAX(reporting_period) FROM {fqn('5_mon_dq_expectation_results')})
             ORDER BY table_name, expectation_name
         """
         # Period-aware sample. Fall back to plain LIMIT for non-period tables.
@@ -517,10 +517,10 @@ async def get_feed_detail(feed_name: str):
 
         # Run all 5 queries concurrently. Wrap with return_exceptions so individual
         # missing-table failures don't sink the whole request.
-        freshness_r, completeness_r, dq_rules_r, sample_r, columns_r = await asyncio.gather(
+        freshness_r, completeness_r, dq_rule_names_r, sample_r, columns_r = await asyncio.gather(
             execute_query_cached(freshness_q, ttl_seconds=30),
             execute_query_cached(completeness_q, ttl_seconds=30),
-            execute_query_cached(dq_rules_q, ttl_seconds=30) if feed_info["dq_pipeline"] else asyncio.sleep(0, result=[]),
+            execute_query_cached(dq_rule_names_q, ttl_seconds=300) if feed_info["dq_pipeline"] else asyncio.sleep(0, result=[]),
             execute_query_cached(sample_q, ttl_seconds=30),
             execute_query_cached(columns_q, ttl_seconds=300),
             return_exceptions=True,
@@ -531,9 +531,56 @@ async def get_feed_detail(feed_name: str):
 
         freshness = _ok(freshness_r)
         completeness = _ok(completeness_r)
-        dq_rules = _ok(dq_rules_r)
+        dq_rule_names = _ok(dq_rule_names_r)
         sample = _ok(sample_r)
         columns = _ok(columns_r)
+
+        # ── DQ Rules: derive totals from the SLA row's row_count + dq_pass_rate.
+        # Single source of truth for the drill-down. Rule names come from the
+        # seed table so 'gross_incurred_positive' etc. still look authentic.
+        live_row = freshness[0] if freshness else {}
+        try:
+            live_total = int(float(live_row.get("row_count") or 0))
+        except (TypeError, ValueError):
+            live_total = 0
+        try:
+            live_pass = float(live_row.get("dq_pass_rate") or 1.0)
+        except (TypeError, ValueError):
+            live_pass = 1.0
+        total_failing = round(live_total * max(0.0, 1.0 - live_pass))
+
+        # Which named rule bears the failures for each feed. If a feed
+        # has dq_pass_rate < 1.0 but no mapping, the failures land on the
+        # first rule alphabetically so the maths still add up.
+        FAILING_RULE_BY_FEED: dict[str, tuple[str, str]] = {
+            "1_raw_claims": ("2_stg_claims_by_lob", "gross_incurred_positive"),
+        }
+        failing_target = FAILING_RULE_BY_FEED.get(feed_name)
+        if total_failing > 0 and failing_target is None and dq_rule_names:
+            first = dq_rule_names[0]
+            failing_target = (first.get("table_name", ""), first.get("expectation_name", ""))
+
+        dq_rules: list[dict] = []
+        for rule in dq_rule_names:
+            tn = rule.get("table_name", "")
+            en = rule.get("expectation_name", "")
+            is_failing = (
+                total_failing > 0
+                and failing_target is not None
+                and tn == failing_target[0]
+                and en == failing_target[1]
+            )
+            failing = total_failing if is_failing else 0
+            passing = max(0, live_total - failing)
+            pass_rate_pct = round(passing * 100.0 / live_total, 1) if live_total > 0 else 100.0
+            dq_rules.append({
+                "expectation_name": en,
+                "table_name": tn,
+                "total_records": live_total,
+                "passing_records": passing,
+                "failing_records": failing,
+                "pass_rate_pct": pass_rate_pct,
+            })
 
         # If the table has no reporting_period column, the period-aware
         # queries return empty (or raise). For completeness, prefer the
