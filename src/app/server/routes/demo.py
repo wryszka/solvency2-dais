@@ -1026,14 +1026,13 @@ async def _rebase_demo_state() -> dict[str, str]:
                 arrival = period_close + timedelta(days=arrival_days, hours=3)
                 status_v = "on_time"
             # Pain B — claims feed gets a degraded DQ pass rate in the live
-            # period. Expenses is force-cleaned so it doesn't compete as a
-            # second amber item; only claims should fly the DQ flag.
-            if fn == "1_raw_claims" and rp == live_period:
-                dq_pass = 0.965
-            elif fn == "1_raw_expenses" and rp == live_period:
-                dq_pass = 0.998
+            # period. Every other feed in the live period snaps to 100% so
+            # the FeedCard summary matches the DQ Rules drill-down (which
+            # was already snapped to 100% pass below).
+            if rp == live_period:
+                dq_pass = 0.965 if fn == "1_raw_claims" else 1.0
             else:
-                dq_pass = None  # leave existing value alone
+                dq_pass = None  # leave older periods alone
             dq_set_clause = ", dq_pass_rate = :dq" if dq_pass is not None else ""
             extra_params = [StatementParameterListItem(name="dq", value=str(dq_pass))] if dq_pass is not None else []
             await execute_query(
