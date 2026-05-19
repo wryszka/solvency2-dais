@@ -1025,23 +1025,13 @@ async def _rebase_demo_state() -> dict[str, str]:
                 arrival_days = max(1, sla_bd - 1)
                 arrival = period_close + timedelta(days=arrival_days, hours=3)
                 status_v = "on_time"
-            # Pain B — claims feed gets a degraded DQ pass rate in the live
-            # period. Every other feed in the live period snaps to 100% so
-            # the FeedCard summary matches the DQ Rules drill-down (which
-            # was already snapped to 100% pass below).
-            if rp == live_period:
-                dq_pass = 0.965 if fn == "1_raw_claims" else 1.0
-            else:
-                dq_pass = None  # leave older periods alone
-            dq_set_clause = ", dq_pass_rate = :dq" if dq_pass is not None else ""
-            extra_params = [StatementParameterListItem(name="dq", value=str(dq_pass))] if dq_pass is not None else []
             await execute_query(
                 f"UPDATE {sla_status_table} "
                 "SET sla_deadline = CAST(:dl AS TIMESTAMP), "
                 "    actual_arrival = CAST(:ar AS TIMESTAMP), "
                 "    feed_received_timestamp = :ar, "
                 "    status = :st, "
-                f"    notes = '' {dq_set_clause} "
+                "    notes = '' "
                 "WHERE feed_name = :fn AND reporting_period = :rp",
                 parameters=[
                     StatementParameterListItem(name="dl", value=feed_deadline.isoformat()),
@@ -1049,9 +1039,21 @@ async def _rebase_demo_state() -> dict[str, str]:
                     StatementParameterListItem(name="st", value=status_v),
                     StatementParameterListItem(name="fn", value=fn),
                     StatementParameterListItem(name="rp", value=rp),
-                    *extra_params,
                 ],
             )
+        # Bulk DQ pass-rate snap for the live period — claims to 0.964 to match
+        # the failing rule below (1/7 failing on one rule = 27/28 across 4
+        # rules = 96.4%), every other feed to 100%. Using SQL literals avoids
+        # any double-vs-string parameter-coercion flakiness on the Statement
+        # Execution API.
+        await execute_query(
+            f"UPDATE {sla_status_table} SET dq_pass_rate = 1.0 "
+            f"WHERE reporting_period = '{live_period}' AND feed_name <> '1_raw_claims'"
+        )
+        await execute_query(
+            f"UPDATE {sla_status_table} SET dq_pass_rate = 0.964 "
+            f"WHERE reporting_period = '{live_period}' AND feed_name = '1_raw_claims'"
+        )
     except Exception as exc:
         logger.warning("SLA status repair skipped: %s", exc)
 
@@ -1067,13 +1069,14 @@ async def _rebase_demo_state() -> dict[str, str]:
             "passing_records = total_records, pass_rate = 1.0"
         )
         # Then: punch a hole in one rule for the live period — the
-        # gross_written_positive rule on 2_stg_claims_by_lob. 2 of 7 LoBs
-        # fail (motor + property — storm-tainted claims with negative
-        # paid_amount values triggered the DLT expectation).
+        # gross_incurred_positive rule on 2_stg_claims_by_lob. 1 of 7 LoBs
+        # fails (storm-tainted claims with negative paid_amount triggered
+        # the DLT expectation). 27/28 across 4 rules = 96.4% feed-level —
+        # matches the FeedCard summary above.
         await execute_query(
-            f"UPDATE {dq_table} SET failing_records = 2, "
-            "passing_records = total_records - 2, "
-            "pass_rate = ROUND((total_records - 2) / total_records, 4) "
+            f"UPDATE {dq_table} SET failing_records = 1, "
+            "passing_records = total_records - 1, "
+            "pass_rate = ROUND((total_records - 1.0) / total_records, 4) "
             "WHERE reporting_period = :rp "
             "AND pipeline_name = 'S.05.01 Premiums Claims Expenses' "
             "AND table_name = '2_stg_claims_by_lob' "
