@@ -571,7 +571,8 @@ function FeedDetailPanel({ feedName }: { feedName: string }) {
         {activeTab === 'dq' && (
           <div>
             <p className="text-xs text-gray-500 mb-3">
-              Data quality expectations applied via DLT pipeline: <span className="font-medium">{detail.pipeline || 'N/A'}</span>
+              Data quality expectations applied via DLT pipeline: <span className="font-medium">{detail.pipeline || 'N/A'}</span>.
+              Totals below are per-LoB aggregation evaluations (≈7 rows per period), not raw-feed row counts.
             </p>
             {detail.dq_rules.length === 0 ? (
               <p className="text-sm text-gray-400 py-4 text-center">No DQ rules found for this feed's pipeline</p>

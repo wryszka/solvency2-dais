@@ -1025,10 +1025,13 @@ async def _rebase_demo_state() -> dict[str, str]:
                 arrival_days = max(1, sla_bd - 1)
                 arrival = period_close + timedelta(days=arrival_days, hours=3)
                 status_v = "on_time"
-            # Claims feed gets a degraded DQ pass rate in the live period
-            # (Pain B — quarantined claims). Other periods stay clean.
+            # Pain B — claims feed gets a degraded DQ pass rate in the live
+            # period. Expenses is force-cleaned so it doesn't compete as a
+            # second amber item; only claims should fly the DQ flag.
             if fn == "1_raw_claims" and rp == live_period:
                 dq_pass = 0.965
+            elif fn == "1_raw_expenses" and rp == live_period:
+                dq_pass = 0.998
             else:
                 dq_pass = None  # leave existing value alone
             dq_set_clause = ", dq_pass_rate = :dq" if dq_pass is not None else ""
@@ -1052,6 +1055,34 @@ async def _rebase_demo_state() -> dict[str, str]:
             )
     except Exception as exc:
         logger.warning("SLA status repair skipped: %s", exc)
+
+    # ── 1c. DQ expectation results — make the failing rule for claims
+    # visible in the live period so the FeedCard's 96.5% has a credible
+    # explanation in the drill-down DQ Rules tab. All other rules across
+    # all periods snap to 100% pass for a clean trend.
+    dq_table = fqn("5_mon_dq_expectation_results")
+    try:
+        # First: snap everything to passing.
+        await execute_query(
+            f"UPDATE {dq_table} SET failing_records = 0, "
+            "passing_records = total_records, pass_rate = 1.0"
+        )
+        # Then: punch a hole in one rule for the live period — the
+        # gross_written_positive rule on 2_stg_claims_by_lob. 2 of 7 LoBs
+        # fail (motor + property — storm-tainted claims with negative
+        # paid_amount values triggered the DLT expectation).
+        await execute_query(
+            f"UPDATE {dq_table} SET failing_records = 2, "
+            "passing_records = total_records - 2, "
+            "pass_rate = ROUND((total_records - 2) / total_records, 4) "
+            "WHERE reporting_period = :rp "
+            "AND pipeline_name = 'S.05.01 Premiums Claims Expenses' "
+            "AND table_name = '2_stg_claims_by_lob' "
+            "AND expectation_name = 'gross_incurred_positive'",
+            parameters=[StatementParameterListItem(name="rp", value=live_period)],
+        )
+    except Exception as exc:
+        logger.warning("DQ expectation repair skipped: %s", exc)
 
     # ── 2. Solvency daily series — rolling 90 days ending today ─────────────
     solvency_table = fqn("6_demo_solvency_daily")
