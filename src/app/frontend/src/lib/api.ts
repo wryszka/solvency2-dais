@@ -475,6 +475,8 @@ export function askGenie(question: string): Promise<GenieResponse> {
 
 export type SupervisorEvent =
   | { type: 'status'; message: string }
+  | { type: 'routed'; specialist_key: string; specialist_name: string; confidence: number }
+  | { type: 'data_sources'; sources: string[] }
   | { type: 'tool_call'; tool_call_id: string; name: string; arguments: Record<string, unknown> }
   | { type: 'tool_result'; tool_call_id: string; name: string; result_preview: string; result_size: number }
   | { type: 'answer'; text: string }
@@ -485,41 +487,38 @@ export async function askSupervisorStream(
   question: string,
   onEvent: (event: SupervisorEvent) => void,
 ): Promise<void> {
-  const res = await fetch('/api/supervisor/ask', {
+  // Backend exposes /route (non-streaming) — synthesise events from the
+  // single JSON response so callers that expect a stream still work.
+  const res = await fetch('/api/supervisor/route', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({ question, period: '2025-Q4' }),
   });
-  if (!res.ok || !res.body) {
+  if (!res.ok) {
     throw new Error(`Supervisor stream failed: ${res.status}`);
   }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    // Parse SSE: events separated by \n\n, each event has "event: TYPE\ndata: JSON"
-    const events = buffer.split('\n\n');
-    buffer = events.pop() || '';
-    for (const block of events) {
-      const lines = block.split('\n');
-      let evType = 'message';
-      let evData = '';
-      for (const line of lines) {
-        if (line.startsWith('event: ')) evType = line.slice(7).trim();
-        else if (line.startsWith('data: ')) evData = line.slice(6);
-      }
-      if (!evData) continue;
-      try {
-        const parsed = JSON.parse(evData);
-        onEvent({ type: evType, ...parsed } as SupervisorEvent);
-      } catch (e) {
-        console.error('Failed to parse SSE event:', evType, evData, e);
-      }
-    }
+  const r = await res.json();
+  if (r.specialist_key) {
+    onEvent({
+      type: 'routed',
+      specialist_key: r.specialist_key,
+      specialist_name: r.specialist_name,
+      confidence: r.confidence ?? 1.0,
+    });
   }
+  if (Array.isArray(r.data_sources) && r.data_sources.length) {
+    onEvent({ type: 'data_sources', sources: r.data_sources });
+  }
+  if (r.answer) {
+    onEvent({ type: 'answer', text: r.answer });
+  }
+  onEvent({
+    type: 'done',
+    model_used: r.model_used ?? '',
+    input_tokens: r.input_tokens ?? 0,
+    output_tokens: r.output_tokens ?? 0,
+    iterations: 1,
+  });
 }
 
 // ─── Submissions Archive + Process Metrics ──────────────────────────
