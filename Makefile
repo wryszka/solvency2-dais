@@ -66,8 +66,8 @@ deploy-serverless:
 	    -e 's|$${var.schema_name}|solvency2_workbench|g' \
 	    -e 's|$${var.warehouse_id}|ab79eced8207d29b|g' \
 	    -e 's|$${var.app_display_name}|Actuarial Workbench|g' \
-	    -e 's|$${var.dashboard_id}||g' \
-	    -e 's|$${var.genie_space_id}||g' \
+	    -e 's|$${var.dashboard_id}|01f15400139a1060bafa4348ba90a210|g' \
+	    -e 's|$${var.genie_space_id}|01f153ffca93169c9bb2db65cc40e713|g' \
 	    -e 's|$${var.backstage_notebook_path}||g' \
 	    -e 's|$${var.pricing_app_url}||g' \
 	    -e 's|$${var.fm_model_endpoints}||g' \

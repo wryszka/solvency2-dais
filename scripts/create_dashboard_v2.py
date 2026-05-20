@@ -17,15 +17,16 @@ a new dashboard is created and the ID printed for app.yaml.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import uuid
 
-CATALOG = "lr_dev_aws_us_catalog"
-SCHEMA = "solvency2_workbench"
-WAREHOUSE_ID = "a3b61648ea4809e3"
-PROFILE = "DEV"
-PARENT_PATH = "/Users/laurence.ryszka@databricks.com"
+CATALOG = os.environ.get("CATALOG", "lr_dev_aws_us_catalog")
+SCHEMA = os.environ.get("SCHEMA", "solvency2_workbench")
+WAREHOUSE_ID = os.environ.get("WAREHOUSE_ID", "a3b61648ea4809e3")
+PROFILE = os.environ.get("DATABRICKS_PROFILE", "DEV")
+PARENT_PATH = os.environ.get("PARENT_PATH", "/Users/laurence.ryszka@databricks.com")
 FQN = f"{CATALOG}.{SCHEMA}"
 
 DASHBOARD_ID = sys.argv[1] if len(sys.argv) > 1 else None
