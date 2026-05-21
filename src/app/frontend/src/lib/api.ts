@@ -1055,7 +1055,7 @@ export interface OrsaHistoryScenario {
 }
 
 export async function fetchDemoFeeds(period = '2025-Q4'): Promise<{ feeds: DemoFeed[] }> {
-  return fetchJson(`/api/demo/feeds?period=${encodeURIComponent(period)}`);
+  return cachedFetchJson(`/api/demo/feeds?period=${encodeURIComponent(period)}`);
 }
 export async function fetchDemoFeed(feedName: string): Promise<{ feed: DemoFeed }> {
   return fetchJson(`/api/demo/feeds/${encodeURIComponent(feedName)}`);
@@ -1088,7 +1088,7 @@ export async function runWhatif(scenario_label: string, payload: Record<string, 
   return postJson('/api/demo/whatif/run', { scenario_label, payload });
 }
 export async function fetchOrsaHistory(days = 30): Promise<{ scenarios: OrsaHistoryScenario[] }> {
-  return fetchJson(`/api/demo/orsa/history?days=${days}`);
+  return cachedFetchJson(`/api/demo/orsa/history?days=${days}`);
 }
 
 export interface OrsaDraftSection {
