@@ -36,7 +36,7 @@ interface CategoryDef {
 const CATEGORIES: CategoryDef[] = [
   { key: 'ingestion',        label: 'Ingestion',         Icon: Workflow,    drill_path: '/ingestion' },
   { key: 'model_governance', label: 'Model governance',  Icon: FlaskConical,drill_path: '/lab' },
-  { key: 'reconciliation',   label: 'Reconciliation',    Icon: GitCompare,  drill_path: '/data-quality' },
+  { key: 'reconciliation',   label: 'Reconciliation',    Icon: GitCompare,  drill_path: '/reconciliation' },
   { key: 'reserving',        label: 'Reserving',         Icon: Beaker,      drill_path: '/lab' },
 ];
 

@@ -292,6 +292,7 @@ export default function App() {
 
             {/* Operational tools — direct access */}
             <Route path="/ingestion" element={<Monitor initialTab="ingestion" />} />
+            <Route path="/reconciliation" element={<Monitor initialTab="reconciliation" />} />
             <Route path="/data-quality" element={<DataQuality />} />
             <Route path="/examples" element={<Navigate to="/lab" replace />} />
             <Route path="/whatif"   element={<Whatif />} />
