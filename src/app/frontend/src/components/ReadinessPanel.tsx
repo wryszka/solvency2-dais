@@ -35,13 +35,14 @@ const QRTS = [
   { id: 's2606', name: 'S.26.06', title: 'Non-Life Underwriting Risk' },
 ];
 
-// Which feeds drive which QRTs (curated, mirrors the lineage map)
+// Which feeds drive which QRTs (curated, mirrors the lineage map).
+// Names match the SLA-status table's feed_name column (1_raw_*).
 const QRT_FEEDS: Record<string, string[]> = {
-  s0501: ['policies_pas', 'claims_pas'],
-  s0602: ['custodian_holdings_abn'],
-  s1201: ['policies_pas'],
-  s2501: ['policies_pas', 'claims_pas', 'custodian_holdings_abn'],
-  s2606: ['exposures_underwriting', 'claims_pas'],
+  s0501: ['1_raw_premiums', '1_raw_claims', '1_raw_expenses'],
+  s0602: ['1_raw_assets'],
+  s1201: ['1_raw_life_policies', '1_raw_life_claims'],
+  s2501: ['1_raw_assets', '1_raw_claims', '1_raw_risk_factors', '1_raw_reinsurance'],
+  s2606: ['1_raw_exposures', '1_raw_claims', '1_raw_reinsurance'],
 };
 
 const QRT_MODELS: Record<string, string[]> = {
@@ -73,14 +74,21 @@ export default function ReadinessPanel() {
 
   const rows = useMemo<QrtRow[]>(() => {
     return QRTS.map((q) => {
-      // Data status: any QRT_FEEDS entry late?
-      const lateFeeds = (QRT_FEEDS[q.id] ?? []).filter((fn) => {
+      // Data status: any required feed late or DQ-flagged?
+      const required = QRT_FEEDS[q.id] ?? [];
+      const lateFeeds = required.filter((fn) => {
         const f = feeds.find((ff) => ff.feed_name === fn);
         return f && f.status === 'late';
       });
+      const dqFeeds = required.filter((fn) => {
+        const f = feeds.find((ff) => ff.feed_name === fn);
+        return f && parseFloat(String(f.dq_pass_rate ?? '1')) < 0.98;
+      });
       const data: CellState = lateFeeds.length > 0
         ? { status: 'error', label: 'Late feed', tooltip: `${lateFeeds.length} feed(s) late: ${lateFeeds.join(', ')}` }
-        : { status: 'ok', label: 'Ready', tooltip: 'All required feeds received on time' };
+        : dqFeeds.length > 0
+          ? { status: 'warn', label: 'DQ issue', tooltip: `DQ pass rate <98%: ${dqFeeds.join(', ')}` }
+          : { status: 'ok', label: 'Ready', tooltip: 'All required feeds received on time' };
 
       // Models status: any model has pending promotions?
       const reqModels = QRT_MODELS[q.id] ?? [];
