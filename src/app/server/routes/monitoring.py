@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from server.config import fqn, get_request_user
 from server.sql import execute_query, execute_query_cached
 from server.ai import generate_review
+from server.cache import cache_lookup, cache_persist, make_cache_key, should_use_cache
 from server.prompts import DQ_TRIAGE_SYSTEM, DQ_TRIAGE_PROMPT
 from server.guardrails import validate_input, validate_output, truncate_output
 
@@ -648,6 +649,13 @@ async def investigate_reconciliation(request: Request, body: dict = {}):
     user = get_request_user(request)
     check_name = body.get("check_name", "")
 
+    # Cache lookup — keyed by check_name. Returns instantly if pre-baked.
+    cache_key = make_cache_key("recon_investigate", check_name)
+    if should_use_cache(request):
+        cached = await cache_lookup(cache_key)
+        if cached:
+            return cached
+
     try:
         # Get the specific check
         where = f"WHERE reporting_period = (SELECT MAX(reporting_period) FROM {fqn('5_mon_cross_qrt_reconciliation')})"
@@ -718,7 +726,7 @@ Output in markdown: ## Root Cause, ## Impact Assessment, ## Recommendation."""
         output_verdict = validate_output(result.text)
         review_text = truncate_output(result.text)
 
-        return {
+        response = {
             "check": target_check,
             "review_text": review_text,
             "model_used": result.model_used,
@@ -736,6 +744,15 @@ Output in markdown: ## Root Cause, ## Impact Assessment, ## Recommendation."""
                 "rate_limited": input_verdict.rate_limited,
             },
         }
+        # Persist for subsequent ?cached=1 / DEMO_MODE=cached lookups.
+        try:
+            await cache_persist(
+                cache_key, "recon_investigate", check_name,
+                target_check.get("reporting_period"), response, user=user,
+            )
+        except Exception:
+            logger.debug("cache_persist (recon) skipped", exc_info=True)
+        return response
 
     except HTTPException:
         raise

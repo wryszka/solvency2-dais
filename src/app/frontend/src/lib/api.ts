@@ -8,6 +8,7 @@ const CACHED_ROUTE_PREFIXES = [
   '/api/afr/draft',
   '/api/sfcr/draft',
   '/api/rsr/draft',
+  '/api/monitoring/recon-investigate',
 ];
 
 function shouldUseCache(url: string): boolean {

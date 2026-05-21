@@ -95,6 +95,27 @@ done
 # This call doesn't currently use the cache table (the agent endpoint is live-only),
 # but hitting it once before the talk warms the model + the SQL warehouse + any
 # transitive caches in the FM endpoint. Worth ~3-5s shaved off the first stage call.
+echo "Recon investigations (one per cross-QRT check):"
+# Discover the check names from the reconciliation table, then bake each one.
+RECON_NAMES=$(curl -fsS "${APP_URL}/api/monitoring/reconciliation" \
+    -H "Authorization: Bearer ${TOKEN}" --max-time 60 \
+    | python3 -c "
+import sys, json
+out = json.load(sys.stdin)
+for row in out.get('data', []):
+    nm = row.get('check_name')
+    if nm: print(nm)
+" 2>/dev/null)
+for check in $RECON_NAMES; do
+    echo "  · recon / ${check}"
+    curl -fsS -X POST "${APP_URL}/api/monitoring/recon-investigate?cached=0" \
+        -H "Authorization: Bearer ${TOKEN}" \
+        -H "Content-Type: application/json" \
+        --data "{\"check_name\":\"${check}\"}" \
+        --max-time 180 > /dev/null \
+    || echo "    ! failed"
+done
+
 echo "Senior Reserving Actuary:"
 echo "  · agents / reserving/review (warmup)"
 curl -fsS "${APP_URL}/api/agents/reserving/review?period_q4=${PERIOD}&period_q3=2025-Q3" \
