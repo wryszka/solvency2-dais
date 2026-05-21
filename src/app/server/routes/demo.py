@@ -1342,6 +1342,25 @@ async def reset_demo(request: Request):
     except Exception as exc:
         actions.append(f"Promotion clean FAILED: {exc}")
 
+    # 3b. Normalize pending candidate rows: only reserving_pnc + standard_formula
+    # should appear as pending. Life/cat/external engines run cleanly. Also
+    # move any pending row into 2025-Q4 (current demo quarter) so the Lab
+    # header counter — which filters by quarter — shows 2 instead of 0.
+    try:
+        await execute_query(
+            f"DELETE FROM {fqn('6_gov_promotions')} "
+            "WHERE status = 'pending' "
+            "AND model_name NOT IN ('reserving_pnc', 'standard_formula')"
+        )
+        await execute_query(
+            f"UPDATE {fqn('6_gov_promotions')} SET quarter = '2025-Q4' "
+            "WHERE status = 'pending' "
+            "AND model_name IN ('reserving_pnc', 'standard_formula')"
+        )
+        actions.append("Pending promotions normalized (only reserving_pnc + standard_formula)")
+    except Exception as exc:
+        actions.append(f"Pending promotion normalize WARN: {exc}")
+
     # 4. Drop overlays created during the demo. The seeded baseline overlays
     # carry the deterministic seed-author prefix; anything else was created
     # interactively during the demo session and should be removed.

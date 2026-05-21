@@ -148,14 +148,18 @@ def main() -> None:
                 "chief.actuary@bricksurance.eu", t - timedelta(days=2),
                 "actuarial.team@bricksurance.eu", t - timedelta(days=1), "approved",
             ))
-        next_q = f"{YEAR + 1}-Q1"
-        next_t = _ts(YEAR + 1, 1, 28)
-        promo_rows.append((
-            str(uuid.uuid4()), model_name, model_type, None, "candidate",
-            f"{YEAR}-Q4 v1", f"{next_q} v1-rc1", next_q, False,
-            f"Recalibration candidate for {next_q}. Diagnostics in review.",
-            None, None, "senior.actuary@bricksurance.eu", next_t, "pending",
-        ))
+        # Only the two models that actually have a Q4 candidate awaiting
+        # sign-off get a pending row. Cat and life engines run cleanly on
+        # their current Champion calibrations.
+        if model_name in ("reserving_pnc", "standard_formula"):
+            current_q = f"{YEAR}-Q4"
+            current_t = _ts(YEAR + 1, 1, 28)
+            promo_rows.append((
+                str(uuid.uuid4()), model_name, model_type, None, "candidate",
+                f"{YEAR}-Q4 v1", f"{current_q} v1-rc1", current_q, False,
+                f"Recalibration candidate for {current_q}. Diagnostics in review.",
+                None, None, "senior.actuary@bricksurance.eu", current_t, "pending",
+            ))
     insert_rows(
         "6_gov_promotions",
         ["promotion_id", "model_name", "model_type", "from_alias", "to_alias",
