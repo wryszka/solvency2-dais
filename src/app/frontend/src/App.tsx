@@ -29,8 +29,7 @@ import Whatif from './pages/Whatif';
 import FeedDetail from './pages/FeedDetail';
 import OrsaDraft from './pages/OrsaDraft';
 import OrsaReverseStress from './pages/OrsaReverseStress';
-import Workbench from './pages/Workbench';
-import RoadmapStub from './pages/RoadmapStub';
+import SolvencyLanding from './pages/SolvencyLanding';
 import AgentArchitecture from './pages/AgentArchitecture';
 import Governance from './pages/Governance';
 import ModelDevelopment from './pages/ModelDevelopment';
@@ -146,7 +145,7 @@ function Sidebar() {
       <Link to="/" className="flex items-center gap-3 px-4 py-3.5 border-b border-white/10 hover:opacity-90 transition-opacity">
         <FileText className="w-5 h-5 text-blue-400 shrink-0" />
         <div className="min-w-0">
-          <h1 className="text-base font-bold tracking-tight truncate">Actuarial Workbench</h1>
+          <h1 className="text-base font-bold tracking-tight truncate">Solvency II Workbench</h1>
           <p className="text-[10px] text-gray-400 truncate">Bricksurance SE — Composite</p>
         </div>
       </Link>
@@ -280,10 +279,9 @@ export default function App() {
           <ScrollToHash />
           <BreadcrumbStrip />
           <Routes>
-            {/* Workbench top-level — six tiles, Solvency II is the live one */}
-            <Route path="/" element={<Workbench />} />
+            {/* Top-level landing — focused Solvency II entry (no multi-app hub) */}
+            <Route path="/" element={<SolvencyLanding />} />
             <Route path="/solvency-2"       element={<Navigate to="/today" replace />} />
-            <Route path="/roadmap/:slug"    element={<RoadmapStub />} />
 
             {/* Solvency II surface — top-level routes preserved so existing links + breadcrumbs keep working */}
             <Route path="/today"            element={<Today />} />

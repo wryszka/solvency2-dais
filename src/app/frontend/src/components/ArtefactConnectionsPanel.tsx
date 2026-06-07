@@ -44,6 +44,9 @@ export default function ArtefactConnectionsPanel({ qrtId }: Props) {
   }, [qrtId]);
 
   if (!cfg) return null;
+  // Roadmap tiles moved to the separate Actuarial Workbench app — drop any
+  // /roadmap/* adjacency links so they don't dead-end here.
+  const adjacent = cfg.adjacent.filter((x) => !x.to.startsWith('/roadmap'));
 
   const modelById = new Map((labModels ?? []).map((m) => [m.model_id, m]));
 
@@ -193,7 +196,7 @@ export default function ArtefactConnectionsPanel({ qrtId }: Props) {
         </div>
 
         {/* Examples + Adjacent */}
-        {(cfg.examples.length > 0 || cfg.adjacent.length > 0) && (
+        {(cfg.examples.length > 0 || adjacent.length > 0) && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 pt-1 border-t border-gray-100">
             {cfg.examples.length > 0 && (
               <div>
@@ -209,11 +212,11 @@ export default function ArtefactConnectionsPanel({ qrtId }: Props) {
                 </ul>
               </div>
             )}
-            {cfg.adjacent.length > 0 && (
+            {adjacent.length > 0 && (
               <div>
                 <SectionLabel icon={ExternalLink}>Adjacent capabilities</SectionLabel>
                 <ul className="mt-1.5 space-y-1">
-                  {cfg.adjacent.map((x) => (
+                  {adjacent.map((x) => (
                     <li key={x.label + x.to}>
                       <Link to={x.to} className="flex items-center gap-1.5 text-sm text-blue-700 hover:underline">
                         <ChevronRight className="w-3.5 h-3.5 text-gray-400" />{x.label}
