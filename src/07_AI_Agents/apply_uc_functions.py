@@ -442,4 +442,11 @@ print("fn_cache_write ✓")
 # COMMAND ----------
 
 print(f"\nAll UC Functions applied under {catalog}.{schema}.fn_*")
-spark.sql(f"SHOW USER FUNCTIONS IN `{catalog}`.`{schema}` LIKE 'fn_*'").show(50, truncate=False)
+# SHOW ... IN <catalog>.<schema> trips CROSS_CATALOG_SCHEMA_REFERENCE on some
+# workspaces (session default catalog differs). USE CATALOG first, then SHOW IN
+# the schema directly. Non-fatal either way — it's just a confirmation listing.
+try:
+    spark.sql(f"USE CATALOG `{catalog}`")
+    spark.sql(f"SHOW USER FUNCTIONS IN `{schema}` LIKE 'fn_*'").show(50, truncate=False)
+except Exception as e:
+    print(f"(function listing skipped: {e})")

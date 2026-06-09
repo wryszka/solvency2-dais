@@ -84,3 +84,34 @@ deploy-serverless:
 	databricks apps deploy solvency2-workbench \
 	    --source-code-path "/Workspace/Users/$$USER@databricks.com/.bundle/solvency2_workbench/serverless/files/src/app" \
 	    --profile sfevm
+
+# DAIS 2026 conference workspace. Shared event account, so the workspace path
+# uses the event user (not $$USER). dashboard_id / genie_space_id are filled in
+# after those resources are created in the deploy chain.
+DAIS_USER := fins-dais2026@databricks-events.com
+DAIS_FILES := /Workspace/Users/$(DAIS_USER)/.bundle/solvency2_workbench/dais/files
+deploy-dais:
+	databricks bundle deploy -t dais --profile dais
+	@TMPYAML=$$(mktemp); \
+	  sed \
+	    -e 's|$${var.catalog_name}|financial_services|g' \
+	    -e 's|$${var.schema_name}|solvency2_workbench|g' \
+	    -e 's|$${var.warehouse_id}|9808cb1bbca5e1bb|g' \
+	    -e 's|$${var.app_display_name}|Solvency II Workbench|g' \
+	    -e 's|$${var.dashboard_id}|$(DAIS_DASHBOARD_ID)|g' \
+	    -e 's|$${var.genie_space_id}|$(DAIS_GENIE_ID)|g' \
+	    -e 's|$${var.backstage_notebook_path}||g' \
+	    -e 's|$${var.pricing_app_url}||g' \
+	    -e 's|$${var.fm_model_endpoints}||g' \
+	    -e 's|$${var.supervisor_endpoint_name}|workbench-supervisor|g' \
+	    -e "s|\$${var.bundle_files_root}|$(DAIS_FILES)|g" \
+	    src/app/app.yaml > $$TMPYAML; \
+	  databricks workspace import \
+	    "$(DAIS_FILES)/src/app/app.yaml" \
+	    --format AUTO --file $$TMPYAML --overwrite --profile dais; \
+	  rm -f $$TMPYAML
+	@databricks apps get solvency2-workbench --profile dais >/dev/null 2>&1 || \
+	  databricks apps create solvency2-workbench --description "Solvency II Workbench" --profile dais
+	databricks apps deploy solvency2-workbench \
+	    --source-code-path "$(DAIS_FILES)/src/app" \
+	    --profile dais

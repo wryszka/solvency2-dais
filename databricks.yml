@@ -149,6 +149,25 @@ targets:
       pricing_app_url: ""
       supervisor_endpoint_name: workbench-supervisor
 
+  # ─ dais ─ DAIS 2026 conference workspace (shared FINS event account).
+  # Catalog financial_services (writable for us), Claude FM endpoints native.
+  dais:
+    mode: development
+    workspace:
+      host: https://db-dais-2026.cloud.databricks.com
+      profile: dais
+    variables:
+      catalog_name: financial_services
+      schema_name: solvency2_workbench
+      warehouse_id: 9808cb1bbca5e1bb
+      app_name: solvency2-workbench
+      app_display_name: Solvency II Workbench
+      workspace_host: https://db-dais-2026.cloud.databricks.com
+      databricks_profile: dais
+      entity_type: composite
+      pricing_app_url: ""
+      supervisor_endpoint_name: workbench-supervisor
+
   prod:
     mode: production
 
