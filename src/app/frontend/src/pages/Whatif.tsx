@@ -27,14 +27,14 @@ interface WhatifResult {
   second_opinion: string;
 }
 
-const SUGGESTIONS = [
-  'double cyber book over 12 months',
-  'increase motor portfolio by 20% next year',
-  'reduce property cat retention to €2M XOL',
+const SUGGESTIONS: { label: string; hint: string }[] = [
+  { label: 'double cyber book over 12 months',        hint: 'Volume shock on the non-life premium/reserve sub-module' },
+  { label: 'increase motor portfolio by 20% next year', hint: 'Premium/reserve volume uplift' },
+  { label: 'reduce property cat retention to €2M XOL',  hint: 'Cedes more tail to reinsurers — lower net cat charge' },
 ];
 
 export default function Whatif() {
-  const [scenario, setScenario] = useState(SUGGESTIONS[0]);
+  const [scenario, setScenario] = useState(SUGGESTIONS[0].label);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<WhatifResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,10 +51,11 @@ export default function Whatif() {
   const { text: narrativeStreamed, done: narrativeDone } = useStreamedText(result?.result.narrative_seed ?? null, { charsPerTick: 20, tickMs: 8 });
   const { text: opinionStreamed, done: opinionDone } = useStreamedText(narrativeDone ? (result?.second_opinion ?? null) : null, { charsPerTick: 25, tickMs: 8 });
 
-  async function go() {
+  async function go(s: string = scenario) {
+    setScenario(s);
     setRunning(true); setError(null); setResult(null);
     try {
-      setResult(await runWhatif(scenario) as WhatifResult);
+      setResult(await runWhatif(s) as WhatifResult);
     } catch (e) { setError(String(e)); }
     finally { setRunning(false); }
   }
@@ -68,7 +69,7 @@ export default function Whatif() {
         <div className="flex-1">
           <h2 className="text-2xl font-bold text-gray-900 tracking-tight">What-if scenario</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Type a scenario in plain English. The engine projects capital impact and the
+            Pick a worked example. The engine projects the capital impact and the
             Contrarian Capital Reviewer fires automatically — a critical voice that pressure-tests
             the assumptions before this hits a board paper.
           </p>
@@ -86,33 +87,27 @@ export default function Whatif() {
       )}
 
       <section className="bg-white border-2 border-blue-200 rounded-xl p-5 space-y-3">
-        <label className="block text-sm">
-          <span className="text-[11px] uppercase tracking-widest text-gray-500 font-bold">Scenario</span>
-          <input
-            value={scenario}
-            onChange={(e) => setScenario(e.target.value)}
-            disabled={running}
-            className="mt-1 w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-200"
-          />
-        </label>
-        <div className="flex flex-wrap gap-1.5">
-          {SUGGESTIONS.map((s) => (
-            <button key={s} onClick={() => setScenario(s)} disabled={running}
-              className={`text-[11px] px-2 py-0.5 border rounded-full ${
-                s === scenario
-                  ? 'border-blue-400 bg-blue-50 text-blue-800'
-                  : 'border-gray-200 text-gray-600 hover:bg-blue-50/50'
-              }`}>
-              {s}
-            </button>
-          ))}
+        <span className="text-[11px] uppercase tracking-widest text-gray-500 font-bold">Pick a scenario — projects on click</span>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          {SUGGESTIONS.map((s) => {
+            const active = s.label === scenario;
+            return (
+              <button key={s.label} onClick={() => go(s.label)} disabled={running}
+                className={`text-left rounded-lg border-2 p-3 transition-all disabled:opacity-60 ${
+                  active && running
+                    ? 'border-blue-400 bg-blue-50'
+                    : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/40'
+                }`}>
+                <div className="text-sm font-semibold text-gray-900 leading-snug">{s.label}</div>
+                <div className="text-[11px] text-gray-500 mt-1 leading-snug">{s.hint}</div>
+                <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-blue-700">
+                  {running && active ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                  {running && active ? 'Projecting…' : 'Run'}
+                </div>
+              </button>
+            );
+          })}
         </div>
-
-        <button onClick={go} disabled={running}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-700 text-white rounded-md hover:bg-blue-800 disabled:opacity-50 text-sm font-semibold">
-          {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-          {running ? 'Projecting…' : result ? 'Re-run' : 'Run scenario'}
-        </button>
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded p-2 text-xs text-red-700 flex items-start gap-2">

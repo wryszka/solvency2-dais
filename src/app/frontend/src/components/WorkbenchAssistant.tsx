@@ -71,7 +71,11 @@ export default function WorkbenchAssistant() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question, period: '2025-Q4' }),
       });
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      if (!res.ok) {
+        let msg = `${res.status} ${res.statusText}`;
+        try { const j = await res.json(); if (j?.detail) msg = typeof j.detail === 'string' ? j.detail : msg; } catch { /* keep status */ }
+        throw new Error(msg);
+      }
       const json = await res.json();
       setTurns((t) => [...t, {
         role: 'assistant',

@@ -78,6 +78,22 @@ export default function SolvencyLanding() {
           </div>
         </header>
 
+        {/* ── New to Solvency II? (prominent, US-framed) ─────────── */}
+        <section className="bg-blue-50 border border-blue-200 rounded-xl px-6 py-5 max-w-3xl mx-auto">
+          <div className="text-[12px] uppercase tracking-[0.16em] text-blue-700 font-bold">New to Solvency II?</div>
+          <p className="text-[15px] text-blue-950/85 leading-relaxed mt-2">
+            This is a <strong>working example of a real business process built end-to-end on
+            Databricks</strong>. <strong>Solvency II</strong> is the EU and UK’s mandatory framework
+            that sets how much capital an insurer must hold to stay solvent, and the regulatory returns
+            they file each quarter and year. The closest US parallels are the{' '}
+            <strong>NAIC’s Risk-Based Capital (RBC)</strong> regime and the <strong>statutory financial
+            statements</strong> insurers file with state regulators, plus the <strong>US ORSA</strong>{' '}
+            requirement — same idea, different rulebook. It shows how an entire regulatory reporting
+            system — ingestion, reserving, capital calculation, regulatory templates, stress testing,
+            governance and disclosure — can run on one lakehouse, with AI agents assisting throughout.
+          </p>
+        </section>
+
         {/* ── About this demo ──────────────────────────────────── */}
         <div className="max-w-4xl mx-auto bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-[13px] text-amber-900 leading-relaxed">
           <strong>About this demo.</strong> This is <strong>not a Databricks product</strong>. It's an

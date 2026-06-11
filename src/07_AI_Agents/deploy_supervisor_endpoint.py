@@ -52,6 +52,14 @@ if not versions:
 latest = max(versions, key=lambda v: int(v.version))
 print(f"Serving {full_model} v{latest.version}")
 
+# Pin the @Production alias to the served version so the served entity and any
+# alias-based reference are deterministic.
+try:
+    mc.set_registered_model_alias(full_model, "Production", int(latest.version))
+    print(f"Set alias @Production -> v{latest.version}")
+except Exception as _e:
+    print(f"(could not set @Production alias: {_e})")
+
 # Inject Databricks auth from the notebook's runtime context so the pyfunc's
 # WorkspaceClient() can call FM API endpoints + SQL warehouse from inside the
 # serving container. (Model Serving doesn't expose DATABRICKS_TOKEN by default.)
@@ -90,13 +98,44 @@ else:
     print(f"Creating endpoint {endpoint}…")
     w.serving_endpoints.create(name=endpoint, config=config)
 
-# Poll briefly for visibility, but don't block forever
-for _ in range(6):
+# Wait for READY and FAIL the job if the build doesn't come up. The old code
+# polled for 90s then printed success regardless — so the task went green while
+# the container build failed asynchronously, leaving no live endpoint. Block on
+# the real terminal state instead (serving builds take 5–20 min from cold).
+DEADLINE_MIN = 30
+POLL_SECS = 20
+elapsed = 0
+final_ready = None
+final_cfg = None
+while elapsed < DEADLINE_MIN * 60:
     ep = w.serving_endpoints.get(endpoint)
-    ready = ep.state and ep.state.ready
-    print(f"  state: {ready}")
-    if str(ready) in ("READY", "EndpointStateReady.READY"):
+    st = ep.state
+    final_ready = str(st.ready) if st and st.ready is not None else None
+    final_cfg = str(st.config_update) if st and st.config_update is not None else None
+    print(f"  [{elapsed//60}m{elapsed%60:02d}s] ready={final_ready} config_update={final_cfg}")
+    if final_ready in ("READY", "EndpointStateReady.READY"):
         break
-    time.sleep(15)
+    # Surface a failed build immediately rather than waiting out the deadline.
+    if final_cfg and "FAILED" in final_cfg:
+        # Pull the most recent build/update logs for the served entity.
+        try:
+            logs = w.serving_endpoints.get_open_api(endpoint)  # best-effort; not all SDKs
+            print("  build logs:", str(logs)[:1000])
+        except Exception:
+            pass
+        raise RuntimeError(
+            f"Endpoint {endpoint} config update FAILED (config_update={final_cfg}). "
+            f"Check the serving endpoint build logs in the workspace UI."
+        )
+    time.sleep(POLL_SECS)
+    elapsed += POLL_SECS
 
-print(f"\nEndpoint {endpoint} is provisioned. Set SUPERVISOR_ENDPOINT_NAME={endpoint} in app.yaml.")
+if final_ready not in ("READY", "EndpointStateReady.READY"):
+    raise RuntimeError(
+        f"Endpoint {endpoint} did not reach READY within {DEADLINE_MIN} min "
+        f"(last ready={final_ready}, config_update={final_cfg}). Failing the job so "
+        f"this isn't silently reported as success."
+    )
+
+print(f"\n✓ Endpoint {endpoint} is READY and serving {full_model} v{latest.version}.")
+print(f"  Set SUPERVISOR_ENDPOINT_NAME={endpoint} in app.yaml (already wired in databricks.yml).")

@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import {
   Building2, FileText, Activity, ShieldCheck, Code2,
-  Layers, Beaker, GraduationCap, BookOpen, CircleHelp, Workflow, MessageCircleQuestion,
+  Layers, Beaker, GraduationCap, BookOpen, CircleHelp, Workflow, MessageCircleQuestion, Info,
   Scale,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -25,11 +25,14 @@ import LabModelDetail from './pages/LabModelDetail';
 import Today from './pages/Today';
 import ReportingCycle from './pages/ReportingCycle';
 import Learn from './pages/Learn';
+import BricksterInstructions from './pages/BricksterInstructions';
 import Whatif from './pages/Whatif';
 import FeedDetail from './pages/FeedDetail';
 import OrsaDraft from './pages/OrsaDraft';
 import OrsaReverseStress from './pages/OrsaReverseStress';
 import SolvencyLanding from './pages/SolvencyLanding';
+import Hub from './pages/Hub';
+import RegisterInterest from './pages/RegisterInterest';
 import AgentArchitecture from './pages/AgentArchitecture';
 import Governance from './pages/Governance';
 import ModelDevelopment from './pages/ModelDevelopment';
@@ -167,6 +170,9 @@ function Sidebar() {
         ))}
       </nav>
 
+      {/* Brickster guide — internal booth instructions, above Learn */}
+      <BricksterTile />
+
       {/* Learn tile — secondary, tucked at the bottom */}
       <LearnTile />
 
@@ -182,6 +188,29 @@ function Sidebar() {
         </div>
       </div>
     </aside>
+  );
+}
+
+function BricksterTile() {
+  const { pathname } = useLocation();
+  const active = pathname.startsWith('/instructions');
+  return (
+    <div className="px-3 pt-2 pb-0.5">
+      <Link
+        to="/instructions"
+        className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md border transition-colors ${
+          active
+            ? 'bg-amber-500/15 border-amber-400/40 text-amber-200'
+            : 'bg-white/[0.03] border-white/10 text-gray-400 hover:text-amber-200 hover:border-amber-400/30'
+        }`}
+      >
+        <Info className="w-4 h-4 text-amber-300/80 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-[12px] font-semibold leading-tight">Instructions for Bricksters</div>
+          <div className="text-[10px] text-gray-500 truncate">How to run this booth demo</div>
+        </div>
+      </Link>
+    </div>
   );
 }
 
@@ -270,23 +299,24 @@ function ScrollToHash() {
   return null;
 }
 
-export default function App() {
+function AppShell() {
   return (
-    <BrowserRouter>
       <div className="min-h-screen bg-gray-100 font-[system-ui]">
         <Sidebar />
         <main className="ml-[268px]">
           <ScrollToHash />
           <BreadcrumbStrip />
           <Routes>
-            {/* Top-level landing — focused Solvency II entry (no multi-app hub) */}
-            <Route path="/" element={<SolvencyLanding />} />
+            {/* Solvency II entry — reached from the booth hub's Solvency tile.
+                Booth hub itself is the standalone "/" route (see App below). */}
+            <Route path="/home" element={<SolvencyLanding />} />
             <Route path="/solvency-2"       element={<Navigate to="/today" replace />} />
 
             {/* Solvency II surface — top-level routes preserved so existing links + breadcrumbs keep working */}
             <Route path="/today"            element={<Today />} />
             <Route path="/reporting-cycle"  element={<ReportingCycle />} />
             <Route path="/learn"            element={<Learn />} />
+            <Route path="/instructions"     element={<BricksterInstructions />} />
 
             {/* Operational tools — direct access */}
             <Route path="/ingestion" element={<Monitor initialTab="ingestion" />} />
@@ -340,6 +370,18 @@ export default function App() {
         </main>
         <WorkbenchAssistant />
       </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* DAIS booth: the hub is the front page; the Solvency tile opens /home. */}
+        <Route path="/" element={<Hub />} />
+        <Route path="/register-interest" element={<RegisterInterest />} />
+        <Route path="/*" element={<AppShell />} />
+      </Routes>
     </BrowserRouter>
   );
 }

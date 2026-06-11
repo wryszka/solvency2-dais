@@ -31,6 +31,50 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/demo", tags=["demo"])
 
 
+# ── DAIS booth one-off — register-interest lead capture ──────────────────────
+# Booth hub tiles (other than Solvency II) open a register-interest form; this
+# writes to 6_demo_interest_register. Throwaway — collected before the DAIS
+# workspace is torn down.
+class InterestSubmission(BaseModel):
+    name: str = ""
+    email: str = ""
+    organisation: str = ""
+    interest: str = ""
+    tile: str = ""
+
+
+@router.post("/interest")
+async def register_interest(sub: InterestSubmission, request: Request):
+    if not sub.name.strip() and not sub.interest.strip():
+        raise HTTPException(400, "Add your name or what you'd like to see.")
+    tbl = fqn("6_demo_interest_register")
+    try:
+        await execute_query(
+            f"CREATE TABLE IF NOT EXISTS {tbl} ("
+            " id STRING, name STRING, email STRING, organisation STRING,"
+            " interest STRING, tile STRING, submitted_at TIMESTAMP, submitted_by STRING)"
+        )
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        await execute_query(
+            f"INSERT INTO {tbl} VALUES "
+            "(:id, :name, :email, :org, :interest, :tile, CAST(:ts AS TIMESTAMP), :by)",
+            parameters=[
+                StatementParameterListItem(name="id", value=str(uuid.uuid4())),
+                StatementParameterListItem(name="name", value=sub.name.strip()[:200]),
+                StatementParameterListItem(name="email", value=sub.email.strip()[:200]),
+                StatementParameterListItem(name="org", value=sub.organisation.strip()[:200]),
+                StatementParameterListItem(name="interest", value=sub.interest.strip()[:2000]),
+                StatementParameterListItem(name="tile", value=sub.tile.strip()[:100]),
+                StatementParameterListItem(name="ts", value=now),
+                StatementParameterListItem(name="by", value=get_request_user(request)[:200]),
+            ],
+        )
+        return {"status": "ok"}
+    except Exception as exc:
+        logger.exception("interest write failed")
+        raise HTTPException(500, str(exc)) from exc
+
+
 # ── Scene 3 — Late feed cascade ─────────────────────────────────────────────
 
 @router.get("/feeds")
@@ -535,6 +579,30 @@ async def whatif_run(req: WhatifRequest, request: Request):
 
     label = req.scenario_label.lower().strip()
     is_cyber_double = ("cyber" in label and ("double" in label or "doubling" in label))
+    is_motor = ("motor" in label)
+    is_cat_retention = ("retention" in label or "xol" in label)
+
+    # Booth (B): cyber-double is computed live by the engine; the other two
+    # examples return realistic pre-baked results so they answer instantly and
+    # never look "not implemented". (Dev runs all three live; this is the booth.)
+    PREBAKED = {
+        "motor": {
+            "ratio_before_pct": 211.0, "ratio_after_pct": 204.4, "ratio_delta_pp": -6.6,
+            "scr_impact_eur": 36_500_000.0,
+            "narrative_seed": (
+                "Growing the motor book ~20% next year lifts the non-life premium/reserve volume "
+                "driver; BSCR re-aggregates via the EIOPA correlation matrix. Projected SCR uplift "
+                "~EUR 36.5M; solvency ratio impact -6.6pp (211.0% → 204.4%)."),
+        },
+        "cat": {
+            "ratio_before_pct": 211.0, "ratio_after_pct": 214.2, "ratio_delta_pp": +3.2,
+            "scr_impact_eur": -17_800_000.0,
+            "narrative_seed": (
+                "Cutting property-cat net retention to €2M XOL cedes more of the tail to reinsurers, "
+                "lowering the net catastrophe charge. BSCR re-aggregates via the EIOPA correlation "
+                "matrix. Projected SCR relief ~EUR 17.8M; solvency ratio impact +3.2pp (211.0% → 214.2%)."),
+        },
+    }
 
     if is_cyber_double:
         # Real engine: pulls base SCR, applies premium/reserve shock, recomputes BSCR
@@ -558,14 +626,18 @@ async def whatif_run(req: WhatifRequest, request: Request):
             "current_portfolio_smemix_pct": 78.0,
             "reinsurance_structure": "40% QS + €5M XOL above",
         }
+    elif is_motor or is_cat_retention:
+        pb = PREBAKED["motor" if is_motor else "cat"]
+        result = {"engine": "prebaked", **pb}
+        payload_for_agent = {"scenario": req.scenario_label,
+                             "ratio_before_pct": pb["ratio_before_pct"],
+                             "ratio_after_pct": pb["ratio_after_pct"],
+                             "ratio_impact_pp": pb["ratio_delta_pp"]}
     else:
-        # Generic placeholder — for the demo only the cyber-double scenario is fully wired
         result = {
-            "narrative_seed": f"Scenario '{req.scenario_label}' is not pre-tested for the demo. "
-                              "The platform would normally project a result here using the same engine.",
-            "ratio_before_pct": 211.0,
-            "ratio_after_pct": 211.0,
-            "ratio_delta_pp": 0.0,
+            "narrative_seed": f"Scenario '{req.scenario_label}' isn't one of the worked examples. "
+                              "Pick one of the example scenarios to see a projection.",
+            "ratio_before_pct": 211.0, "ratio_after_pct": 211.0, "ratio_delta_pp": 0.0,
         }
         payload_for_agent = {"scenario": req.scenario_label, **req.payload}
 

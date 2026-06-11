@@ -682,11 +682,28 @@ async def _call_supervisor_endpoint(endpoint_name: str, question: str, period: s
     try:
         from server.config import get_workspace_client
         w = get_workspace_client()
-        resp = await asyncio.to_thread(
-            w.serving_endpoints.query,
-            name=endpoint_name,
-            dataframe_records=[{"question": question, "period": period}],
-        )
+
+        # Scale-to-zero: the first query after idle wakes the endpoint and can
+        # take 30–90s+. Retry on transient errors so an uncached question waits
+        # for the cold start. If it still never answers, the caller falls back
+        # to in-app routing (booth: always answer, never error).
+        resp = None
+        last_exc: Exception | None = None
+        for attempt in range(6):
+            try:
+                resp = await asyncio.to_thread(
+                    w.serving_endpoints.query,
+                    name=endpoint_name,
+                    dataframe_records=[{"question": question, "period": period}],
+                )
+                break
+            except Exception as e:  # noqa: BLE001 — cold-start / transient
+                last_exc = e
+                logger.info("Supervisor endpoint not ready (attempt %d/6): %s", attempt + 1, str(e)[:160])
+                await asyncio.sleep(25)
+        if resp is None:
+            logger.warning("Supervisor endpoint never answered after retries: %s", last_exc)
+            return None
         # Predictions may be on .predictions, .as_dict()['predictions'], or
         # in older SDK shapes wrapped as a dataframe split. Handle all three.
         preds = None
