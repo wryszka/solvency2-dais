@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Info, Mail } from 'lucide-react';
 
 const EMAIL = 'laurence.ryszka@databricks.com';
+const MARCELA_EMAIL = 'marcela.granados@databricks.com';
 
 export default function BricksterInstructions() {
   return (
@@ -107,7 +108,9 @@ export default function BricksterInstructions() {
           This booth shows the <strong>platform</strong> through an insurance example — it’s not the place
           for a deep actuarial or Solvency II discussion. If a visitor wants that level of detail,
           <strong> take their name</strong> (and email/company if they’ll give it) and let{' '}
-          <strong>Marcela or Laurence</strong> know — they’ll follow up properly. The{' '}
+          <a href={`mailto:${MARCELA_EMAIL}`} className="text-amber-800 underline hover:text-amber-900 font-semibold">Marcela</a> or{' '}
+          <a href={`mailto:${EMAIL}`} className="text-amber-800 underline hover:text-amber-900 font-semibold">Laurence</a>{' '}
+          know — they’ll follow up properly. The{' '}
           <Link to="/register-interest" className="text-amber-800 underline hover:text-amber-900">register-interest</Link>{' '}
           form is the easy way to capture it.
         </p>
@@ -117,8 +120,11 @@ export default function BricksterInstructions() {
       <div className="bg-slate-900 rounded-xl px-5 py-4 flex items-center gap-3">
         <Mail className="w-5 h-5 text-blue-300 shrink-0" />
         <div className="text-sm text-slate-200">
-          Issues, questions, requirements or suggestions? Talk to <strong className="text-white">Laurence Ryszka</strong> —{' '}
-          <a href={`mailto:${EMAIL}`} className="text-blue-300 hover:underline font-semibold">{EMAIL}</a>
+          Issues, questions, requirements or suggestions? Talk to{' '}
+          <strong className="text-white">Laurence Ryszka</strong> —{' '}
+          <a href={`mailto:${EMAIL}`} className="text-blue-300 hover:underline font-semibold">{EMAIL}</a>{' '}
+          or <strong className="text-white">Marcela Granados</strong> —{' '}
+          <a href={`mailto:${MARCELA_EMAIL}`} className="text-blue-300 hover:underline font-semibold">{MARCELA_EMAIL}</a>
         </div>
       </div>
     </div>
