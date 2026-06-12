@@ -42,6 +42,7 @@ import Pillar3Overview from './pages/Pillar3Overview';
 import Breadcrumb from './components/Breadcrumb';
 import DemoControlsPanel from './components/DemoControlsPanel';
 import WorkbenchAssistant from './components/WorkbenchAssistant';
+import PageIntro from './components/PageIntro';
 
 interface NavEntry {
   to: string;
@@ -306,6 +307,7 @@ function AppShell() {
         <main className="ml-[268px]">
           <ScrollToHash />
           <BreadcrumbStrip />
+          <PageIntro />
           <Routes>
             {/* Solvency II entry — reached from the booth hub's Solvency tile.
                 Booth hub itself is the standalone "/" route (see App below). */}

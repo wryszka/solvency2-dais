@@ -35,6 +35,36 @@ export default function BricksterInstructions() {
         </p>
       </section>
 
+      {/* What we're showing — the story */}
+      <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-3 text-sm text-gray-700 leading-relaxed">
+        <h2 className="text-sm font-bold text-gray-900">What you’re showing</h2>
+        <p>
+          The one-liner: <strong>an insurer runs its entire regulatory reporting machine — data,
+          capital models, governance and disclosure — on a single Databricks platform, with AI agents
+          working alongside the actuaries.</strong> No stitched-together stack of spreadsheets,
+          vendor engines and document tools.
+        </p>
+        <div>
+          <p className="font-semibold text-gray-900 mb-1.5">The story, in five beats:</p>
+          <ol className="space-y-1.5 list-decimal pl-5">
+            <li><strong>One source of truth.</strong> All the data — policies, claims, assets, market data — lands and is governed in the lakehouse, with quality checks and reconciliation before anything is calculated.</li>
+            <li><strong>The capital is computed live.</strong> Technical provisions and the SCR Standard Formula run as real code on that data, not a black box — you can open the modules and see the numbers move.</li>
+            <li><strong>Everything is governed and audited.</strong> Every model is versioned and validated; every expert-judgement overlay and approval is logged. The numbers are defensible to a regulator.</li>
+            <li><strong>The disclosures fall out of it.</strong> The QRTs, SFCR and RSR are generated straight from the governed data — not re-typed into Word and Excel.</li>
+            <li><strong>AI throughout.</strong> Agents draft narratives, flag data anomalies, answer questions in plain English, and a contrarian reviewer pressure-tests scenarios — always grounded in the actual figures.</li>
+          </ol>
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900 mb-1.5">What’s actually implemented:</p>
+          <ul className="space-y-1.5 list-disc pl-5">
+            <li><strong>All three Solvency II pillars</strong> — Pillar 1 (capital), Pillar 2 (governance &amp; ORSA), Pillar 3 (disclosure) — end to end.</li>
+            <li><strong>The data foundation</strong> — ingestion, data quality and reconciliation on the lakehouse.</li>
+            <li><strong>Governance spine</strong> — Unity Catalog: versioning, permissions and lineage on every table, model and function.</li>
+            <li><strong>The AI layer</strong> — a supervisor routing to specialist agents, Genie over the data, and Foundation-Model narratives.</li>
+          </ul>
+        </div>
+      </section>
+
       {/* How it behaves */}
       <section className="bg-blue-50 border border-blue-200 rounded-xl p-5 space-y-2 text-sm text-blue-950/85 leading-relaxed">
         <h2 className="text-sm font-bold text-blue-900">Good to know before you click</h2>
