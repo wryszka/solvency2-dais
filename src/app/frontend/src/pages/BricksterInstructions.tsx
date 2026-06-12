@@ -69,6 +69,8 @@ export default function BricksterInstructions() {
       <section className="bg-blue-50 border border-blue-200 rounded-xl p-5 space-y-2 text-sm text-blue-950/85 leading-relaxed">
         <h2 className="text-sm font-bold text-blue-900">Good to know before you click</h2>
         <ul className="space-y-1.5 list-disc pl-5">
+          <li><strong>Every screen has a one-line description at the top.</strong> It says what that view shows — read it, or let the visitor read it, before you dive in. You don’t need to memorise the demo.</li>
+          <li><strong>Treat the whole thing as a worked example of a business process</strong> — how insurance regulatory reporting can run on Databricks — not a finished product. That framing keeps the conversation about the platform, not the insurance detail.</li>
           <li><strong>For short demos, don’t change anything and don’t approve</strong> — just walk the current state as it is. Nothing to set up.</li>
           <li><strong>If you do change something, reset it.</strong> Use <em>Reset demo</em> in the bottom-left of the sidebar — it puts everything back (takes a few minutes).</li>
           <li><strong>AI is cached for speed.</strong> Common questions answer instantly from a pre-baked cache. You can switch to live AI any time via <em>AI mode</em> in the sidebar (bottom).</li>
@@ -95,6 +97,19 @@ export default function BricksterInstructions() {
           Most of the process genuinely runs on Databricks, but there are a few exceptions and
           deliberately “cut corners” to keep the demo fast and reliable on the booth. Happy to walk
           anyone through what’s real vs. illustrative.
+        </p>
+      </section>
+
+      {/* Deep-dive escalation */}
+      <section className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-sm text-amber-950/90 leading-relaxed">
+        <h2 className="text-sm font-bold text-amber-900">If they want to go deeper on insurance or Solvency II</h2>
+        <p className="mt-1">
+          This booth shows the <strong>platform</strong> through an insurance example — it’s not the place
+          for a deep actuarial or Solvency II discussion. If a visitor wants that level of detail,
+          <strong> take their name</strong> (and email/company if they’ll give it) and let{' '}
+          <strong>Marcela or Laurence</strong> know — they’ll follow up properly. The{' '}
+          <Link to="/register-interest" className="text-amber-800 underline hover:text-amber-900">register-interest</Link>{' '}
+          form is the easy way to capture it.
         </p>
       </section>
 
